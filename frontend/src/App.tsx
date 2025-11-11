@@ -1,36 +1,65 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Layout from "./components/Layout";
 import Editor from "./pages/Editor";
-import PrintPreview from "./pages/PrintPreview";
-import Settings from "./pages/Settings";
+import PrintPreviewDrawer from "./components/PrintPreviewDrawer";
+import SettingsModal from "./components/SettingsModal";
+import { useCSVStore } from "./stores/csvStore";
 
 /**
  * Main application component
  *
- * Manages routing between different views (Editor, Print Preview, Settings)
- * and provides the overall application layout.
+ * Manages the editor view, print preview drawer, settings modal,
+ * and global keyboard shortcuts.
  */
 function App() {
-    // Current active view
-    const [currentView, setCurrentView] = useState<"editor" | "print" | "settings">("editor");
+    const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const { saveCSV } = useCSVStore();
 
-    // Render the appropriate page based on current view
-    const renderPage = () => {
-        switch (currentView) {
-            case "editor":
-                return <Editor />;
-            case "print":
-                return <PrintPreview />;
-            case "settings":
-                return <Settings />;
-            default:
-                return <Editor />;
-        }
-    };
+    // Global keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = async (e: KeyboardEvent) => {
+            // Ctrl+S - Save file
+            if (e.ctrlKey && e.key === "s") {
+                e.preventDefault();
+                try {
+                    await saveCSV();
+                } catch (error) {
+                    console.error("Save failed:", error);
+                }
+            }
+            // Ctrl+\ - Toggle print preview drawer
+            else if (e.ctrlKey && e.key === "\\") {
+                e.preventDefault();
+                setIsPrintPreviewOpen((prev) => !prev);
+            }
+            // Ctrl+, - Open settings modal
+            else if (e.ctrlKey && e.key === ",") {
+                e.preventDefault();
+                setIsSettingsOpen(true);
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [saveCSV]);
 
     return (
-        <Layout currentView={currentView} onNavigate={setCurrentView}>
-            {renderPage()}
+        <Layout
+            isPrintPreviewOpen={isPrintPreviewOpen}
+            onTogglePrintPreview={() => setIsPrintPreviewOpen((prev) => !prev)}
+        >
+            <Editor />
+
+            <PrintPreviewDrawer
+                isOpen={isPrintPreviewOpen}
+                onClose={() => setIsPrintPreviewOpen(false)}
+            />
+
+            <SettingsModal
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+            />
         </Layout>
     );
 }

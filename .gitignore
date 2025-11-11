@@ -30,7 +30,7 @@ Thumbs.db
 .idea/
 *.sublime-workspace
 *.sublime-project
-.obsidian/
+wiki/
 *.swp
 *.swo
 *~
