@@ -18,9 +18,9 @@ interface PrintPreviewDrawerProps {
 }
 
 /**
- * PrintPreviewDrawer - Flexible drawer for print preview
+ * PrintDrawer - Flexible drawer for print preview
  */
-function PrintPreviewDrawer({ isOpen, position, onClose }: PrintPreviewDrawerProps) {
+function PrintDrawer({ isOpen, position, onClose }: PrintPreviewDrawerProps) {
     const { headers, data, fileInfo } = useCSVStore();
     const [size, setSize] = useState(position === "right" ? 384 : 320);
     const [isResizing, setIsResizing] = useState(false);
@@ -169,4 +169,4 @@ function PrintPreviewDrawer({ isOpen, position, onClose }: PrintPreviewDrawerPro
     );
 }
 
-export default PrintPreviewDrawer;
+export default PrintDrawer;

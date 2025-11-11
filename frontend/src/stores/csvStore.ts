@@ -7,7 +7,7 @@
 
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import { CSVData, CSVFileInfo } from "@types/csv";
+import { CSVData, CSVFileInfo } from "@/types/csv";
 import { parseCSV, serializeCSV, validateCSV } from "@utils/csvParser";
 
 // Snapshot of data state for undo/redo

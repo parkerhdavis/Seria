@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Layout from "./components/Layout";
 import Editor from "./pages/Editor";
-import PrintPreviewDrawer from "./components/PrintPreviewDrawer";
+import PrintDrawer from "@components/PrintDrawer";
 import SettingsModal from "./components/SettingsModal";
 import FindReplaceModal from "./components/FindReplaceModal";
 import { useCSVStore } from "./stores/csvStore";
@@ -116,13 +116,13 @@ function App() {
             >
                 <Editor />
 
-                <PrintPreviewDrawer
+                <PrintDrawer
                     isOpen={printPreviewPosition === "right"}
                     position="right"
                     onClose={() => setPrintPreviewPosition(null)}
                 />
 
-                <PrintPreviewDrawer
+                <PrintDrawer
                     isOpen={printPreviewPosition === "bottom"}
                     position="bottom"
                     onClose={() => setPrintPreviewPosition(null)}

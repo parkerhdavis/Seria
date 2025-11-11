@@ -5,7 +5,7 @@
  */
 
 import Papa from "papaparse";
-import { CSVData } from "@types/csv";
+import { CSVData } from "@/types/csv";
 
 /**
  * Parse CSV string into structured data
