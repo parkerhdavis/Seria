@@ -5,7 +5,13 @@ export default {
         "./src/**/*.{js,ts,jsx,tsx}",
     ],
     theme: {
-        extend: {},
+        extend: {
+            colors: {
+                // Custom intermediate colors for alternating rows and hover states
+                "base-150": "hsl(var(--b2) / 0.5)",
+                "base-250": "hsl(var(--b3) / 0.3)",
+            },
+        },
     },
     // eslint-disable-next-line no-undef
     plugins: [require("daisyui")],

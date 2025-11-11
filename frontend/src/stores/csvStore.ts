@@ -2,13 +2,19 @@
  * CSV Store
  *
  * Zustand store for managing CSV data state, file operations,
- * and edit history.
+ * and edit history with undo/redo support.
  */
 
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { CSVData, CSVFileInfo } from "@types/csv";
 import { parseCSV, serializeCSV, validateCSV } from "@utils/csvParser";
+
+// Snapshot of data state for undo/redo
+interface DataSnapshot {
+    data: string[][];
+    headers: string[];
+}
 
 interface CSVStore {
     // State
@@ -19,6 +25,10 @@ interface CSVStore {
     isDirty: boolean;
     isLoading: boolean;
     error: string | null;
+
+    // Undo/Redo history
+    undoStack: DataSnapshot[];
+    redoStack: DataSnapshot[];
 
     // Actions
     loadCSV: (path: string) => Promise<void>;
@@ -33,7 +43,28 @@ interface CSVStore {
     renameColumn: (index: number, newName: string) => void;
     clearData: () => void;
     setError: (error: string | null) => void;
+    undo: () => void;
+    redo: () => void;
+    canUndo: () => boolean;
+    canRedo: () => boolean;
 }
+
+// Helper function to create a snapshot of current data
+const createSnapshot = (data: string[][], headers: string[]): DataSnapshot => ({
+    data: data.map((row) => [...row]), // Deep copy rows
+    headers: [...headers], // Copy headers
+});
+
+// Helper function to push current state to undo stack before mutation
+const pushToUndoStack = (get: () => CSVStore, set: (state: Partial<CSVStore>) => void) => {
+    const { data, headers, undoStack } = get();
+    const snapshot = createSnapshot(data, headers);
+
+    // Limit undo stack size to 50 actions
+    const newUndoStack = [...undoStack, snapshot].slice(-50);
+
+    set({ undoStack: newUndoStack, redoStack: [] }); // Clear redo stack on new action
+};
 
 export const useCSVStore = create<CSVStore>((set, get) => ({
     // Initial state
@@ -44,6 +75,8 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     isDirty: false,
     isLoading: false,
     error: null,
+    undoStack: [],
+    redoStack: [],
 
     // Load CSV file from disk
     loadCSV: async (path: string) => {
@@ -172,6 +205,9 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
             return;
         }
 
+        // Push current state to undo stack
+        pushToUndoStack(get, set);
+
         const newData = data.map((r, i) =>
             i === row ? r.map((c, j) => (j === col ? value : c)) : r
         );
@@ -192,6 +228,9 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
             return;
         }
 
+        // Push current state to undo stack
+        pushToUndoStack(get, set);
+
         const newData = data.map((r, i) => (i === rowIndex ? newRow : r));
 
         set({ data: newData, isDirty: true });
@@ -200,6 +239,9 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     // Add a new row
     addRow: (atIndex?: number) => {
         const { data, headers } = get();
+
+        // Push current state to undo stack
+        pushToUndoStack(get, set);
 
         // Create empty row with correct number of columns
         const newRow = new Array(headers.length).fill("");
@@ -220,6 +262,9 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     deleteRows: (indices: number[]) => {
         const { data } = get();
 
+        // Push current state to undo stack
+        pushToUndoStack(get, set);
+
         const indexSet = new Set(indices);
         const newData = data.filter((_, i) => !indexSet.has(i));
 
@@ -229,6 +274,9 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     // Add a new column
     addColumn: (name: string, atIndex?: number) => {
         const { data, headers } = get();
+
+        // Push current state to undo stack
+        pushToUndoStack(get, set);
 
         let newHeaders: string[];
         if (atIndex === undefined || atIndex >= headers.length) {
@@ -259,6 +307,9 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
             return;
         }
 
+        // Push current state to undo stack
+        pushToUndoStack(get, set);
+
         const newHeaders = headers.filter((_, i) => i !== index);
         const newData = data.map((row) => row.filter((_, i) => i !== index));
 
@@ -272,6 +323,9 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
         if (index < 0 || index >= headers.length) {
             return;
         }
+
+        // Push current state to undo stack
+        pushToUndoStack(get, set);
 
         const newHeaders = headers.map((h, i) => (i === index ? newName : h));
 
@@ -293,5 +347,67 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     // Set error message
     setError: (error: string | null) => {
         set({ error });
+    },
+
+    // Undo last action
+    undo: () => {
+        const { undoStack, data, headers, redoStack } = get();
+
+        if (undoStack.length === 0) {
+            return;
+        }
+
+        // Get the previous state from undo stack
+        const previousState = undoStack[undoStack.length - 1];
+        const newUndoStack = undoStack.slice(0, -1);
+
+        // Push current state to redo stack
+        const currentSnapshot = createSnapshot(data, headers);
+        const newRedoStack = [...redoStack, currentSnapshot];
+
+        // Restore previous state
+        set({
+            data: previousState.data,
+            headers: previousState.headers,
+            undoStack: newUndoStack,
+            redoStack: newRedoStack,
+            isDirty: true,
+        });
+    },
+
+    // Redo last undone action
+    redo: () => {
+        const { redoStack, data, headers, undoStack } = get();
+
+        if (redoStack.length === 0) {
+            return;
+        }
+
+        // Get the next state from redo stack
+        const nextState = redoStack[redoStack.length - 1];
+        const newRedoStack = redoStack.slice(0, -1);
+
+        // Push current state to undo stack
+        const currentSnapshot = createSnapshot(data, headers);
+        const newUndoStack = [...undoStack, currentSnapshot];
+
+        // Restore next state
+        set({
+            data: nextState.data,
+            headers: nextState.headers,
+            undoStack: newUndoStack,
+            redoStack: newRedoStack,
+            isDirty: true,
+        });
+    },
+
+    // Check if undo is available
+    canUndo: () => {
+        return get().undoStack.length > 0;
+    },
+
+    // Check if redo is available
+    canRedo: () => {
+        return get().redoStack.length > 0;
     },
 }));
