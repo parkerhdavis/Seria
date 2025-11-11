@@ -32,9 +32,7 @@ const PRESET_COLORS = [
     "rgba(234, 179, 8, 0.2)", // yellow
     "rgba(34, 197, 94, 0.2)", // green
     "rgba(59, 130, 246, 0.2)", // blue
-    "rgba(168, 85, 247, 0.2)", // purple
-    "rgba(236, 72, 153, 0.2)", // pink
-    "rgba(100, 116, 139, 0.2)", // gray
+    "rgba(168, 85, 247, 0.2)", // violet
 ];
 
 /**
@@ -93,8 +91,8 @@ function FilterComparison({
                             onClick={() => setShowColorPicker(false)}
                         />
                         {/* Color picker popup */}
-                        <div className="absolute top-full mt-1 right-0 bg-base-200 border border-base-300 rounded-lg p-3 shadow-xl z-20">
-                            <div className="grid grid-cols-4 gap-2">
+                        <div className="absolute top-full mt-1 right-0 bg-base-200 border border-base-300 rounded-lg p-3 shadow-xl z-20 min-w-max">
+                            <div className="grid grid-cols-3 gap-2">
                                 {PRESET_COLORS.map((presetColor) => (
                                     <button
                                         key={presetColor}

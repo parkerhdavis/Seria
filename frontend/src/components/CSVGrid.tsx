@@ -233,7 +233,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     }
 
     return (
-        <div className="csv-grid-container overflow-auto w-full h-full">
+        <div className="csv-grid-container overflow-auto w-full h-full pr-32 pb-32">
             <table className="table table-pin-rows table-pin-cols" style={{ tableLayout: "fixed", width: `${table.getTotalSize() + 64}px` }}>
                 <thead>
                     {table.getHeaderGroups().map((headerGroup) => (

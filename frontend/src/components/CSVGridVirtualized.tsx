@@ -95,7 +95,7 @@ function CSVGridVirtualized({ onCellEdit }: CSVGridVirtualizedProps) {
     const totalSize = rowVirtualizer.getTotalSize();
 
     return (
-        <div ref={parentRef} className="csv-grid-virtualized overflow-auto w-full h-full">
+        <div ref={parentRef} className="csv-grid-virtualized overflow-auto w-full h-full pr-32 pb-32">
             {/* Header (sticky) */}
             <div className="sticky top-0 z-10 bg-base-300 border-b-2 border-base-300">
                 <div className="flex">

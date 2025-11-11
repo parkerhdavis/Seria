@@ -2,7 +2,6 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCSVStore } from "@stores/csvStore";
 import { useFileTreeStore } from "@stores/fileTreeStore";
 import { useSettingsStore } from "@stores/settingsStore";
-import { getCSVStats } from "@utils/csvParser";
 import RowColoringDropdown from "./RowColoringDropdown";
 
 interface HeaderProps {
@@ -32,9 +31,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
 
     // Check if we have data loaded
     const hasData = headers.length > 0;
-
-    // Get CSV statistics
-    const stats = hasData ? getCSVStats({ headers, data }) : null;
 
     // Open file dialog and load selected CSV
     const handleOpen = async () => {
@@ -110,6 +106,47 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                     </button>
                 )}
 
+                {/* File info section */}
+                <div className="flex items-center gap-2">
+                    {/* File name */}
+                    <h2 className="text-lg font-semibold">
+                        {fileInfo?.name || "No file open"}
+                    </h2>
+                    {/* Saved/Unsaved status badge */}
+                    {fileInfo && (
+                        isDirty ? (
+                            <span className="badge badge-warning badge-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                Unsaved
+                            </span>
+                        ) : (
+                            <span className="badge badge-success badge-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Saved
+                            </span>
+                        )
+                    )}
+                    {/* Outside Tree badge */}
+                    {isOutsideTree && (
+                        <span className="badge badge-info badge-sm" title="File is outside the current directory tree">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Outside Tree
+                        </span>
+                    )}
+                    {isLoading && (
+                        <span className="loading loading-spinner loading-sm"></span>
+                    )}
+                </div>
+
+                {/* Divider */}
+                <div className="divider divider-horizontal mx-0"></div>
+
                 {/* File operations - Open and Save */}
                 <button
                     className="btn btn-sm btn-ghost"
@@ -119,7 +156,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                     </svg>
-                    Open File
+                    Open
                 </button>
 
                 <button
@@ -131,7 +168,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                     </svg>
-                    Save File
+                    Save
                 </button>
 
                 <div className="dropdown dropdown-end">
@@ -232,37 +269,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
 
                 {/* Spacer */}
                 <div className="flex-1"></div>
-
-                {/* File info section */}
-                <div className="flex items-center gap-2">
-                    {/* File name */}
-                    <h2 className="text-lg font-semibold">
-                        {fileInfo?.name || "No file open"}
-                    </h2>
-                    {isDirty && (
-                        <span className="badge badge-warning badge-sm">Unsaved</span>
-                    )}
-                    {isOutsideTree && (
-                        <span className="badge badge-info badge-sm" title="File is outside the current directory tree">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Outside Tree
-                        </span>
-                    )}
-                    {isLoading && (
-                        <span className="loading loading-spinner loading-sm"></span>
-                    )}
-
-                    {/* Row x Column count */}
-                    {stats && (
-                        <div className="flex items-center gap-1 text-sm text-base-content/60 font-mono">
-                            <span>{stats.rowCount}</span>
-                            <span>×</span>
-                            <span>{stats.columnCount}</span>
-                        </div>
-                    )}
-                </div>
 
                 {/* Print preview toggle */}
                 <button
