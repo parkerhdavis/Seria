@@ -76,7 +76,8 @@ function PrintPreviewDrawer({ isOpen, position, onClose }: PrintPreviewDrawerPro
             {/* Resize handle */}
             <div
                 className={resizeHandleClasses}
-                onMouseDown={() => {
+                onMouseDown={(e) => {
+                    e.preventDefault();
                     startDrag(`drawer-resize-${position}`);
                     setIsResizing(true);
                 }}

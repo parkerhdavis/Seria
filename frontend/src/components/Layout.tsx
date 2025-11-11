@@ -60,7 +60,8 @@ function Layout({ children, printPreviewPosition, isSidebarOpen, onTogglePrintPr
                     {/* Resize handle */}
                     <div
                         className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-primary/50 z-10 select-none"
-                        onMouseDown={() => {
+                        onMouseDown={(e) => {
+                            e.preventDefault();
                             startDrag("sidebar-resize");
                             setIsResizing(true);
                         }}
@@ -96,7 +97,7 @@ function Layout({ children, printPreviewPosition, isSidebarOpen, onTogglePrintPr
             )}
 
             {/* Main content area */}
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col min-w-0">
                 {/* Header */}
                 <Header
                     onTogglePrintPreview={() => onTogglePrintPreview("right")}
@@ -105,7 +106,7 @@ function Layout({ children, printPreviewPosition, isSidebarOpen, onTogglePrintPr
                 />
 
                 {/* Page content */}
-                <main className="flex-1 overflow-auto bg-base-100">
+                <main className="flex-1 overflow-auto bg-base-100 min-w-0">
                     {children}
                 </main>
             </div>

@@ -143,17 +143,15 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         getSortedRowModel: getSortedRowModel(),
     });
 
-    // Track column resize state
+    // Track when column resize ends
     useEffect(() => {
         const isResizing = table.getState().columnSizingInfo.isResizingColumn;
 
-        if (isResizing) {
-            startDrag("column-resize");
-        } else if (isDragging) {
-            // Only end drag if we were dragging columns
+        // End drag when resize finishes
+        if (!isResizing && isDragging) {
             endDrag();
         }
-    }, [table.getState().columnSizingInfo.isResizingColumn]);
+    }, [table.getState().columnSizingInfo.isResizingColumn, isDragging, endDrag]);
 
     // Start editing a cell
     const handleStartEdit = (row: number, col: number, value: string) => {
@@ -294,11 +292,15 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                         {/* Resize handle */}
                                         <div
                                             onMouseDown={(e) => {
+                                                e.preventDefault();
                                                 e.stopPropagation();
+                                                startDrag("column-resize");
                                                 header.getResizeHandler()(e);
                                             }}
                                             onTouchStart={(e) => {
+                                                e.preventDefault();
                                                 e.stopPropagation();
+                                                startDrag("column-resize");
                                                 header.getResizeHandler()(e);
                                             }}
                                             className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-primary ${
@@ -320,11 +322,11 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                         if (rowColoringMode === "by-field" && rowMatchesFilter(row.original)) {
                             rowStyle.backgroundColor = rowColorFilter?.color;
                         } else if (rowColoringMode === "alternating" && idx % 2 === 1) {
-                            rowBgClass = "bg-base-150";
+                            rowBgClass = "bg-base-200/50";
                         }
 
                         return (
-                            <tr key={row.id} className={`hover:bg-base-250 ${rowBgClass}`} style={rowStyle}>
+                            <tr key={row.id} className={`hover:bg-base-200/70 ${rowBgClass}`} style={rowStyle}>
                                 {/* Row number */}
                                 <td className={`bg-base-200 text-center font-mono text-sm border-r-2 ${showColumnSeparators ? "border-base-300" : "border-transparent"}`}>
                                     {row.index + 1}

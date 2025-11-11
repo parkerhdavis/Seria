@@ -19,7 +19,7 @@ function Editor() {
     const hasData = headers.length > 0;
 
     return (
-        <div className="h-full flex flex-col">
+        <div className="h-full flex flex-col min-w-0">
             {/* Error display */}
             {error && (
                 <div className="alert alert-error m-4">
@@ -41,7 +41,7 @@ function Editor() {
             )}
 
             {/* Grid or empty state */}
-            <div className="flex-1 overflow-hidden bg-base-100">
+            <div className="flex-1 overflow-hidden bg-base-100 min-w-0">
                 {hasData ? (
                     data.length >= VIRTUALIZATION_THRESHOLD ? (
                         <CSVGridVirtualized />

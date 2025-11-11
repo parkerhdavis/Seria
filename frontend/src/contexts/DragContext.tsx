@@ -21,19 +21,29 @@ export function DragProvider({ children }: { children: ReactNode }) {
     const [dragType, setDragType] = useState<string | null>(null);
 
     const startDrag = useCallback((type: string) => {
+        // Apply CSS immediately (synchronously)
+        document.body.style.userSelect = "none";
+        document.body.style.webkitUserSelect = "none";
+        document.body.style.mozUserSelect = "none";
+        document.body.style.msUserSelect = "none";
+        document.body.style.cursor = type === "column-resize" ? "col-resize" : "ew-resize";
+
+        // Update state
         setIsDragging(true);
         setDragType(type);
-        // Disable text selection globally during drag
-        document.body.style.userSelect = "none";
-        document.body.style.cursor = type === "column-resize" ? "col-resize" : "ew-resize";
     }, []);
 
     const endDrag = useCallback(() => {
-        setIsDragging(false);
-        setDragType(null);
         // Re-enable text selection
         document.body.style.userSelect = "";
+        document.body.style.webkitUserSelect = "";
+        document.body.style.mozUserSelect = "";
+        document.body.style.msUserSelect = "";
         document.body.style.cursor = "";
+
+        // Update state
+        setIsDragging(false);
+        setDragType(null);
     }, []);
 
     return (
