@@ -1,0 +1,228 @@
+# DaisyUI Guidelines for LLM Agents
+
+This file provides guidance for AI agents (like Claude) when working with DaisyUI components in the Juniper project.
+
+## DaisyUI Philosophy
+
+DaisyUI is a component library built on top of TailwindCSS. It provides semantic, themeable components using utility classes.
+
+**Key Principles:**
+1. Use semantic component classes instead of raw Tailwind utilities where possible
+2. Leverage theme colors for consistency across light/dark modes
+3. Never hard-code color values - always use theme tokens
+4. Components are customizable via utility classes and theme variables
+
+## Component Classes to Use
+
+### Buttons
+- `btn` - Base button class
+- `btn-primary`, `btn-secondary`, `btn-accent` - Themed buttons
+- `btn-outline` - Outline style
+- `btn-ghost` - Minimal style
+- `btn-sm`, `btn-md`, `btn-lg` - Sizes
+- `btn-wide`, `btn-block` - Width variants
+
+### Cards
+- `card` - Base card container
+- `card-body` - Card content area
+- `card-title` - Card title
+- `card-actions` - Action buttons area
+- `card-compact`, `card-normal` - Sizes
+
+### Forms
+- `input` - Text input
+- `input-bordered` - With border
+- `input-primary`, `input-secondary`, etc. - Themed inputs
+- `select`, `select-bordered` - Dropdowns
+- `textarea`, `textarea-bordered` - Multi-line input
+- `checkbox`, `radio`, `toggle` - Form controls
+- `form-control` - Form field wrapper
+- `label` - Form labels
+
+### Navigation
+- `navbar` - Navigation bar
+- `menu` - Sidebar menu
+- `breadcrumbs` - Breadcrumb navigation
+- `tabs`, `tab`, `tab-active` - Tab navigation
+- `drawer`, `drawer-toggle`, `drawer-content` - Drawer/sidebar
+
+### Layout
+- `stack` - Stacked elements
+- `divider` - Horizontal divider
+- `artboard` - Centered content area
+- `join` - Join elements (e.g., button groups)
+
+### Feedback
+- `alert` - Alert boxes
+- `alert-info`, `alert-success`, `alert-warning`, `alert-error` - Alert types
+- `badge` - Small label/tag
+- `progress` - Progress bar
+- `loading` - Loading spinner
+- `toast` - Notification toasts
+
+### Data Display
+- `table` - Table container
+- `table-zebra` - Zebra striping
+- `table-compact`, `table-normal` - Sizes
+- `stat` - Statistic display
+- `stats` - Stats container
+
+### Modals & Overlays
+- `modal`, `modal-open` - Modal dialog
+- `modal-box` - Modal content
+- `modal-action` - Modal actions area
+- `dropdown` - Dropdown menu
+- `tooltip` - Tooltip
+
+## Theme Colors
+
+Use these semantic color utilities instead of raw Tailwind colors:
+
+### Background
+- `bg-base-100` - Main background (lightest)
+- `bg-base-200` - Secondary background
+- `bg-base-300` - Tertiary background (darkest)
+
+### Text
+- `text-base-content` - Primary text color
+- `text-primary`, `text-secondary`, `text-accent` - Themed text
+- `text-info`, `text-success`, `text-warning`, `text-error` - Feedback text
+
+### Borders
+- `border-base-300` - Standard border color
+- `border-primary`, `border-secondary`, etc. - Themed borders
+
+## Common Patterns
+
+### Button Group
+```tsx
+<div className="join">
+    <button className="btn join-item">Button 1</button>
+    <button className="btn join-item">Button 2</button>
+    <button className="btn join-item">Button 3</button>
+</div>
+```
+
+### Form Field
+```tsx
+<div className="form-control w-full max-w-xs">
+    <label className="label">
+        <span className="label-text">Field Label</span>
+    </label>
+    <input type="text" className="input input-bordered w-full" />
+</div>
+```
+
+### Card with Actions
+```tsx
+<div className="card bg-base-100 shadow-xl">
+    <div className="card-body">
+        <h2 className="card-title">Card Title</h2>
+        <p>Card content goes here</p>
+        <div className="card-actions justify-end">
+            <button className="btn btn-primary">Action</button>
+        </div>
+    </div>
+</div>
+```
+
+### Alert
+```tsx
+<div className="alert alert-info">
+    <svg>...</svg>
+    <span>Info message here</span>
+</div>
+```
+
+### Modal
+```tsx
+<dialog className="modal modal-open">
+    <div className="modal-box">
+        <h3 className="font-bold text-lg">Modal Title</h3>
+        <p className="py-4">Modal content</p>
+        <div className="modal-action">
+            <button className="btn">Close</button>
+        </div>
+    </div>
+</dialog>
+```
+
+### Table
+```tsx
+<table className="table table-zebra">
+    <thead>
+        <tr>
+            <th>Column 1</th>
+            <th>Column 2</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Data 1</td>
+            <td>Data 2</td>
+        </tr>
+    </tbody>
+</table>
+```
+
+## Theme Configuration
+
+Themes are configured in `tailwind.config.js`:
+
+```javascript
+module.exports = {
+    plugins: [require("daisyui")],
+    daisyui: {
+        themes: ["light", "dark"], // or specific theme names
+    },
+}
+```
+
+## DO NOT Do These
+
+❌ **Don't hard-code colors:**
+```tsx
+// Bad
+<div className="bg-blue-500 text-white">
+
+// Good
+<div className="bg-primary text-primary-content">
+```
+
+❌ **Don't mix raw Tailwind when DaisyUI component exists:**
+```tsx
+// Bad
+<button className="px-4 py-2 rounded bg-blue-500 hover:bg-blue-600">
+
+// Good
+<button className="btn btn-primary">
+```
+
+❌ **Don't skip semantic color utilities:**
+```tsx
+// Bad
+<div className="bg-gray-100 text-gray-800">
+
+// Good
+<div className="bg-base-200 text-base-content">
+```
+
+## Customization
+
+You can still use Tailwind utilities to customize DaisyUI components:
+
+```tsx
+<button className="btn btn-primary rounded-full shadow-lg">
+    Custom Styled Button
+</button>
+```
+
+## Resources
+
+- [DaisyUI Components](https://daisyui.com/components/)
+- [DaisyUI Themes](https://daisyui.com/docs/themes/)
+- [Tailwind CSS Docs](https://tailwindcss.com/docs)
+
+---
+
+**Remember:** Always prefer DaisyUI semantic classes for consistency and theme support!

@@ -1,0 +1,201 @@
+QuestID,Character,Line,Emotion,Condition,NextLine
+Q001_Intro,Hero,"Welcome to our village, traveler.",neutral,always,L2
+Q001_Intro,Mentor,I need your help with something important.,happy,completed_Q001,L3
+Q001_Intro,Villain,The situation is dire. We're running out of time.,sad,completed_Q001,L4
+Q001_Intro,Sidekick,Have you found what I asked for?,angry,completed_Q001,L5
+Q001_Intro,Shopkeeper,Excellent work! Here's your reward.,surprised,completed_Q001,L6
+Q001_Intro,Guard,I'm afraid I have bad news.,concerned,completed_Q001,L7
+Q001_Intro,Princess,This reminds me of an old legend...,excited,completed_Q001,L8
+Q001_Intro,Wizard,Be careful out there. Danger lurks everywhere.,thoughtful,completed_Q001,L9
+Q001_Intro,Hero,What brings you to these parts?,neutral,completed_Q001,L10
+Q001_Intro,Mentor,I've been expecting you.,happy,completed_Q001,L11
+Q001_Intro,Villain,The prophecy spoke of your arrival.,sad,completed_Q001,L12
+Q001_Intro,Sidekick,"Together, we can overcome any obstacle.",angry,completed_Q001,L13
+Q001_Intro,Shopkeeper,I don't trust you yet. Prove yourself.,surprised,completed_Q001,L14
+Q001_Intro,Guard,My gratitude knows no bounds.,concerned,completed_Q001,L15
+Q001_Intro,Princess,This isn't over. Not by a long shot.,excited,completed_Q001,L16
+Q001_Intro,Wizard,I have a feeling we'll meet again.,thoughtful,completed_Q001,L17
+Q001_Intro,Hero,The ancient texts mention a hero like you.,neutral,completed_Q001,L18
+Q001_Intro,Mentor,Time is of the essence!,happy,completed_Q001,L19
+Q001_Intro,Villain,I've heard tales of your exploits.,sad,completed_Q001,L20
+Q001_Intro,Sidekick,Perhaps we can help each other.,angry,completed_Q001,L21
+Q001_Intro,Shopkeeper,"Welcome to our village, traveler.",surprised,completed_Q001,L22
+Q001_Intro,Guard,I need your help with something important.,concerned,completed_Q001,L23
+Q001_Intro,Princess,The situation is dire. We're running out of time.,excited,completed_Q001,L24
+Q001_Intro,Wizard,Have you found what I asked for?,thoughtful,completed_Q001,L25
+Q001_Intro,Hero,Excellent work! Here's your reward.,neutral,completed_Q001,L26
+Q001_Intro,Mentor,I'm afraid I have bad news.,happy,completed_Q001,L27
+Q001_Intro,Villain,This reminds me of an old legend...,sad,completed_Q001,L28
+Q001_Intro,Sidekick,Be careful out there. Danger lurks everywhere.,angry,completed_Q001,L29
+Q001_Intro,Shopkeeper,What brings you to these parts?,surprised,completed_Q001,L30
+Q001_Intro,Guard,I've been expecting you.,concerned,completed_Q001,L31
+Q001_Intro,Princess,The prophecy spoke of your arrival.,excited,completed_Q001,L32
+Q001_Intro,Wizard,"Together, we can overcome any obstacle.",thoughtful,completed_Q001,L33
+Q001_Intro,Hero,I don't trust you yet. Prove yourself.,neutral,completed_Q001,L34
+Q001_Intro,Mentor,My gratitude knows no bounds.,happy,completed_Q001,L35
+Q001_Intro,Villain,This isn't over. Not by a long shot.,sad,completed_Q001,L36
+Q001_Intro,Sidekick,I have a feeling we'll meet again.,angry,completed_Q001,L37
+Q001_Intro,Shopkeeper,The ancient texts mention a hero like you.,surprised,completed_Q001,L38
+Q001_Intro,Guard,Time is of the essence!,concerned,completed_Q001,L39
+Q001_Intro,Princess,I've heard tales of your exploits.,excited,completed_Q001,L40
+Q001_Intro,Wizard,Perhaps we can help each other.,thoughtful,completed_Q001,end
+Q002_Fetch,Hero,"Welcome to our village, traveler.",neutral,always,L42
+Q002_Fetch,Mentor,I need your help with something important.,happy,completed_Q002,L43
+Q002_Fetch,Villain,The situation is dire. We're running out of time.,sad,completed_Q002,L44
+Q002_Fetch,Sidekick,Have you found what I asked for?,angry,completed_Q002,L45
+Q002_Fetch,Shopkeeper,Excellent work! Here's your reward.,surprised,completed_Q002,L46
+Q002_Fetch,Guard,I'm afraid I have bad news.,concerned,completed_Q002,L47
+Q002_Fetch,Princess,This reminds me of an old legend...,excited,completed_Q002,L48
+Q002_Fetch,Wizard,Be careful out there. Danger lurks everywhere.,thoughtful,completed_Q002,L49
+Q002_Fetch,Hero,What brings you to these parts?,neutral,completed_Q002,L50
+Q002_Fetch,Mentor,I've been expecting you.,happy,completed_Q002,L51
+Q002_Fetch,Villain,The prophecy spoke of your arrival.,sad,completed_Q002,L52
+Q002_Fetch,Sidekick,"Together, we can overcome any obstacle.",angry,completed_Q002,L53
+Q002_Fetch,Shopkeeper,I don't trust you yet. Prove yourself.,surprised,completed_Q002,L54
+Q002_Fetch,Guard,My gratitude knows no bounds.,concerned,completed_Q002,L55
+Q002_Fetch,Princess,This isn't over. Not by a long shot.,excited,completed_Q002,L56
+Q002_Fetch,Wizard,I have a feeling we'll meet again.,thoughtful,completed_Q002,L57
+Q002_Fetch,Hero,The ancient texts mention a hero like you.,neutral,completed_Q002,L58
+Q002_Fetch,Mentor,Time is of the essence!,happy,completed_Q002,L59
+Q002_Fetch,Villain,I've heard tales of your exploits.,sad,completed_Q002,L60
+Q002_Fetch,Sidekick,Perhaps we can help each other.,angry,completed_Q002,L61
+Q002_Fetch,Shopkeeper,"Welcome to our village, traveler.",surprised,completed_Q002,L62
+Q002_Fetch,Guard,I need your help with something important.,concerned,completed_Q002,L63
+Q002_Fetch,Princess,The situation is dire. We're running out of time.,excited,completed_Q002,L64
+Q002_Fetch,Wizard,Have you found what I asked for?,thoughtful,completed_Q002,L65
+Q002_Fetch,Hero,Excellent work! Here's your reward.,neutral,completed_Q002,L66
+Q002_Fetch,Mentor,I'm afraid I have bad news.,happy,completed_Q002,L67
+Q002_Fetch,Villain,This reminds me of an old legend...,sad,completed_Q002,L68
+Q002_Fetch,Sidekick,Be careful out there. Danger lurks everywhere.,angry,completed_Q002,L69
+Q002_Fetch,Shopkeeper,What brings you to these parts?,surprised,completed_Q002,L70
+Q002_Fetch,Guard,I've been expecting you.,concerned,completed_Q002,L71
+Q002_Fetch,Princess,The prophecy spoke of your arrival.,excited,completed_Q002,L72
+Q002_Fetch,Wizard,"Together, we can overcome any obstacle.",thoughtful,completed_Q002,L73
+Q002_Fetch,Hero,I don't trust you yet. Prove yourself.,neutral,completed_Q002,L74
+Q002_Fetch,Mentor,My gratitude knows no bounds.,happy,completed_Q002,L75
+Q002_Fetch,Villain,This isn't over. Not by a long shot.,sad,completed_Q002,L76
+Q002_Fetch,Sidekick,I have a feeling we'll meet again.,angry,completed_Q002,L77
+Q002_Fetch,Shopkeeper,The ancient texts mention a hero like you.,surprised,completed_Q002,L78
+Q002_Fetch,Guard,Time is of the essence!,concerned,completed_Q002,L79
+Q002_Fetch,Princess,I've heard tales of your exploits.,excited,completed_Q002,L80
+Q002_Fetch,Wizard,Perhaps we can help each other.,thoughtful,completed_Q002,end
+Q003_Combat,Hero,"Welcome to our village, traveler.",neutral,always,L82
+Q003_Combat,Mentor,I need your help with something important.,happy,completed_Q003,L83
+Q003_Combat,Villain,The situation is dire. We're running out of time.,sad,completed_Q003,L84
+Q003_Combat,Sidekick,Have you found what I asked for?,angry,completed_Q003,L85
+Q003_Combat,Shopkeeper,Excellent work! Here's your reward.,surprised,completed_Q003,L86
+Q003_Combat,Guard,I'm afraid I have bad news.,concerned,completed_Q003,L87
+Q003_Combat,Princess,This reminds me of an old legend...,excited,completed_Q003,L88
+Q003_Combat,Wizard,Be careful out there. Danger lurks everywhere.,thoughtful,completed_Q003,L89
+Q003_Combat,Hero,What brings you to these parts?,neutral,completed_Q003,L90
+Q003_Combat,Mentor,I've been expecting you.,happy,completed_Q003,L91
+Q003_Combat,Villain,The prophecy spoke of your arrival.,sad,completed_Q003,L92
+Q003_Combat,Sidekick,"Together, we can overcome any obstacle.",angry,completed_Q003,L93
+Q003_Combat,Shopkeeper,I don't trust you yet. Prove yourself.,surprised,completed_Q003,L94
+Q003_Combat,Guard,My gratitude knows no bounds.,concerned,completed_Q003,L95
+Q003_Combat,Princess,This isn't over. Not by a long shot.,excited,completed_Q003,L96
+Q003_Combat,Wizard,I have a feeling we'll meet again.,thoughtful,completed_Q003,L97
+Q003_Combat,Hero,The ancient texts mention a hero like you.,neutral,completed_Q003,L98
+Q003_Combat,Mentor,Time is of the essence!,happy,completed_Q003,L99
+Q003_Combat,Villain,I've heard tales of your exploits.,sad,completed_Q003,L100
+Q003_Combat,Sidekick,Perhaps we can help each other.,angry,completed_Q003,L101
+Q003_Combat,Shopkeeper,"Welcome to our village, traveler.",surprised,completed_Q003,L102
+Q003_Combat,Guard,I need your help with something important.,concerned,completed_Q003,L103
+Q003_Combat,Princess,The situation is dire. We're running out of time.,excited,completed_Q003,L104
+Q003_Combat,Wizard,Have you found what I asked for?,thoughtful,completed_Q003,L105
+Q003_Combat,Hero,Excellent work! Here's your reward.,neutral,completed_Q003,L106
+Q003_Combat,Mentor,I'm afraid I have bad news.,happy,completed_Q003,L107
+Q003_Combat,Villain,This reminds me of an old legend...,sad,completed_Q003,L108
+Q003_Combat,Sidekick,Be careful out there. Danger lurks everywhere.,angry,completed_Q003,L109
+Q003_Combat,Shopkeeper,What brings you to these parts?,surprised,completed_Q003,L110
+Q003_Combat,Guard,I've been expecting you.,concerned,completed_Q003,L111
+Q003_Combat,Princess,The prophecy spoke of your arrival.,excited,completed_Q003,L112
+Q003_Combat,Wizard,"Together, we can overcome any obstacle.",thoughtful,completed_Q003,L113
+Q003_Combat,Hero,I don't trust you yet. Prove yourself.,neutral,completed_Q003,L114
+Q003_Combat,Mentor,My gratitude knows no bounds.,happy,completed_Q003,L115
+Q003_Combat,Villain,This isn't over. Not by a long shot.,sad,completed_Q003,L116
+Q003_Combat,Sidekick,I have a feeling we'll meet again.,angry,completed_Q003,L117
+Q003_Combat,Shopkeeper,The ancient texts mention a hero like you.,surprised,completed_Q003,L118
+Q003_Combat,Guard,Time is of the essence!,concerned,completed_Q003,L119
+Q003_Combat,Princess,I've heard tales of your exploits.,excited,completed_Q003,L120
+Q003_Combat,Wizard,Perhaps we can help each other.,thoughtful,completed_Q003,end
+Q004_Mystery,Hero,"Welcome to our village, traveler.",neutral,always,L122
+Q004_Mystery,Mentor,I need your help with something important.,happy,completed_Q004,L123
+Q004_Mystery,Villain,The situation is dire. We're running out of time.,sad,completed_Q004,L124
+Q004_Mystery,Sidekick,Have you found what I asked for?,angry,completed_Q004,L125
+Q004_Mystery,Shopkeeper,Excellent work! Here's your reward.,surprised,completed_Q004,L126
+Q004_Mystery,Guard,I'm afraid I have bad news.,concerned,completed_Q004,L127
+Q004_Mystery,Princess,This reminds me of an old legend...,excited,completed_Q004,L128
+Q004_Mystery,Wizard,Be careful out there. Danger lurks everywhere.,thoughtful,completed_Q004,L129
+Q004_Mystery,Hero,What brings you to these parts?,neutral,completed_Q004,L130
+Q004_Mystery,Mentor,I've been expecting you.,happy,completed_Q004,L131
+Q004_Mystery,Villain,The prophecy spoke of your arrival.,sad,completed_Q004,L132
+Q004_Mystery,Sidekick,"Together, we can overcome any obstacle.",angry,completed_Q004,L133
+Q004_Mystery,Shopkeeper,I don't trust you yet. Prove yourself.,surprised,completed_Q004,L134
+Q004_Mystery,Guard,My gratitude knows no bounds.,concerned,completed_Q004,L135
+Q004_Mystery,Princess,This isn't over. Not by a long shot.,excited,completed_Q004,L136
+Q004_Mystery,Wizard,I have a feeling we'll meet again.,thoughtful,completed_Q004,L137
+Q004_Mystery,Hero,The ancient texts mention a hero like you.,neutral,completed_Q004,L138
+Q004_Mystery,Mentor,Time is of the essence!,happy,completed_Q004,L139
+Q004_Mystery,Villain,I've heard tales of your exploits.,sad,completed_Q004,L140
+Q004_Mystery,Sidekick,Perhaps we can help each other.,angry,completed_Q004,L141
+Q004_Mystery,Shopkeeper,"Welcome to our village, traveler.",surprised,completed_Q004,L142
+Q004_Mystery,Guard,I need your help with something important.,concerned,completed_Q004,L143
+Q004_Mystery,Princess,The situation is dire. We're running out of time.,excited,completed_Q004,L144
+Q004_Mystery,Wizard,Have you found what I asked for?,thoughtful,completed_Q004,L145
+Q004_Mystery,Hero,Excellent work! Here's your reward.,neutral,completed_Q004,L146
+Q004_Mystery,Mentor,I'm afraid I have bad news.,happy,completed_Q004,L147
+Q004_Mystery,Villain,This reminds me of an old legend...,sad,completed_Q004,L148
+Q004_Mystery,Sidekick,Be careful out there. Danger lurks everywhere.,angry,completed_Q004,L149
+Q004_Mystery,Shopkeeper,What brings you to these parts?,surprised,completed_Q004,L150
+Q004_Mystery,Guard,I've been expecting you.,concerned,completed_Q004,L151
+Q004_Mystery,Princess,The prophecy spoke of your arrival.,excited,completed_Q004,L152
+Q004_Mystery,Wizard,"Together, we can overcome any obstacle.",thoughtful,completed_Q004,L153
+Q004_Mystery,Hero,I don't trust you yet. Prove yourself.,neutral,completed_Q004,L154
+Q004_Mystery,Mentor,My gratitude knows no bounds.,happy,completed_Q004,L155
+Q004_Mystery,Villain,This isn't over. Not by a long shot.,sad,completed_Q004,L156
+Q004_Mystery,Sidekick,I have a feeling we'll meet again.,angry,completed_Q004,L157
+Q004_Mystery,Shopkeeper,The ancient texts mention a hero like you.,surprised,completed_Q004,L158
+Q004_Mystery,Guard,Time is of the essence!,concerned,completed_Q004,L159
+Q004_Mystery,Princess,I've heard tales of your exploits.,excited,completed_Q004,L160
+Q004_Mystery,Wizard,Perhaps we can help each other.,thoughtful,completed_Q004,end
+Q005_Romance,Hero,"Welcome to our village, traveler.",neutral,always,L162
+Q005_Romance,Mentor,I need your help with something important.,happy,completed_Q005,L163
+Q005_Romance,Villain,The situation is dire. We're running out of time.,sad,completed_Q005,L164
+Q005_Romance,Sidekick,Have you found what I asked for?,angry,completed_Q005,L165
+Q005_Romance,Shopkeeper,Excellent work! Here's your reward.,surprised,completed_Q005,L166
+Q005_Romance,Guard,I'm afraid I have bad news.,concerned,completed_Q005,L167
+Q005_Romance,Princess,This reminds me of an old legend...,excited,completed_Q005,L168
+Q005_Romance,Wizard,Be careful out there. Danger lurks everywhere.,thoughtful,completed_Q005,L169
+Q005_Romance,Hero,What brings you to these parts?,neutral,completed_Q005,L170
+Q005_Romance,Mentor,I've been expecting you.,happy,completed_Q005,L171
+Q005_Romance,Villain,The prophecy spoke of your arrival.,sad,completed_Q005,L172
+Q005_Romance,Sidekick,"Together, we can overcome any obstacle.",angry,completed_Q005,L173
+Q005_Romance,Shopkeeper,I don't trust you yet. Prove yourself.,surprised,completed_Q005,L174
+Q005_Romance,Guard,My gratitude knows no bounds.,concerned,completed_Q005,L175
+Q005_Romance,Princess,This isn't over. Not by a long shot.,excited,completed_Q005,L176
+Q005_Romance,Wizard,I have a feeling we'll meet again.,thoughtful,completed_Q005,L177
+Q005_Romance,Hero,The ancient texts mention a hero like you.,neutral,completed_Q005,L178
+Q005_Romance,Mentor,Time is of the essence!,happy,completed_Q005,L179
+Q005_Romance,Villain,I've heard tales of your exploits.,sad,completed_Q005,L180
+Q005_Romance,Sidekick,Perhaps we can help each other.,angry,completed_Q005,L181
+Q005_Romance,Shopkeeper,"Welcome to our village, traveler.",surprised,completed_Q005,L182
+Q005_Romance,Guard,I need your help with something important.,concerned,completed_Q005,L183
+Q005_Romance,Princess,The situation is dire. We're running out of time.,excited,completed_Q005,L184
+Q005_Romance,Wizard,Have you found what I asked for?,thoughtful,completed_Q005,L185
+Q005_Romance,Hero,Excellent work! Here's your reward.,neutral,completed_Q005,L186
+Q005_Romance,Mentor,I'm afraid I have bad news.,happy,completed_Q005,L187
+Q005_Romance,Villain,This reminds me of an old legend...,sad,completed_Q005,L188
+Q005_Romance,Sidekick,Be careful out there. Danger lurks everywhere.,angry,completed_Q005,L189
+Q005_Romance,Shopkeeper,What brings you to these parts?,surprised,completed_Q005,L190
+Q005_Romance,Guard,I've been expecting you.,concerned,completed_Q005,L191
+Q005_Romance,Princess,The prophecy spoke of your arrival.,excited,completed_Q005,L192
+Q005_Romance,Wizard,"Together, we can overcome any obstacle.",thoughtful,completed_Q005,L193
+Q005_Romance,Hero,I don't trust you yet. Prove yourself.,neutral,completed_Q005,L194
+Q005_Romance,Mentor,My gratitude knows no bounds.,happy,completed_Q005,L195
+Q005_Romance,Villain,This isn't over. Not by a long shot.,sad,completed_Q005,L196
+Q005_Romance,Sidekick,I have a feeling we'll meet again.,angry,completed_Q005,L197
+Q005_Romance,Shopkeeper,The ancient texts mention a hero like you.,surprised,completed_Q005,L198
+Q005_Romance,Guard,Time is of the essence!,concerned,completed_Q005,L199
+Q005_Romance,Princess,I've heard tales of your exploits.,excited,completed_Q005,L200
+Q005_Romance,Wizard,Perhaps we can help each other.,thoughtful,completed_Q005,end
