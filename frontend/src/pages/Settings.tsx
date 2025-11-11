@@ -4,6 +4,9 @@
  * User preferences and application settings. Includes theme selection,
  * default Print template, recent files, and other configuration options.
  */
+
+import RecipeSettings from "@/components/RecipeSettings";
+
 function Settings() {
     return (
         <div className="h-full overflow-auto p-6">
@@ -68,6 +71,9 @@ function Settings() {
                         </div>
                     </div>
                 </div>
+
+                {/* Print Recipes */}
+                <RecipeSettings />
 
                 {/* Recent Files */}
                 <div className="card bg-base-200 shadow-md">

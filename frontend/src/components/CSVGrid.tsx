@@ -28,7 +28,16 @@ interface CSVGridProps {
  * CSVGrid component - displays CSV data in an editable table
  */
 function CSVGrid({ onCellEdit }: CSVGridProps) {
-    const { headers, data, updateCell } = useCSVStore();
+    const {
+        headers,
+        data,
+        updateCell,
+        editingCell,
+        editingValue,
+        setEditingCell,
+        updateEditingValue,
+        clearEditingCell,
+    } = useCSVStore();
     const {
         showColumnSeparators,
         wrapText,
@@ -37,8 +46,6 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     } = useSettingsStore();
     const { matches, currentMatchIndex } = useFindReplaceStore();
     const { isDragging, startDrag, endDrag } = useDrag();
-    const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
-    const [editValue, setEditValue] = useState("");
     const [sorting, setSorting] = useState<SortingState>([]);
 
     // Create columns from headers
@@ -79,8 +86,8 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                             <input
                                 type="text"
                                 className="w-full focus:outline-none border-none bg-transparent px-2 py-1 min-h-[32px] text-sm"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
+                                value={editingValue}
+                                onChange={(e) => updateEditingValue(e.target.value)}
                                 onBlur={() => handleSaveEdit(rowIndex, colIndex)}
                                 onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
                                 autoFocus
@@ -96,7 +103,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 );
             },
         }));
-    }, [headers, editingCell, editValue, matches, currentMatchIndex, wrapText]);
+    }, [headers, editingCell, editingValue, matches, currentMatchIndex, wrapText, updateEditingValue]);
 
     // Column resize mode
     const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
@@ -155,20 +162,18 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
     // Start editing a cell
     const handleStartEdit = (row: number, col: number, value: string) => {
-        setEditingCell({ row, col });
-        setEditValue(value);
+        setEditingCell(row, col, value);
     };
 
     // Save edited cell value
     const handleSaveEdit = (row: number, col: number) => {
         if (editingCell) {
-            updateCell(row, col, editValue);
+            updateCell(row, col, editingValue);
             if (onCellEdit) {
-                onCellEdit(row, col, editValue);
+                onCellEdit(row, col, editingValue);
             }
         }
-        setEditingCell(null);
-        setEditValue("");
+        clearEditingCell();
     };
 
     // Handle keyboard navigation and shortcuts
@@ -196,8 +201,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             }
         } else if (e.key === "Escape") {
             e.preventDefault();
-            setEditingCell(null);
-            setEditValue("");
+            clearEditingCell();
         } else if (e.key === "Tab") {
             e.preventDefault();
             handleSaveEdit(row, col);

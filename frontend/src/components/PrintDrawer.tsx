@@ -10,6 +10,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useCSVStore } from "@stores/csvStore";
 import { useDrag } from "@/contexts/DragContext";
+import { usePrintRecipeStore } from "@/stores/printRecipeStore";
+import CardPrint from "@/components/prints/CardPrint";
+import ScreenplayPrint from "@/components/prints/ScreenplayPrint";
 
 interface PrintPreviewDrawerProps {
     isOpen: boolean;
@@ -26,6 +29,31 @@ function PrintDrawer({ isOpen, position, onClose }: PrintPreviewDrawerProps) {
     const [isResizing, setIsResizing] = useState(false);
     const drawerRef = useRef<HTMLDivElement>(null);
     const { startDrag, endDrag } = useDrag();
+
+    // Recipe store
+    const {
+        recipes,
+        selectedRecipeId,
+        configurations,
+        loadBundledRecipes,
+        setCSVHeaders,
+        selectRecipe,
+    } = usePrintRecipeStore();
+
+    // Load recipes and set CSV headers on mount/update
+    useEffect(() => {
+        loadBundledRecipes();
+        if (headers.length > 0) {
+            setCSVHeaders(headers);
+        }
+    }, [loadBundledRecipes, setCSVHeaders, headers]);
+
+    // Auto-select first recipe if none selected
+    useEffect(() => {
+        if (!selectedRecipeId && recipes.length > 0) {
+            selectRecipe(recipes[0].id);
+        }
+    }, [selectedRecipeId, recipes, selectRecipe]);
 
     // Handle resize
     useEffect(() => {
@@ -84,7 +112,22 @@ function PrintDrawer({ isOpen, position, onClose }: PrintPreviewDrawerProps) {
             />
             {/* Header */}
             <div className={`flex items-center justify-between p-4 ${position === "right" ? "border-b" : "border-r"} border-base-300 ${position === "bottom" ? "min-w-[200px]" : ""}`}>
-                <h2 className="text-lg font-bold">Print Preview</h2>
+                <h2 className="text-lg font-bold">Print Recipe</h2>
+                {/* Recipe selector */}
+                {/*<div className="mb-6">*/}
+                {/*<h3 className="text-sm font-semibold text-base-content/70 mb-2">Print Recipe</h3>*/}
+                <select
+                    className="select select-bordered select-sm max-w-200"
+                    value={selectedRecipeId ?? ""}
+                    onChange={(e) => selectRecipe(e.target.value)}
+                >
+                    {recipes.map((recipe) => (
+                        <option key={recipe.id} value={recipe.id}>
+                            {recipe.name}
+                        </option>
+                    ))}
+                </select>
+                {/*</div>*/}
                 <button
                     className="btn btn-sm btn-ghost btn-circle"
                     onClick={onClose}
@@ -97,7 +140,7 @@ function PrintDrawer({ isOpen, position, onClose }: PrintPreviewDrawerProps) {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 overflow-auto">
                 {!fileInfo ? (
                     <div className="flex flex-col items-center justify-center h-full text-base-content/50">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -109,58 +152,71 @@ function PrintDrawer({ isOpen, position, onClose }: PrintPreviewDrawerProps) {
                     </div>
                 ) : (
                     <div>
-                        {/* File info */}
-                        <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-base-content/70 mb-2">File Information</h3>
-                            <div className="bg-base-100 p-3 rounded-lg space-y-1 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-base-content/70">Rows:</span>
-                                    <span className="font-mono">{data.length}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-base-content/70">Columns:</span>
-                                    <span className="font-mono">{headers.length}</span>
-                                </div>
-                            </div>
-                        </div>
+                        {/* Recipe preview */}
+                        <div className="flex-1 overflow-hidden">
+                            {selectedRecipeId && (() => {
+                                const recipe = recipes.find(r => r.id === selectedRecipeId);
+                                const config = configurations[selectedRecipeId];
 
-                        {/* Preview format selector (placeholder) */}
-                        <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-base-content/70 mb-2">Preview Format</h3>
-                            <select className="select select-bordered select-sm w-full">
-                                {/*SCENE FORMAT presents the rows as scene cards for plotting/outlining*/}
-                                <option>Scene Format</option>
-                                {/*SCREENPLAY FORMAT presents the rows in tabbed screenplay format*/}
-                                <option disabled>Screenplay (Coming Soon)</option>
-                                {/*TBD*/}
-                                <option disabled>Dialogue (Coming Soon)</option>
-                                {/*TBD*/}
-                                <option disabled>Game Design (Coming Soon)</option>
-                            </select>
-                        </div>
+                                if (!recipe || !config) {
+                                    return (
+                                        <div className="text-center py-8 text-base-content/50">
+                                            <p>Recipe not found</p>
+                                        </div>
+                                    );
+                                }
 
-                        {/* Preview content (simplified for now) */}
-                        <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-base-content/70 mb-2">Preview</h3>
-                            <div className={`bg-base-100 p-4 rounded-lg overflow-auto ${position === "right" ? "max-h-96" : "max-h-48"}`}>
-                                <div className={`text-sm ${position === "right" ? "space-y-4" : "flex gap-6 overflow-x-auto"}`}>
-                                    {data.slice(0, 10).map((row, index) => (
-                                        <div key={index} className={`${position === "right" ? "border-b border-base-300 pb-2 last:border-0" : "border-r border-base-300 pr-4 last:border-0 min-w-[200px]"}`}>
-                                            {headers.map((header, colIndex) => (
-                                                <div key={colIndex} className="mb-1">
-                                                    <span className="font-semibold text-primary">{header}: </span>
-                                                    <span>{row[colIndex]}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ))}
-                                    {data.length > 10 && (
-                                        <div className="text-center text-base-content/50 text-xs flex items-center">
-                                            ... and {data.length - 10} more rows
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                                // Calculate available content dimensions
+                                // Header height/width: ~56px (p-4 + content + border)
+                                // Content padding: 16px (p-4)
+                                const headerSize = 56;
+                                const contentPadding = 0; // 16px * 2 (both sides)
+
+                                let containerWidth: number;
+                                let containerHeight: number;
+
+                                if (position === "right") {
+                                    containerWidth = size - contentPadding;
+                                    containerHeight = window.innerHeight - headerSize - contentPadding;
+                                } else {
+                                    containerWidth = window.innerWidth - contentPadding;
+                                    containerHeight = size - headerSize - contentPadding;
+                                }
+
+                                // Render based on recipe type
+                                switch (recipe.type) {
+                                    case "card":
+                                        return (
+                                            <CardPrint
+                                                data={data}
+                                                headers={headers}
+                                                recipe={recipe}
+                                                configuration={config}
+                                                drawerPosition={position}
+                                                containerWidth={containerWidth}
+                                                containerHeight={containerHeight}
+                                            />
+                                        );
+                                    case "screenplay":
+                                        return (
+                                            <ScreenplayPrint
+                                                data={data}
+                                                headers={headers}
+                                                recipe={recipe}
+                                                configuration={config}
+                                                drawerPosition={position}
+                                                containerWidth={containerWidth}
+                                                containerHeight={containerHeight}
+                                            />
+                                        );
+                                    default:
+                                        return (
+                                            <div className="text-center py-8 text-base-content/50">
+                                                <p>Recipe type "{recipe.type}" not yet implemented</p>
+                                            </div>
+                                        );
+                                }
+                            })()}
                         </div>
                     </div>
                 )}

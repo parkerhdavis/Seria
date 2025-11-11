@@ -1,0 +1,146 @@
+/**
+ * Print Recipe Types
+ *
+ * Print Recipes define how CSV data should be visualized in different
+ * print formats. Each recipe has "ingredients" (required/optional fields)
+ * that map to CSV columns, along with rendering rules.
+ */
+
+import { PrintFieldStyle } from "./print";
+
+/**
+ * Recipe ingredient definition
+ * Represents a field that needs to be mapped from the CSV
+ */
+export interface RecipeIngredient {
+    id: string;                     // Unique identifier (e.g., "title", "character", "dialogue")
+    name: string;                   // Display name (e.g., "Title", "Character Name")
+    description: string;            // Description of what this field represents
+    required: boolean;              // Whether this ingredient is required for the recipe
+    autoMapKeywords: string[];      // Keywords to use for automatic field matching (case-insensitive)
+    defaultStyle: PrintFieldStyle;  // Default styling for this ingredient
+    multipleAllowed?: boolean;      // Whether multiple CSV columns can map to this ingredient (e.g., for "Content")
+}
+
+/**
+ * Field mapping from CSV column to recipe ingredient
+ */
+export interface RecipeFieldMapping {
+    ingredientId: string;           // Which ingredient this maps to
+    csvColumn: string | null;       // Which CSV column to use (null if unmapped)
+    isAutoMapped: boolean;          // Whether this was automatically mapped or manually set
+    order?: number;                 // For ingredients that allow multiple mappings, the display order
+}
+
+/**
+ * Recipe-specific rendering settings
+ */
+export interface RecipeRenderSettings {
+    // Common settings
+    pageWidth?: number;             // Page width in inches (default 8.5)
+    pageHeight?: number;            // Page height in inches (default 11)
+    marginTop?: number;             // Top margin in inches (default 1)
+    marginBottom?: number;          // Bottom margin in inches (default 1)
+    marginLeft?: number;            // Left margin in inches (default 1.5)
+    marginRight?: number;           // Right margin in inches (default 1)
+
+    // Card-specific settings
+    cardWidth?: number;             // Card width in pixels (for Card Print)
+    cardHeight?: number;            // Card height in pixels (for Card Print)
+    cardsPerRow?: number;           // Number of cards per row (for Card Print)
+    cardSpacing?: number;           // Spacing between cards in pixels
+
+    // Screenplay-specific settings
+    showPageNumbers?: boolean;      // Show page numbers (for Screenplay Print)
+    startPageNumber?: number;       // Starting page number (default 1)
+    sceneNumbering?: boolean;       // Show scene numbers (for Screenplay Print)
+
+    // Custom settings (extensible)
+    [key: string]: any;
+}
+
+/**
+ * Print Recipe definition
+ * Core structure for all print formats
+ */
+export interface PrintRecipe {
+    id: string;                     // Unique identifier (e.g., "card", "screenplay")
+    name: string;                   // Display name (e.g., "Card Print", "Screenplay Print")
+    description: string;            // Description of what this recipe does
+    type: RecipeType;               // Type of recipe
+    ingredients: RecipeIngredient[]; // All possible ingredients for this recipe
+    renderSettings: RecipeRenderSettings; // Recipe-specific rendering settings
+    version: string;                // Recipe version (for future compatibility)
+    isCustom: boolean;              // Whether this is a user-created custom recipe
+    createdAt?: Date;               // When this recipe was created (for custom recipes)
+    modifiedAt?: Date;              // When this recipe was last modified
+}
+
+/**
+ * Recipe type enum
+ */
+export type RecipeType = "card" | "screenplay" | "dialogue" | "custom";
+
+/**
+ * Recipe configuration (links a recipe to specific CSV field mappings)
+ */
+export interface RecipeConfiguration {
+    recipeId: string;               // Which recipe this configuration is for
+    fieldMappings: RecipeFieldMapping[]; // Field mappings for this configuration
+    renderSettings: RecipeRenderSettings; // Override render settings (optional)
+    lastModified: Date;             // When this configuration was last modified
+}
+
+/**
+ * Auto-mapping result
+ * Contains the results of attempting to auto-map CSV columns to recipe ingredients
+ */
+export interface AutoMapResult {
+    mappings: RecipeFieldMapping[]; // Successfully auto-mapped fields
+    unmappedIngredients: string[];  // Ingredient IDs that couldn't be auto-mapped
+    unmappedColumns: string[];      // CSV column names that weren't used in mapping
+    confidence: number;             // Overall confidence score (0-1) for the auto-mapping
+}
+
+/**
+ * Rendered element for a recipe ingredient
+ * Used by recipe renderers to represent styled content
+ */
+export interface RenderedElement {
+    ingredientId: string;           // Which ingredient this element represents
+    content: string;                // The actual text content
+    style: PrintFieldStyle;         // Applied styling
+    metadata?: Record<string, any>; // Optional metadata (e.g., page breaks, scene numbers)
+}
+
+/**
+ * Recipe renderer interface
+ * All recipe renderers should implement this interface
+ */
+export interface RecipeRenderer {
+    /**
+     * Renders CSV data according to the recipe configuration
+     * @param data - CSV data rows
+     * @param headers - CSV column headers
+     * @param recipe - The recipe to use
+     * @param configuration - The field mapping configuration
+     * @returns Array of rendered elements
+     */
+    render(
+        data: string[][],
+        headers: string[],
+        recipe: PrintRecipe,
+        configuration: RecipeConfiguration
+    ): RenderedElement[];
+
+    /**
+     * Validates that a configuration is valid for this recipe
+     * @param recipe - The recipe
+     * @param configuration - The configuration to validate
+     * @returns Validation result with any errors
+     */
+    validate(
+        recipe: PrintRecipe,
+        configuration: RecipeConfiguration
+    ): { isValid: boolean; errors: string[] };
+}

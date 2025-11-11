@@ -16,6 +16,12 @@ interface DataSnapshot {
     headers: string[];
 }
 
+// Cell editing state for coordinating between CSV grid and Print preview
+interface EditingCell {
+    row: number;
+    col: number;
+}
+
 interface CSVStore {
     // State
     data: string[][];
@@ -25,6 +31,10 @@ interface CSVStore {
     isDirty: boolean;
     isLoading: boolean;
     error: string | null;
+
+    // Cell editing state (shared between CSV grid and Print preview)
+    editingCell: EditingCell | null;
+    editingValue: string;
 
     // Undo/Redo history
     undoStack: DataSnapshot[];
@@ -47,6 +57,11 @@ interface CSVStore {
     redo: () => void;
     canUndo: () => boolean;
     canRedo: () => boolean;
+
+    // Cell editing actions
+    setEditingCell: (row: number, col: number, initialValue: string) => void;
+    updateEditingValue: (value: string) => void;
+    clearEditingCell: () => void;
 }
 
 // Helper function to create a snapshot of current data
@@ -75,6 +90,8 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     isDirty: false,
     isLoading: false,
     error: null,
+    editingCell: null,
+    editingValue: "",
     undoStack: [],
     redoStack: [],
 
@@ -409,5 +426,26 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     // Check if redo is available
     canRedo: () => {
         return get().redoStack.length > 0;
+    },
+
+    // Set cell being edited (for coordinating between CSV grid and Print preview)
+    setEditingCell: (row: number, col: number, initialValue: string) => {
+        set({
+            editingCell: { row, col },
+            editingValue: initialValue,
+        });
+    },
+
+    // Update the value being edited (for real-time Print preview updates)
+    updateEditingValue: (value: string) => {
+        set({ editingValue: value });
+    },
+
+    // Clear editing state
+    clearEditingCell: () => {
+        set({
+            editingCell: null,
+            editingValue: "",
+        });
     },
 }));
