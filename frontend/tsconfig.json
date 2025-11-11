@@ -22,17 +22,20 @@
             "@/*": [
                 "./*"
             ],
-            "@/components/*": [
-                "./components/*"
+            "@components/*": [
+                "./src/components/*"
             ],
-            "@/styles/*": [
-                "./styles/*"
+            "@stores/*": [
+                "./src/stores/*"
             ],
-            "@/lib/*": [
-                "./lib/*"
+            "@utils/*": [
+                "./src/utils/*"
             ],
-            "@/utils/*": [
-                "./utils/*"
+            "@styles/*": [
+                "./src/styles/*"
+            ],
+            "@types/*": [
+                "./src/types/*"
             ]
         }
     },
