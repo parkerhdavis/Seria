@@ -11,6 +11,7 @@ import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 import { getMappedColumn, getMappedColumns } from "@/utils/printRecipeMapper";
 import { useDrag } from "@/contexts/DragContext";
 import { useCSVStore } from "@/stores/csvStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 interface CardPrintProps {
     data: string[][];
@@ -78,7 +79,7 @@ function Card({
     const [isHovered, setIsHovered] = useState(false);
     const titleInputRef = useRef<HTMLInputElement>(null);
     const subtitleInputRef = useRef<HTMLInputElement>(null);
-    const contentInputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
+    const contentTextareaRefs = useRef<Map<number, HTMLTextAreaElement>>(new Map());
 
     // Check which fields are being edited
     const isTitleEditing = editingCell !== null &&
@@ -125,7 +126,7 @@ function Card({
         card.subtitleColumnName &&
         headers[editingCell.col] === card.subtitleColumnName;
 
-    // Auto-focus inputs when editing starts from Print view
+    // Auto-focus inputs/textareas when editing starts from Print view
     useEffect(() => {
         if (isTitleEditingFromPrint && titleInputRef.current) {
             titleInputRef.current.focus();
@@ -139,6 +140,20 @@ function Card({
             subtitleInputRef.current.setSelectionRange(editingValue.length, editingValue.length);
         }
     }, [isSubtitleEditingFromPrint, editingValue.length]);
+
+    // Auto-resize content textareas when editing
+    useEffect(() => {
+        if (isEditingFromPrint && selectedField?.fieldType === "content" && selectedField.contentIndex !== undefined) {
+            const textarea = contentTextareaRefs.current.get(selectedField.contentIndex);
+            if (textarea) {
+                textarea.focus();
+                textarea.setSelectionRange(editingValue.length, editingValue.length);
+                // Auto-resize textarea to fit initial content
+                textarea.style.height = "auto";
+                textarea.style.height = `${textarea.scrollHeight}px`;
+            }
+        }
+    }, [isEditingFromPrint, selectedField, editingValue.length]);
 
     const hasAnySelection = isTitleSelected || isSubtitleSelected ||
         (selectedField?.cardIndex === card.index && selectedField?.fieldType === "content");
@@ -237,19 +252,31 @@ function Card({
                         return (
                             <div key={idx} onClick={(e) => { e.stopPropagation(); onFieldClick("content", idx); }} className="cursor-text">
                                 {isContentEditingFromPrint ? (
-                                    <input
+                                    <textarea
                                         ref={(el) => {
                                             if (el) {
-                                                contentInputRefs.current.set(idx, el);
-                                                el.focus();
-                                                el.setSelectionRange(editingValue.length, editingValue.length);
+                                                contentTextareaRefs.current.set(idx, el);
                                             }
                                         }}
-                                        type="text"
-                                        className="line-clamp-3 w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 rounded px-1"
+                                        className="w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 rounded px-1 resize-none overflow-hidden"
+                                        style={{
+                                            minHeight: "1.5rem",
+                                            height: "auto",
+                                        }}
                                         value={editingValue}
-                                        onChange={(e) => onEditingValueChange(e.target.value)}
+                                        onChange={(e) => {
+                                            onEditingValueChange(e.target.value);
+                                            // Auto-resize textarea to fit content
+                                            e.target.style.height = "auto";
+                                            e.target.style.height = `${e.target.scrollHeight}px`;
+                                        }}
                                         onClick={(e) => e.stopPropagation()}
+                                        onInput={(e) => {
+                                            // Auto-resize on input as well
+                                            const target = e.target as HTMLTextAreaElement;
+                                            target.style.height = "auto";
+                                            target.style.height = `${target.scrollHeight}px`;
+                                        }}
                                     />
                                 ) : (
                                     <p className={`line-clamp-3 ${isContentEditing ? "ring-2 ring-primary ring-offset-2 rounded px-1" : isContentSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-1" : ""}`}>
@@ -289,7 +316,8 @@ function CardPrint({
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
     const { isDragging: globalIsDragging } = useDrag();
-    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell } = useCSVStore();
+    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell, clearSelection } = useCSVStore();
+    const { printFollowsCsvEdit } = useSettingsStore();
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
     // State for Print view selection and editing
@@ -313,7 +341,7 @@ function CardPrint({
 
     // Scroll to card when editing cell changes
     useEffect(() => {
-        if (editingCell && containerRef) {
+        if (editingCell && containerRef && printFollowsCsvEdit) {
             // Find the card that contains the editing cell
             const card = cardRefs.current.get(editingCell.row);
 
@@ -326,7 +354,7 @@ function CardPrint({
                 });
             }
         }
-    }, [editingCell, containerRef]);
+    }, [editingCell, containerRef, printFollowsCsvEdit]);
 
     // Clear Print selection when editing cell from CSV grid changes
     useEffect(() => {
@@ -335,6 +363,30 @@ function CardPrint({
             setSelectedField(null);
         }
     }, [editingCell, isEditingFromPrint]);
+
+    // Clear Print selection when CSV cell is selected
+    const { selectedCell, selectedRange } = useCSVStore();
+    useEffect(() => {
+        if ((selectedCell || selectedRange) && selectedField && !isEditingFromPrint) {
+            // User clicked in CSV grid, clear Print selection
+            setSelectedField(null);
+        }
+    }, [selectedCell, selectedRange]);
+
+    // Clear Print selection when clicking anywhere in CSV grid area (including background)
+    useEffect(() => {
+        const handleDocumentClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            // Check if click is within CSV grid container
+            const csvGrid = document.querySelector('.csv-grid-container');
+            if (csvGrid && csvGrid.contains(target) && selectedField && !isEditingFromPrint) {
+                setSelectedField(null);
+            }
+        };
+
+        document.addEventListener('click', handleDocumentClick);
+        return () => document.removeEventListener('click', handleDocumentClick);
+    }, [selectedField, isEditingFromPrint]);
 
     // Keyboard handlers for Print view
     useEffect(() => {
@@ -345,20 +397,40 @@ function CardPrint({
             // Handle F2 or Enter to start editing from Print view
             if ((e.key === "F2" || e.key === "Enter") && selectedField && !isEditingFromPrint && !isInInput) {
                 e.preventDefault();
-                startEditingFromPrint();
+                // Start editing from Print view
+                const colIndex = headers.indexOf(selectedField.columnName);
+                if (colIndex === -1) return;
+
+                const value = data[selectedField.cardIndex]?.[colIndex] || "";
+                setEditingCell(selectedField.cardIndex, colIndex, value, "print");
+                setIsEditingFromPrint(true);
             }
 
             // Handle Enter or F2 to save editing from Print view
-            if ((e.key === "Enter" || e.key === "F2") && isEditingFromPrint) {
-                e.preventDefault();
-                saveEditingFromPrint();
+            // For multi-line fields (content), Ctrl+Enter creates newlines; Enter or F2 saves
+            if (isEditingFromPrint && editingCell) {
+                const isMultiLine = selectedField?.fieldType === "content";
+
+                // Allow Ctrl+Enter to create newlines in multi-line fields
+                if (e.key === "Enter" && isMultiLine && e.ctrlKey) {
+                    return;
+                }
+
+                if ((e.key === "F2") || (e.key === "Enter")) {
+                    e.preventDefault();
+                    // Save editing from Print view
+                    updateCell(editingCell.row, editingCell.col, editingValue);
+                    clearEditingCell();
+                    setIsEditingFromPrint(false);
+                }
             }
 
             // Handle Escape to cancel editing
             if (e.key === "Escape") {
                 if (isEditingFromPrint) {
                     e.preventDefault();
-                    cancelEditingFromPrint();
+                    clearEditingCell();
+                    setIsEditingFromPrint(false);
                 } else if (selectedField) {
                     e.preventDefault();
                     setSelectedField(null);
@@ -368,34 +440,7 @@ function CardPrint({
 
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [selectedField, isEditingFromPrint]);
-
-    // Start editing from Print view
-    const startEditingFromPrint = () => {
-        if (!selectedField) return;
-
-        const colIndex = headers.indexOf(selectedField.columnName);
-        if (colIndex === -1) return;
-
-        const value = data[selectedField.cardIndex]?.[colIndex] || "";
-        setEditingCell(selectedField.cardIndex, colIndex, value);
-        setIsEditingFromPrint(true);
-    };
-
-    // Save editing from Print view
-    const saveEditingFromPrint = () => {
-        if (!editingCell) return;
-
-        updateCell(editingCell.row, editingCell.col, editingValue);
-        clearEditingCell();
-        setIsEditingFromPrint(false);
-    };
-
-    // Cancel editing from Print view
-    const cancelEditingFromPrint = () => {
-        clearEditingCell();
-        setIsEditingFromPrint(false);
-    };
+    }, [selectedField, isEditingFromPrint, headers, data, editingCell, editingValue, setEditingCell, updateCell, clearEditingCell]);
 
     // Handle clicking on a card field
     const handleFieldClick = (cardIndex: number, fieldType: "title" | "subtitle" | "content", contentIndex?: number) => {
@@ -417,6 +462,9 @@ function CardPrint({
             contentIndex: fieldType === "content" ? contentIndex : undefined,
             columnName,
         });
+
+        // Clear CSV selection so CSV grid doesn't compete for keyboard input
+        clearSelection();
 
         // Focus the Print container so keyboard events work
         if (printContainerRef.current) {
@@ -522,6 +570,18 @@ function CardPrint({
             }}
             className="w-full h-full overflow-auto bg-black/30 outline-none"
             tabIndex={0}
+            onClick={(e) => {
+                // Clear CSV selection when clicking anywhere in Print view
+                // Only if we didn't click on a card (which handles its own selection)
+                const target = e.target as HTMLElement;
+                if (!target.closest('.bg-base-100')) {  // Cards have bg-base-100
+                    clearSelection();
+                    // Focus the Print container
+                    if (printContainerRef.current) {
+                        printContainerRef.current.focus();
+                    }
+                }
+            }}
         >
             <div style={gridStyle}>
                 {cards.map((card) => {

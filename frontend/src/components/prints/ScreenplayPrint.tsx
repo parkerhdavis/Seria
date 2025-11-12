@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from "react";
 import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 import { getMappedColumn } from "@/utils/printRecipeMapper";
 import { useCSVStore } from "@/stores/csvStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 interface ScreenplayPrintProps {
     data: string[][];
@@ -31,6 +32,13 @@ interface ScreenplayElement {
     content: string;
     rowIndex: number;
     columnName: string;  // Which CSV column this element came from
+}
+
+/**
+ * Determines if an element type should support multi-line editing
+ */
+function isMultiLineElement(type: ElementType): boolean {
+    return type === "action" || type === "dialogue";
 }
 
 /**
@@ -77,6 +85,10 @@ function ScreenplayElementView({
 }) {
     const ingredient = element.type;
     const inputRef = useRef<HTMLInputElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Check if this element should be multi-line
+    const isMultiLine = isMultiLineElement(element.type);
 
     // Get styling based on element type
     let textAlign: "left" | "right" = "left";
@@ -115,14 +127,23 @@ function ScreenplayElementView({
         maxWidth: textAlign === "left" ? maxWidth : undefined,
     };
 
-    // Auto-focus input when editing starts from Print view
+    // Auto-focus input/textarea when editing starts from Print view
     useEffect(() => {
-        if (isEditingFromPrint && inputRef.current) {
-            inputRef.current.focus();
-            // Place cursor at end of text
-            inputRef.current.setSelectionRange(editingValue.length, editingValue.length);
+        if (isEditingFromPrint) {
+            if (isMultiLine && textareaRef.current) {
+                textareaRef.current.focus();
+                // Place cursor at end of text
+                textareaRef.current.setSelectionRange(editingValue.length, editingValue.length);
+                // Auto-resize textarea to fit initial content
+                textareaRef.current.style.height = "auto";
+                textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+            } else if (!isMultiLine && inputRef.current) {
+                inputRef.current.focus();
+                // Place cursor at end of text
+                inputRef.current.setSelectionRange(editingValue.length, editingValue.length);
+            }
         }
-    }, [isEditingFromPrint, editingValue.length]);
+    }, [isEditingFromPrint, editingValue.length, isMultiLine]);
 
     // Format content based on element type
     const formatContent = (content: string) => {
@@ -166,15 +187,41 @@ function ScreenplayElementView({
             )}
 
             {isEditingFromPrint ? (
-                <input
-                    ref={inputRef}
-                    type="text"
-                    className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 ring-offset-white rounded px-1"
-                    style={style as React.CSSProperties}
-                    value={editingValue}
-                    onChange={(e) => onEditingValueChange(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                />
+                isMultiLine ? (
+                    <textarea
+                        ref={textareaRef}
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 ring-offset-white rounded px-1 resize-none overflow-hidden"
+                        style={{
+                            ...style as React.CSSProperties,
+                            minHeight: "1.5rem",
+                            height: "auto",
+                        }}
+                        value={editingValue}
+                        onChange={(e) => {
+                            onEditingValueChange(e.target.value);
+                            // Auto-resize textarea to fit content
+                            e.target.style.height = "auto";
+                            e.target.style.height = `${e.target.scrollHeight}px`;
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onInput={(e) => {
+                            // Auto-resize on input as well
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = "auto";
+                            target.style.height = `${target.scrollHeight}px`;
+                        }}
+                    />
+                ) : (
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 ring-offset-white rounded px-1"
+                        style={style as React.CSSProperties}
+                        value={editingValue}
+                        onChange={(e) => onEditingValueChange(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                )
             ) : (
                 <p
                     className={`font-mono text-base leading-tight ${isBeingEdited ? "ring-2 ring-primary ring-offset-2 ring-offset-white rounded px-1" : ""} ${isSelected ? "ring-2 ring-secondary ring-offset-2 ring-offset-white rounded px-1" : ""}`}
@@ -200,7 +247,8 @@ function ScreenplayPrint({
     containerHeight,
 }: ScreenplayPrintProps) {
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
-    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell } = useCSVStore();
+    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell, clearSelection } = useCSVStore();
+    const { printFollowsCsvEdit } = useSettingsStore();
     const elementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     // State for Print view selection and editing
@@ -246,7 +294,7 @@ function ScreenplayPrint({
 
     // Scroll to element when editing cell changes
     useEffect(() => {
-        if (editingCell && containerRef) {
+        if (editingCell && containerRef && printFollowsCsvEdit) {
             // Create a unique key for the editing cell
             const editingKey = `${editingCell.row}-${headers[editingCell.col]}`;
             const element = elementRefs.current.get(editingKey);
@@ -260,7 +308,7 @@ function ScreenplayPrint({
                 });
             }
         }
-    }, [editingCell, headers, containerRef]);
+    }, [editingCell, headers, containerRef, printFollowsCsvEdit]);
 
     // Clear Print selection when editing cell from CSV grid changes
     useEffect(() => {
@@ -270,75 +318,90 @@ function ScreenplayPrint({
         }
     }, [editingCell, isEditingFromPrint]);
 
+    // Clear Print selection when CSV cell is selected
+    const { selectedCell, selectedRange } = useCSVStore();
+    useEffect(() => {
+        if ((selectedCell || selectedRange) && selectedPrintElement && !isEditingFromPrint) {
+            // User clicked in CSV grid, clear Print selection
+            setSelectedPrintElement(null);
+        }
+    }, [selectedCell, selectedRange]);
+
+    // Clear Print selection when clicking anywhere in CSV grid area (including background)
+    useEffect(() => {
+        const handleDocumentClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            // Check if click is within CSV grid container
+            const csvGrid = document.querySelector('.csv-grid-container');
+            if (csvGrid && csvGrid.contains(target) && selectedPrintElement && !isEditingFromPrint) {
+                setSelectedPrintElement(null);
+            }
+        };
+
+        document.addEventListener('click', handleDocumentClick);
+        return () => document.removeEventListener('click', handleDocumentClick);
+    }, [selectedPrintElement, isEditingFromPrint]);
+
     // Keyboard handlers for Print view
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Only handle if the Print container is focused or if we're not in any input
+            // Only handle if the Print container is focused or if we're not in any input/textarea
             const target = e.target as HTMLElement;
             const isInInput = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
 
             // Handle F2 or Enter to start editing from Print view
             if ((e.key === "F2" || e.key === "Enter") && selectedPrintElement && !isEditingFromPrint && !isInInput) {
                 e.preventDefault();
-                startEditingFromPrint();
+                // Start editing from Print view
+                const colIndex = headers.indexOf(selectedPrintElement.columnName);
+                if (colIndex === -1) return;
+
+                const value = data[selectedPrintElement.rowIndex]?.[colIndex] || "";
+                setEditingCell(selectedPrintElement.rowIndex, colIndex, value, "print");
+                setIsEditingFromPrint(true);
             }
 
             // Handle Enter or F2 to save editing from Print view
-            if ((e.key === "Enter" || e.key === "F2") && isEditingFromPrint) {
-                e.preventDefault();
-                saveEditingFromPrint();
+            // For multi-line elements, Ctrl+Enter creates newlines; Enter or F2 saves
+            if (isEditingFromPrint && editingCell) {
+                const isMultiLine = selectedPrintElement &&
+                    isMultiLineElement(
+                        elements.find(el =>
+                            el.rowIndex === selectedPrintElement.rowIndex &&
+                            el.columnName === selectedPrintElement.columnName
+                        )?.type || "action"
+                    );
+
+                // Allow Ctrl+Enter to create newlines in multi-line elements
+                if (e.key === "Enter" && isMultiLine && e.ctrlKey) {
+                    return;
+                }
+
+                if ((e.key === "F2") || (e.key === "Enter")) {
+                    e.preventDefault();
+                    // Save editing from Print view
+                    updateCell(editingCell.row, editingCell.col, editingValue);
+                    clearEditingCell();
+                    setIsEditingFromPrint(false);
+                }
             }
 
             // Handle Escape to cancel editing
             if (e.key === "Escape") {
                 if (isEditingFromPrint) {
                     e.preventDefault();
-                    cancelEditingFromPrint();
+                    clearEditingCell();
+                    setIsEditingFromPrint(false);
                 } else if (selectedPrintElement) {
                     e.preventDefault();
                     setSelectedPrintElement(null);
                 }
             }
-
-            // Arrow key navigation (when not editing)
-            if (!isEditingFromPrint && selectedPrintElement && !isInInput) {
-                // We'll implement arrow navigation later if needed
-            }
         };
 
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [selectedPrintElement, isEditingFromPrint]);
-
-    // Start editing from Print view
-    const startEditingFromPrint = () => {
-        if (!selectedPrintElement) return;
-
-        const colIndex = headers.indexOf(selectedPrintElement.columnName);
-        if (colIndex === -1) return;
-
-        const value = data[selectedPrintElement.rowIndex]?.[colIndex] || "";
-        setEditingCell(selectedPrintElement.rowIndex, colIndex, value);
-        setIsEditingFromPrint(true);
-    };
-
-    // Save editing from Print view
-    const saveEditingFromPrint = () => {
-        if (!editingCell) return;
-
-        updateCell(editingCell.row, editingCell.col, editingValue);
-        clearEditingCell();
-        setIsEditingFromPrint(false);
-
-        // Keep the element selected after editing
-        // (selectedPrintElement remains unchanged)
-    };
-
-    // Cancel editing from Print view
-    const cancelEditingFromPrint = () => {
-        clearEditingCell();
-        setIsEditingFromPrint(false);
-    };
+    }, [selectedPrintElement, isEditingFromPrint, headers, data, editingCell, editingValue, setEditingCell, updateCell, clearEditingCell]);
 
     // Handle clicking on a Print element
     const handleElementClick = (element: ScreenplayElement, elementIndex: number) => {
@@ -347,6 +410,9 @@ function ScreenplayPrint({
             columnName: element.columnName,
             elementIndex,
         });
+
+        // Clear CSV selection so CSV grid doesn't compete for keyboard input
+        clearSelection();
 
         // Focus the Print container so keyboard events work
         if (printContainerRef.current) {
@@ -492,6 +558,17 @@ function ScreenplayPrint({
             }}
             className="w-full h-full overflow-auto p-2 bg-black/20 outline-none"
             tabIndex={0}
+            onClick={(e) => {
+                // Clear CSV selection when clicking anywhere in Print view
+                // Only if we didn't click on an element (which handles its own selection)
+                if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.screenplay-page')) {
+                    clearSelection();
+                    // Focus the Print container
+                    if (printContainerRef.current) {
+                        printContainerRef.current.focus();
+                    }
+                }
+            }}
         >
             {/* Screenplay page */}
             <div

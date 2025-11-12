@@ -24,6 +24,8 @@ interface SettingsStore {
     wrapText: boolean;
     rowColoringMode: RowColoringMode;
     rowColorFilter: RowColorFilter | null;
+    printFollowsCsvEdit: boolean;
+    csvFollowsPrintEdit: boolean;
 
     // Actions
     setShowNonCsvFiles: (show: boolean) => void;
@@ -32,6 +34,8 @@ interface SettingsStore {
     setWrapText: (wrap: boolean) => void;
     setRowColoringMode: (mode: RowColoringMode) => void;
     setRowColorFilter: (filter: RowColorFilter | null) => void;
+    setPrintFollowsCsvEdit: (follow: boolean) => void;
+    setCsvFollowsPrintEdit: (follow: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -42,6 +46,8 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     wrapText: false,
     rowColoringMode: "off",
     rowColorFilter: null,
+    printFollowsCsvEdit: true,
+    csvFollowsPrintEdit: true,
 
     // Toggle showing non-CSV files in file tree
     setShowNonCsvFiles: (show: boolean) => {
@@ -71,5 +77,15 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     // Set row color filter
     setRowColorFilter: (filter: RowColorFilter | null) => {
         set({ rowColorFilter: filter });
+    },
+
+    // Toggle Print follows CSV edit
+    setPrintFollowsCsvEdit: (follow: boolean) => {
+        set({ printFollowsCsvEdit: follow });
+    },
+
+    // Toggle CSV follows Print edit
+    setCsvFollowsPrintEdit: (follow: boolean) => {
+        set({ csvFollowsPrintEdit: follow });
     },
 }));

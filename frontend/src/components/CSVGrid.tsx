@@ -27,6 +27,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         updateCell,
         editingCell,
         editingValue,
+        editingSource,
         setEditingCell,
         updateEditingValue,
         clearEditingCell,
@@ -53,6 +54,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         wrapText,
         rowColoringMode,
         rowColorFilter,
+        csvFollowsPrintEdit,
     } = useSettingsStore();
 
     const { matches, currentMatchIndex } = useFindReplaceStore();
@@ -96,6 +98,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     const gridFocusRef = useRef<HTMLDivElement>(null);
     const summaryRowRef = useRef<HTMLDivElement>(null);
     const summaryRowContentRef = useRef<HTMLDivElement>(null);
+    const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
 
     // Filter data based on column filters
     const filteredData = useMemo(() => {
@@ -190,8 +193,20 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     // Keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Ignore if event came from an input element (cell being edited)
-            if (e.target instanceof HTMLInputElement) return;
+            // Ignore if event came from an input or textarea element (cell being edited)
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            // Ignore if editing cell from Print view
+            if (editingCell && editingSource === "print") return;
+
+            // Ignore if the grid doesn't have focus (e.g., Print view is focused)
+            if (gridFocusRef.current && document.activeElement !== gridFocusRef.current) {
+                // Only handle if we're not focused, unless we have a selected cell and no other element has focus
+                const hasFocus = gridFocusRef.current.contains(document.activeElement);
+                if (!hasFocus && document.activeElement !== document.body) {
+                    return;
+                }
+            }
 
             // Ignore if editing cell
             if (editingCell) return;
@@ -257,7 +272,22 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [editingCell, selectedCell, selectedRange, filteredData, headers, copySelection, pasteClipboard, clearSelection, setSelectedCell, addRow]);
+    }, [editingCell, editingSource, selectedCell, selectedRange, filteredData, headers, copySelection, pasteClipboard, clearSelection, setSelectedCell, addRow]);
+
+    // Scroll to row when editing from Print view
+    useEffect(() => {
+        if (editingCell && editingSource === "print" && tableContainerRef.current && csvFollowsPrintEdit) {
+            const row = rowRefs.current.get(editingCell.row);
+            if (row) {
+                // Scroll to the row smoothly and center it
+                row.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                    inline: "nearest",
+                });
+            }
+        }
+    }, [editingCell, editingSource, csvFollowsPrintEdit]);
 
     // Auto-focus grid when data loads
     useEffect(() => {
@@ -412,11 +442,20 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
     // Handle keyboard navigation within editing cell
     const handleKeyDown = (
-        e: React.KeyboardEvent<HTMLInputElement>,
+        e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
         row: number,
         col: number
     ) => {
+        const isTextarea = e.currentTarget instanceof HTMLTextAreaElement;
+
+        // For textareas, Ctrl+Enter creates newlines; Enter saves
+        // For inputs, Enter always saves
         if (e.key === "Enter") {
+            if (isTextarea && e.ctrlKey) {
+                // Allow Ctrl+Enter to create newlines in textarea
+                return;
+            }
+
             e.preventDefault();
             e.stopPropagation(); // Prevent event from bubbling to global handler
             handleSaveEdit(row, col);
@@ -670,7 +709,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 <thead>
                     <tr>
                         {/* Row number header */}
-                        <th className="bg-base-300 text-center sticky left-0 z-20" style={{ width: '64px', minWidth: '64px', maxWidth: '64px' }}>#</th>
+                        <th className="bg-base-300 text-center sticky left-0 top-0 z-30" style={{ width: '64px', minWidth: '64px', maxWidth: '64px' }}>#</th>
 
                         {/* Column headers */}
                         {headers.map((header, colIndex) => {
@@ -678,7 +717,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                             return (
                                 <th
                                     key={colIndex}
-                                    className={`bg-base-300 font-bold relative ${dropTargetColumn === colIndex ? "border-l-4 border-primary" : ""}`}
+                                    className={`bg-base-300 font-bold relative sticky top-0 z-20 ${dropTargetColumn === colIndex ? "border-l-4 border-primary" : ""}`}
                                     style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
                                     onDragOver={(e) => handleColumnDragOver(e, colIndex)}
                                     onDrop={(e) => handleColumnDrop(e, colIndex)}
@@ -749,6 +788,13 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                         return (
                             <tr
                                 key={rowIndex}
+                                ref={(el) => {
+                                    if (el) {
+                                        rowRefs.current.set(rowIndex, el);
+                                    } else {
+                                        rowRefs.current.delete(rowIndex);
+                                    }
+                                }}
                                 className={`hover:bg-base-200/70 ${rowBgClass} ${dropTargetRow === rowIndex ? "border-t-4 border-primary" : ""}`}
                                 style={rowStyle}
                                 onDragOver={(e) => handleRowDragOver(e, rowIndex)}
@@ -821,6 +867,10 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
                                     const columnWidth = columnWidths[colIndex] || 150;
 
+                                    // Determine if this cell should be edited with multi-line support
+                                    const cellHasNewlines = cell.includes('\n');
+                                    const shouldUseTextarea = wrapText || cellHasNewlines;
+
                                     return (
                                         <td
                                             key={colIndex}
@@ -830,21 +880,55 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                             onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                                             onContextMenu={(e) => handleContextMenu(e, rowIndex, colIndex)}
                                         >
-                                            {isEditing ? (
-                                                <input
-                                                    type="text"
-                                                    className="w-full focus:outline-none border-none bg-transparent px-2 py-1 min-h-[32px] text-sm leading-tight"
-                                                    value={editingValue}
-                                                    onChange={(e) => updateEditingValue(e.target.value)}
-                                                    onBlur={() => handleSaveEdit(rowIndex, colIndex)}
-                                                    onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
-                                                    autoFocus
-                                                />
+                                            {isEditing && editingSource === "csv" ? (
+                                                shouldUseTextarea ? (
+                                                    <textarea
+                                                        className="w-full focus:outline-none border-none bg-transparent px-2 py-1 min-h-[32px] text-sm leading-tight resize-none overflow-hidden"
+                                                        value={editingValue}
+                                                        onChange={(e) => {
+                                                            updateEditingValue(e.target.value);
+                                                            // Auto-resize textarea to fit content
+                                                            e.target.style.height = "auto";
+                                                            e.target.style.height = `${e.target.scrollHeight}px`;
+                                                        }}
+                                                        onBlur={() => handleSaveEdit(rowIndex, colIndex)}
+                                                        onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
+                                                        onInput={(e) => {
+                                                            // Auto-resize on input as well
+                                                            const target = e.target as HTMLTextAreaElement;
+                                                            target.style.height = "auto";
+                                                            target.style.height = `${target.scrollHeight}px`;
+                                                        }}
+                                                        autoFocus
+                                                        ref={(el) => {
+                                                            if (el) {
+                                                                // Initial resize
+                                                                el.style.height = "auto";
+                                                                el.style.height = `${el.scrollHeight}px`;
+                                                                // Place cursor at end
+                                                                el.setSelectionRange(el.value.length, el.value.length);
+                                                            }
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <input
+                                                        type="text"
+                                                        className="w-full focus:outline-none border-none bg-transparent px-2 py-1 min-h-[32px] text-sm leading-tight"
+                                                        value={editingValue}
+                                                        onChange={(e) => updateEditingValue(e.target.value)}
+                                                        onBlur={() => handleSaveEdit(rowIndex, colIndex)}
+                                                        onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
+                                                        autoFocus
+                                                    />
+                                                )
                                             ) : (
                                                 <div
-                                                    className={`px-2 py-1 min-h-[32px] text-sm leading-tight ${wrapText ? "whitespace-normal" : "whitespace-nowrap overflow-hidden text-ellipsis flex items-center"}`}
+                                                    className={`px-2 py-1 min-h-[32px] text-sm leading-tight ${wrapText ? "whitespace-normal" : "whitespace-nowrap overflow-hidden text-ellipsis flex items-center"} ${isEditing && editingSource === "print" ? "bg-primary/10" : ""}`}
                                                 >
-                                                    {cell}
+                                                    {isEditing && editingSource === "print" ? editingValue : cell}
+                                                    {isEditing && editingSource === "print" && (
+                                                        <span className="ml-2 text-xs text-primary/70 italic">(editing from Print)</span>
+                                                    )}
                                                 </div>
                                             )}
                                         </td>
