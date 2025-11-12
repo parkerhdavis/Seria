@@ -9,6 +9,9 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { CSVData, CSVFileInfo } from "@/types/csv";
 import { parseCSV, serializeCSV, validateCSV } from "@utils/csvParser";
+import { useFileConfigStore, type FileIdentifiers } from "./fileConfigStore";
+import { useSettingsStore } from "./settingsStore";
+import { useDrawerStore } from "./drawerStore";
 
 // Snapshot of data state for undo/redo
 interface DataSnapshot {
@@ -72,6 +75,11 @@ interface CSVStore {
     selectedRange: RangeSelection | null;
     clipboard: ClipboardData | null;
 
+    // Display settings
+    // Column widths stored as proportions (0-1 range) of available width
+    // e.g., {0: 0.3, 1: 0.5, 2: 0.2} means col 0 gets 30%, col 1 gets 50%, col 2 gets 20%
+    columnWidths: Record<number, number>;
+
     // Filtering and summaries
     columnFilters: ColumnFilter[];
     columnSummaries: Record<string, SummaryType>;
@@ -93,6 +101,7 @@ interface CSVStore {
     renameColumn: (index: number, newName: string) => void;
     clearData: () => void;
     setError: (error: string | null) => void;
+    setColumnWidths: (widths: Record<number, number> | ((prev: Record<number, number>) => Record<number, number>)) => void;
     undo: () => void;
     redo: () => void;
     canUndo: () => boolean;
@@ -152,6 +161,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     selectedCell: null,
     selectedRange: null,
     clipboard: null,
+    columnWidths: {},
     columnFilters: [],
     columnSummaries: {},
     undoStack: [],
@@ -184,7 +194,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                 initialSummaries[header] = "count";
             });
 
-            // Update state
+            // Update state (initial load before applying config)
             set({
                 headers: csvData.headers,
                 data: csvData.data,
@@ -202,6 +212,82 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                 isLoading: false,
                 error: null,
             });
+
+            // Load and apply file config
+            try {
+                // Get file identifiers
+                const identifiers = await invoke<FileIdentifiers>("get_file_identifiers", { path });
+
+                // Look up config in file config store
+                const fileConfig = useFileConfigStore.getState().findConfigForFile(identifiers);
+
+                if (fileConfig && fileConfig.config) {
+                    // Apply config to CSV store
+                    if (fileConfig.config.columnWidths) {
+                        set({ columnWidths: fileConfig.config.columnWidths });
+                    }
+
+                    if (fileConfig.config.filters) {
+                        set({ columnFilters: fileConfig.config.filters });
+                    }
+
+                    if (fileConfig.config.columnSummaries) {
+                        set({ columnSummaries: fileConfig.config.columnSummaries });
+                    }
+
+                    // Apply config to settings store
+                    const settingsStore = useSettingsStore.getState();
+
+                    if (fileConfig.config.rowColoringMode !== undefined) {
+                        settingsStore.setRowColoringMode(fileConfig.config.rowColoringMode as any);
+                    }
+
+                    if (fileConfig.config.rowColorFilter !== undefined) {
+                        settingsStore.setRowColorFilter(fileConfig.config.rowColorFilter);
+                    }
+
+                    if (fileConfig.config.wrapText !== undefined) {
+                        settingsStore.setWrapText(fileConfig.config.wrapText);
+                    }
+
+                    if (fileConfig.config.showColumnSeparators !== undefined) {
+                        settingsStore.setShowColumnSeparators(fileConfig.config.showColumnSeparators);
+                    }
+
+                    if (fileConfig.config.autoFitColumns !== undefined) {
+                        settingsStore.setAutoFitColumns(fileConfig.config.autoFitColumns);
+                    }
+
+                    if (fileConfig.config.hoverHighlightMode !== undefined) {
+                        settingsStore.setHoverHighlightMode(fileConfig.config.hoverHighlightMode as any);
+                    }
+
+                    // Apply config to drawer store
+                    const drawerStore = useDrawerStore.getState();
+
+                    if (fileConfig.config.drawerPosition !== undefined) {
+                        drawerStore.setPosition(fileConfig.config.drawerPosition);
+                    }
+
+                    if (fileConfig.config.rightDrawerSize !== undefined) {
+                        drawerStore.setRightDrawerSize(fileConfig.config.rightDrawerSize);
+                    }
+
+                    if (fileConfig.config.bottomDrawerSize !== undefined) {
+                        drawerStore.setBottomDrawerSize(fileConfig.config.bottomDrawerSize);
+                    }
+
+                    // Update config's last seen timestamp
+                    await useFileConfigStore.getState().saveConfigForFile(identifiers, fileConfig.config);
+
+                    console.log("Applied file config:", fileConfig.id);
+                } else {
+                    console.log("No existing config for file, using defaults");
+                }
+            } catch (error) {
+                console.error("Failed to load file config:", error);
+                // Continue without config - not a fatal error
+            }
         } catch (error) {
             set({
                 error: `Failed to load CSV: ${error}`,
@@ -433,6 +519,17 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     // Set error message
     setError: (error: string | null) => {
         set({ error });
+    },
+
+    // Set column widths
+    setColumnWidths: (widths: Record<number, number> | ((prev: Record<number, number>) => Record<number, number>)) => {
+        if (typeof widths === "function") {
+            const currentWidths = get().columnWidths;
+            const newWidths = widths(currentWidths);
+            set({ columnWidths: newWidths });
+        } else {
+            set({ columnWidths: widths });
+        }
     },
 
     // Undo last action

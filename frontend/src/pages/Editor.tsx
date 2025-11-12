@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useCSVStore } from "@stores/csvStore";
 import CSVGrid from "@components/CSVGrid";
 import CSVGridVirtualized from "@components/CSVGridVirtualized";
@@ -13,10 +15,85 @@ const VIRTUALIZATION_THRESHOLD = 1000;
  * Toolbar controls have been moved to the Header component.
  */
 function Editor() {
-    const { headers, data, error } = useCSVStore();
+    const { headers, data, error, loadCSV } = useCSVStore();
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
 
     // Check if we have data loaded
     const hasData = headers.length > 0;
+
+    /**
+     * Handle click on empty state to open file dialog
+     */
+    const handleOpenFile = async () => {
+        try {
+            const filePath = await open({
+                multiple: false,
+                filters: [
+                    { name: "CSV Files", extensions: ["csv"] },
+                    { name: "All Files", extensions: ["*"] },
+                ],
+            });
+
+            if (filePath && typeof filePath === "string") {
+                await loadCSV(filePath);
+            }
+        } catch (error) {
+            console.error("Failed to open file:", error);
+        }
+    };
+
+    /**
+     * Handle file drag enter
+     */
+    const handleDragEnter = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(true);
+    };
+
+    /**
+     * Handle file drag over
+     */
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    /**
+     * Handle file drag leave
+     */
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(false);
+    };
+
+    /**
+     * Handle file drop
+     */
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(false);
+
+        // Get the dropped files from the dataTransfer
+        const files = Array.from(e.dataTransfer.files);
+
+        if (files.length > 0) {
+            const file = files[0];
+            // Check if it's a CSV file
+            if (file.name.endsWith(".csv")) {
+                // Tauri adds a 'path' property to dropped files with the full file path
+                const fileWithPath = file as File & { path?: string };
+                const filePath = fileWithPath.path || file.name;
+                try {
+                    await loadCSV(filePath);
+                } catch (error) {
+                    console.error("Failed to load dropped file:", error);
+                }
+            }
+        }
+    };
 
     return (
         <div className="h-full flex flex-col min-w-0">
@@ -49,11 +126,26 @@ function Editor() {
                         <CSVGrid />
                     )
                 ) : (
-                    <div className="h-full flex items-center justify-center">
-                        <div className="text-center p-8">
+                    <div
+                        className="h-full flex items-center justify-center p-8"
+                        onDragEnter={handleDragEnter}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                    >
+                        <div
+                            className={`
+                                text-center p-12 rounded-lg border-2 border-dashed transition-all cursor-pointer
+                                ${isDraggingOver
+                        ? "border-primary bg-primary/10 scale-105"
+                        : "border-base-300 bg-base-200/50 hover:border-primary/50 hover:bg-base-200"
+                    }
+                            `}
+                            onClick={handleOpenFile}
+                        >
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
-                                className="h-24 w-24 mx-auto text-base-content/30 mb-4"
+                                className={`h-24 w-24 mx-auto mb-4 transition-colors ${isDraggingOver ? "text-primary" : "text-base-content/30"}`}
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
@@ -66,10 +158,13 @@ function Editor() {
                                 />
                             </svg>
                             <h2 className="text-xl font-semibold text-base-content/60 mb-2">
-                                No CSV File Open
+                                {isDraggingOver ? "Drop CSV File Here" : "No CSV File Open"}
                             </h2>
-                            <p className="text-base-content/50 mb-6">
-                                Click "Open File" in the header to load a CSV file
+                            <p className="text-base-content/50">
+                                {isDraggingOver
+                                    ? "Release to open"
+                                    : "Click here, drag and drop a CSV file, or use \"Open File\" in the header"
+                                }
                             </p>
                         </div>
                     </div>

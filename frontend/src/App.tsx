@@ -7,6 +7,9 @@ import FindReplaceModal from "./components/FindReplaceModal";
 import { useCSVStore } from "./stores/csvStore";
 import { useFindReplaceStore } from "./stores/findReplaceStore";
 import { useDrawerStore } from "./stores/drawerStore";
+import { useFileConfigStore } from "./stores/fileConfigStore";
+import { useSettingsStore } from "./stores/settingsStore";
+import { debouncedSaveCurrentFileConfig } from "./utils/configPersistence";
 import { DragProvider } from "./contexts/DragContext";
 
 /**
@@ -19,9 +22,45 @@ function App() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(100);
-    const { saveCSV, undo, redo, canUndo, canRedo } = useCSVStore();
+    const { saveCSV, undo, redo, canUndo, canRedo, columnFilters, currentFile } = useCSVStore();
     const { openFind, openReplace } = useFindReplaceStore();
-    const { position: printPreviewPosition, togglePosition } = useDrawerStore();
+    const { position: printPreviewPosition, togglePosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
+    const { loadConfigs } = useFileConfigStore();
+    const {
+        rowColoringMode,
+        rowColorFilter,
+        wrapText,
+        showColumnSeparators,
+        autoFitColumns,
+        hoverHighlightMode,
+    } = useSettingsStore();
+
+    // Load file configs on app startup
+    useEffect(() => {
+        loadConfigs().catch((error) => {
+            console.error("Failed to load file configs:", error);
+        });
+    }, [loadConfigs]);
+
+    // Save config when settings, filters, or drawer state change
+    useEffect(() => {
+        // Only save if we have a file open
+        if (currentFile) {
+            debouncedSaveCurrentFileConfig(1000);
+        }
+    }, [
+        rowColoringMode,
+        rowColorFilter,
+        wrapText,
+        showColumnSeparators,
+        autoFitColumns,
+        hoverHighlightMode,
+        columnFilters,
+        printPreviewPosition,
+        rightDrawerSize,
+        bottomDrawerSize,
+        currentFile,
+    ]);
 
     // Apply zoom level to document
     useEffect(() => {

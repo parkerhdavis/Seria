@@ -173,8 +173,8 @@ function FileTree() {
                                                 isCurrentFile(file.path)
                                                     ? "active bg-primary text-primary-content"
                                                     : isNonCsvFile
-                                                    ? "opacity-40 cursor-default"
-                                                    : ""
+                                                        ? "opacity-40 cursor-default"
+                                                        : ""
                                             } ${isClickable ? "" : "pointer-events-none"}`}
                                         >
                                             {file.isDirectory ? (

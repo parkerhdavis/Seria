@@ -10,8 +10,10 @@
  * Most business logic lives in the frontend (React + TypeScript).
  * This backend handles only:
  * - File system operations (open, save, dialogs)
+ * - File identifiers and content hashing for config matching
  * - User preferences storage
  * - Custom Print template storage
+ * - Per-file configuration storage
  */
 
 mod file_ops;
@@ -26,12 +28,15 @@ fn main() {
             // File operations
             file_ops::open_csv_file,
             file_ops::save_csv_file,
+            file_ops::get_file_identifiers,
             // Storage operations
             storage::load_preferences,
             storage::save_preferences,
             storage::load_custom_prints,
             storage::save_custom_print,
             storage::delete_custom_print,
+            storage::load_file_configs,
+            storage::save_file_configs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

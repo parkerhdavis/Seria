@@ -6,6 +6,9 @@
  */
 
 import { useSettingsStore, type HoverHighlightMode } from "@stores/settingsStore";
+import { useFileConfigStore } from "@stores/fileConfigStore";
+import { save, open } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -28,6 +31,56 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         hoverHighlightMode,
         setHoverHighlightMode,
     } = useSettingsStore();
+
+    const { exportConfigs, importConfigs, cleanupOldConfigs } = useFileConfigStore();
+
+    // Handle export configs
+    const handleExportConfigs = async () => {
+        try {
+            const filePath = await save({
+                filters: [{ name: "JSON Files", extensions: ["json"] }],
+                title: "Export File Configurations",
+                defaultPath: "juniper-configs.json",
+            });
+
+            if (filePath) {
+                const configData = exportConfigs();
+                await writeTextFile(filePath, configData);
+                console.log("Configs exported to:", filePath);
+            }
+        } catch (error) {
+            console.error("Failed to export configs:", error);
+        }
+    };
+
+    // Handle import configs
+    const handleImportConfigs = async () => {
+        try {
+            const filePath = await open({
+                multiple: false,
+                filters: [{ name: "JSON Files", extensions: ["json"] }],
+                title: "Import File Configurations",
+            });
+
+            if (filePath) {
+                const configData = await readTextFile(filePath as string);
+                await importConfigs(configData);
+                console.log("Configs imported from:", filePath);
+            }
+        } catch (error) {
+            console.error("Failed to import configs:", error);
+        }
+    };
+
+    // Handle cleanup old configs
+    const handleCleanupConfigs = async () => {
+        try {
+            await cleanupOldConfigs();
+            console.log("Old configs cleaned up");
+        } catch (error) {
+            console.error("Failed to cleanup configs:", error);
+        }
+    };
 
     if (!isOpen) {
         return null;
@@ -357,13 +410,55 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         </div>
                     </div>
 
-                    <div className="alert alert-info">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-6 h-6">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        <div>
-                            <p className="font-semibold">Settings Coming Soon</p>
-                            <p className="text-sm">Preferences persistence will be implemented in Phase 6</p>
+                    {/* File Configuration Management */}
+                    <div className="card bg-base-200 shadow-md">
+                        <div className="card-body">
+                            <h3 className="card-title text-xl mb-4">File Configuration Management</h3>
+                            <p className="text-base-content/70 mb-4">
+                                Export, import, and manage your file-specific settings (column widths, filters, display preferences).
+                            </p>
+
+                            <div className="flex flex-wrap gap-3">
+                                <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={handleExportConfigs}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                                    </svg>
+                                    Export Configs
+                                </button>
+
+                                <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={handleImportConfigs}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                    Import Configs
+                                </button>
+
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    onClick={handleCleanupConfigs}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Cleanup Old Configs
+                                </button>
+                            </div>
+
+                            <div className="alert alert-info mt-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-5 h-5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <div className="text-sm">
+                                    <p className="font-semibold">About File Configs</p>
+                                    <p>Your settings are automatically saved per file. Export to back up or share with others.</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

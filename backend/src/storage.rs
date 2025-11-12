@@ -136,3 +136,40 @@ pub fn delete_custom_print(app: AppHandle, name: String) -> Result<(), String> {
 
     Ok(())
 }
+
+/// Get the file configs path
+fn get_file_configs_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let mut path = get_app_data_dir(app)?;
+    path.push("file-configs.json");
+    Ok(path)
+}
+
+/// Load file configs from JSON file
+/// This stores per-file settings like column widths, filters, and display preferences
+#[tauri::command]
+pub fn load_file_configs(app: AppHandle) -> Result<String, String> {
+    let path = get_file_configs_path(&app)?;
+
+    if !path.exists() {
+        // Return empty config structure if file doesn't exist
+        return Ok(r#"{"version":1,"configs":[]}"#.to_string());
+    }
+
+    fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read file configs: {}", e))
+}
+
+/// Save file configs to JSON file
+#[tauri::command]
+pub fn save_file_configs(app: AppHandle, data: String) -> Result<(), String> {
+    let path = get_file_configs_path(&app)?;
+
+    // Ensure parent directory exists
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create config directory: {}", e))?;
+    }
+
+    fs::write(&path, data)
+        .map_err(|e| format!("Failed to write file configs: {}", e))
+}

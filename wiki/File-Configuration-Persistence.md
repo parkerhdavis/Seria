@@ -1,0 +1,372 @@
+# File Configuration Persistence
+
+Juniper automatically saves your per-file settings so you don't have to reconfigure your workspace every time you open a CSV file. This includes column widths, filters, display preferences, and more.
+
+## What Gets Saved
+
+Juniper automatically saves the following settings for each CSV file you work with:
+
+**Column Settings:**
+- Column widths stored as proportions (0-1 range, e.g., 0.3 = 30% of available width)
+  - Proportional storage ensures columns resize gracefully when the drawer opens/closes
+  - Settings work across different screen sizes and monitor resolutions
+  - Columns maintain their relative importance even as the view area changes
+- Column summaries (count, unique, mode, average, min, max, sum)
+
+**Filtering & Data:**
+- Column filters (contains, equals, etc.)
+- Active filter configurations
+
+**Display Preferences:**
+- Wrap text setting
+- Show column separators
+- Auto-fit columns toggle
+- Row coloring mode (off, alternating, by-field)
+- Row color filters
+- Hover highlight mode (none, row, column, row-and-column)
+
+**Print Preview Drawer:**
+- Drawer position (right, bottom, or closed)
+- Right drawer width
+- Bottom drawer height
+
+## Where Data is Stored
+
+Configuration data is stored in a platform-specific application data directory:
+
+**Windows:**
+```
+%LOCALAPPDATA%\juniper\file-configs.json
+```
+
+**macOS:**
+```
+~/Library/Application Support/juniper/file-configs.json
+```
+
+**Linux:**
+```
+~/.local/share/juniper/file-configs.json
+```
+
+The configuration file is stored as human-readable JSON, making it easy to back up, version control, or manually edit if needed.
+
+## How File Matching Works
+
+Juniper uses a sophisticated multi-identifier approach to match configuration data to files, even when files are renamed or moved. This ensures your settings persist across file system changes.
+
+### Matching Algorithm Priority
+
+When you open a CSV file, Juniper tries to find existing configuration using these identifiers in order:
+
+1. **Absolute Path** (Fast path - most common case)
+   - Direct match on the full file path
+   - Example: `/Users/parker/data/characters.csv`
+
+2. **OS File ID + Filename + Size** (Survives renames in same volume)
+   - Uses OS-native file identifiers (inode on Unix/Mac, File ID on Windows)
+   - Matches even if the file is renamed
+   - Example: `inode-12345` + `characters.csv` + `45320 bytes`
+
+3. **Filename + Parent Directory + Size** (Survives moves within same parent)
+   - Matches based on filename, parent folder name, and file size
+   - Example: `characters.csv` in folder `data` + `45320 bytes`
+
+4. **Partial Content Hash** (Survives moves between volumes)
+   - SHA-256 hash of first 1MB (or entire file if smaller)
+   - Matches files even when moved to different drives or systems
+   - Only calculated for files larger than 100KB to improve performance
+
+### What This Means for You
+
+- **Rename files freely** - Your settings will follow the file (as long as it stays on the same volume)
+- **Move files** - Settings persist even when moving between folders or drives
+- **Copy files** - Copied files inherit the same settings (since content hash matches)
+- **Edit files externally** - Large content changes may break hash matching, but path/filename still works
+
+## How Settings Are Saved
+
+Settings are automatically saved:
+
+- **When you make changes** - Debounced auto-save (1 second delay) prevents excessive writes
+- **When you close a file** - Final save ensures all changes are persisted
+- **When you adjust columns** - Resizing, reordering, or changing visibility
+- **When you change filters** - Adding, removing, or modifying column filters
+- **When you toggle settings** - Any display preference changes in the toolbar
+
+You don't need to manually save - Juniper handles this automatically.
+
+## Export & Import
+
+### Exporting Configurations
+
+To back up your configurations or share them with others:
+
+1. Open **Settings** (Ctrl+,)
+2. Scroll to **File Configuration Management**
+3. Click **Export Configs**
+4. Choose a location to save the JSON file (default: `juniper-configs.json`)
+
+The exported file contains all your file configurations in a portable JSON format.
+
+**Use cases for exporting:**
+- **Backup before reinstalling** - Save your configs before upgrading or reinstalling Juniper
+- **Share with team** - Send your column layouts and filters to colleagues working on the same CSVs
+- **Version control** - Track configuration changes in Git alongside your CSV files
+- **Multiple machines** - Sync settings between your desktop and laptop
+
+### Importing Configurations
+
+To restore configurations from a backup or import from another user:
+
+1. Open **Settings** (Ctrl+,)
+2. Scroll to **File Configuration Management**
+3. Click **Import Configs**
+4. Select the JSON file to import
+
+**Import behavior:**
+- Imported configs are **merged** with existing configs
+- Conflicts are resolved by **preferring imported data** (newer overwrites older)
+- Files are matched using the multi-identifier system
+- Invalid or corrupted entries are skipped with error logging
+
+### Export File Format
+
+The exported JSON file has this structure:
+
+```json
+{
+  "version": 1,
+  "exported": "2025-11-12T10:30:00Z",
+  "configs": [
+    {
+      "id": "uuid-123-456-789",
+      "identifiers": {
+        "absolutePath": "/Users/parker/data/characters.csv",
+        "filename": "characters.csv",
+        "parentDir": "data",
+        "fileSize": 45320,
+        "contentHashPartial": "sha256-hash-here",
+        "osFileId": "inode-12345"
+      },
+      "lastSeen": "2025-11-12T10:30:00Z",
+      "config": {
+        "columnWidths": {
+          "0": 0.3,
+          "1": 0.25,
+          "2": 0.45
+        },
+        "columnSummaries": {
+          "Name": "count",
+          "Age": "average",
+          "Class": "unique"
+        },
+        "filters": [
+          {
+            "field": "Class",
+            "operation": "contains",
+            "value": "Warrior"
+          }
+        ],
+        "wrapText": false,
+        "showColumnSeparators": true,
+        "autoFitColumns": false,
+        "rowColoringMode": "by-field",
+        "rowColorFilter": {
+          "field": "Status",
+          "operation": "equals",
+          "value": "Active",
+          "color": "#22c55e"
+        },
+        "hoverHighlightMode": "row-and-column"
+      }
+    }
+  ],
+  "exportMode": "absolute"
+}
+```
+
+**Note:** You can manually edit this JSON file if needed, but be careful to maintain valid JSON structure.
+
+## Managing Configurations
+
+### Automatic Cleanup
+
+Juniper automatically cleans up configurations for files you haven't opened recently:
+
+- **Default retention:** 180 days (6 months)
+- **When cleanup runs:** On app startup (if enabled in preferences)
+- **What gets removed:** Configs for files not seen in the retention period
+
+### Manual Cleanup
+
+To immediately clean up old configurations:
+
+1. Open **Settings** (Ctrl+,)
+2. Scroll to **File Configuration Management**
+3. Click **Cleanup Old Configs**
+
+This removes all configs for files not accessed in the last 180 days, reducing storage space and improving performance.
+
+### Viewing Current Configs
+
+To see which files have saved configurations:
+
+1. Navigate to your application data directory (see "Where Data is Stored" above)
+2. Open `file-configs.json` in a text editor
+3. Search for filenames or paths to see saved settings
+
+Each entry includes a `lastSeen` timestamp showing when you last opened that file.
+
+## Configuration Preferences
+
+The following preferences control configuration behavior (available in Settings):
+
+**Auto-save Configs** (Default: Enabled)
+- When enabled, configs save automatically as you work
+- When disabled, configs only save when explicitly triggered
+
+**Config Retention Days** (Default: 180)
+- How long to keep configs for files you haven't opened
+- Range: 30-365 days
+
+**Prompt for Ambiguous Matches** (Default: Enabled)
+- When enabled, asks for confirmation if multiple files match identifiers
+- When disabled, automatically uses the best match
+
+## Troubleshooting
+
+### My settings aren't persisting
+
+**Check that:**
+- You're opening the same file (not a copy with a different path)
+- The file hasn't changed significantly (large edits break content hash matching)
+- Auto-save is enabled in Settings
+- You have write permissions to the config directory
+
+**Try:**
+- Manually trigger a save by changing a setting
+- Export and re-import your configs to rebuild the database
+- Check console logs for errors (Ctrl+Shift+I in dev mode)
+
+### Settings applied to wrong file
+
+This can happen if two files have:
+- Same filename and parent directory name
+- Very similar content (matching hash)
+
+**Solution:**
+- Rename one of the files to make them distinct
+- Manually delete the incorrect config entry from `file-configs.json`
+- Adjust the file to change its content hash
+
+### Config file is too large
+
+If `file-configs.json` grows too large (>10MB):
+
+1. Run **Cleanup Old Configs** in Settings
+2. Export configs, manually remove entries for deleted files, then re-import
+3. Reduce **Config Retention Days** in preferences
+4. Delete `file-configs.json` to start fresh (this loses all saved settings)
+
+### Configs not transferring between machines
+
+When moving configs between different operating systems:
+
+**Expected behavior:**
+- Absolute paths won't match (different file systems)
+- OS file IDs won't match (different volumes)
+- Content hash and filename should still match
+
+**Best practice:**
+1. Export configs on Machine A
+2. Move your CSV files to Machine B
+3. Open files on Machine B (creates new path mappings)
+4. Import configs from Machine A
+5. Juniper will match by content hash and update paths
+
+## Privacy & Security
+
+**What data is NOT stored:**
+- File contents (only metadata and settings)
+- User credentials or passwords
+- Personally identifiable information
+
+**File permissions:**
+- Config file uses standard user permissions
+- Only your user account can read/write configs
+- Configs are stored locally (never transmitted)
+
+**Sensitive data warning:**
+- File paths may reveal folder structure
+- Filter values are stored in plain text
+- Consider this when exporting configs to share with others
+
+## Advanced Usage
+
+### Version Control Integration
+
+You can track configuration changes in Git alongside your CSV files:
+
+```bash
+# Add configs to your repository
+cp ~/.config/juniper/file-configs.json ./csv-configs.json
+git add csv-configs.json
+git commit -m "Save Juniper CSV configurations"
+```
+
+**Benefits:**
+- Track changes to column layouts and filters
+- Sync configs across team members
+- Revert to previous configuration states
+
+### Scripting Configuration Changes
+
+Since configs are JSON, you can programmatically modify them:
+
+```python
+import json
+
+# Load configs
+with open('file-configs.json', 'r') as f:
+    configs = json.load(f)
+
+# Find all files with auto-fit disabled
+for config in configs['configs']:
+    if not config['config'].get('autoFitColumns', True):
+        print(f"File: {config['identifiers']['filename']}")
+
+# Bulk enable auto-fit
+for config in configs['configs']:
+    config['config']['autoFitColumns'] = True
+
+# Save modified configs
+with open('file-configs.json', 'w') as f:
+    json.dump(configs, f, indent=2)
+```
+
+### Template Configurations
+
+Create a "template" config for new files:
+
+1. Configure a CSV file exactly how you want it
+2. Export the config
+3. When opening a new file, import the template
+4. Settings will apply to files with matching structure
+
+## Future Enhancements
+
+Planned improvements to configuration persistence:
+
+- **Named presets** - Save multiple configuration profiles per file
+- **Pattern-based configs** - Apply settings to all files matching a pattern
+- **Portable mode** - Store configs relative to file locations (for USB drives)
+- **Cloud sync** - Optional cloud backup and sync across devices
+- **Shared configs** - Team workspaces with shared configurations
+
+For questions, issues, or feature requests, please visit our [GitHub repository](https://github.com/your-org/juniper).
+
+---
+
+**Last Updated:** November 2025
+**Applies to:** Juniper v0.1.0+
