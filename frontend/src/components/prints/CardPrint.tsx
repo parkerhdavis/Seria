@@ -34,6 +34,16 @@ interface CardData {
 }
 
 /**
+ * Represents a selected card field for editing
+ */
+interface SelectedCardField {
+    cardIndex: number;
+    fieldType: "title" | "subtitle" | "content";
+    contentIndex?: number;  // For content fields only
+    columnName: string;
+}
+
+/**
  * Individual card component with drag-and-drop support
  */
 function Card({
@@ -44,6 +54,11 @@ function Card({
     isDragging,
     editingCell,
     headers,
+    selectedField,
+    isEditingFromPrint,
+    editingValue,
+    onEditingValueChange,
+    onFieldClick,
     setRef,
 }: {
     card: CardData;
@@ -53,9 +68,17 @@ function Card({
     isDragging: boolean;
     editingCell: { row: number; col: number } | null;
     headers: string[];
+    selectedField: SelectedCardField | null;
+    isEditingFromPrint: boolean;
+    editingValue: string;
+    onEditingValueChange: (value: string) => void;
+    onFieldClick: (fieldType: "title" | "subtitle" | "content", contentIndex?: number) => void;
     setRef?: (el: HTMLDivElement | null) => void;
 }) {
     const [isHovered, setIsHovered] = useState(false);
+    const titleInputRef = useRef<HTMLInputElement>(null);
+    const subtitleInputRef = useRef<HTMLInputElement>(null);
+    const contentInputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
     // Check which fields are being edited
     const isTitleEditing = editingCell !== null &&
@@ -80,24 +103,65 @@ function Card({
 
     const hasAnyEditing = isTitleEditing || isSubtitleEditing || editingContentIndices.length > 0;
 
+    // Check which fields are selected
+    const isTitleSelected = selectedField !== null &&
+        selectedField.cardIndex === card.index &&
+        selectedField.fieldType === "title";
+
+    const isSubtitleSelected = selectedField !== null &&
+        selectedField.cardIndex === card.index &&
+        selectedField.fieldType === "subtitle";
+
+    // Check which fields are being edited from Print view
+    const isTitleEditingFromPrint = isEditingFromPrint &&
+        editingCell !== null &&
+        editingCell.row === card.index &&
+        card.titleColumnName &&
+        headers[editingCell.col] === card.titleColumnName;
+
+    const isSubtitleEditingFromPrint = isEditingFromPrint &&
+        editingCell !== null &&
+        editingCell.row === card.index &&
+        card.subtitleColumnName &&
+        headers[editingCell.col] === card.subtitleColumnName;
+
+    // Auto-focus inputs when editing starts from Print view
+    useEffect(() => {
+        if (isTitleEditingFromPrint && titleInputRef.current) {
+            titleInputRef.current.focus();
+            titleInputRef.current.setSelectionRange(editingValue.length, editingValue.length);
+        }
+    }, [isTitleEditingFromPrint, editingValue.length]);
+
+    useEffect(() => {
+        if (isSubtitleEditingFromPrint && subtitleInputRef.current) {
+            subtitleInputRef.current.focus();
+            subtitleInputRef.current.setSelectionRange(editingValue.length, editingValue.length);
+        }
+    }, [isSubtitleEditingFromPrint, editingValue.length]);
+
+    const hasAnySelection = isTitleSelected || isSubtitleSelected ||
+        (selectedField?.cardIndex === card.index && selectedField?.fieldType === "content");
+
     return (
         <div
             ref={setRef}
-            draggable
-            onDragStart={() => onDragStart(card.index)}
+            draggable={!isEditingFromPrint}
+            onDragStart={() => !isEditingFromPrint && onDragStart(card.index)}
             onDragOver={(e) => {
                 e.preventDefault();
-                onDragOver(card.index);
+                !isEditingFromPrint && onDragOver(card.index);
             }}
             onDrop={onDrop}
             onDragEnd={onDrop}
             className={`
                 bg-base-100 border-2 rounded-lg p-4 shadow-md
-                cursor-move transition-all duration-200
+                ${!isEditingFromPrint ? "cursor-move" : ""}
+                transition-all duration-200
                 ${isDragging ? "opacity-50 scale-95" : ""}
-                ${hasAnyEditing ? "border-primary ring-2 ring-primary ring-offset-2" : "border-base-300"}
+                ${hasAnyEditing ? "border-primary ring-2 ring-primary ring-offset-2" : hasAnySelection ? "border-secondary ring-2 ring-secondary ring-offset-2" : "border-base-300"}
                 ${isHovered ? "shadow-xl border-primary" : ""}
-                hover:shadow-xl hover:border-primary
+                ${!isEditingFromPrint ? "hover:shadow-xl hover:border-primary" : ""}
             `}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
@@ -117,17 +181,43 @@ function Card({
             </div>
 
             {/* Title */}
-            {card.title && (
-                <h3 className={`text-base font-bold text-base-content mb-2 pr-8 ${isTitleEditing ? "ring-2 ring-primary ring-offset-2 rounded px-1" : ""}`}>
-                    {card.title}
-                </h3>
+            {(card.title || isTitleSelected || isTitleEditingFromPrint) && (
+                <div onClick={(e) => { e.stopPropagation(); onFieldClick("title"); }} className="cursor-text">
+                    {isTitleEditingFromPrint ? (
+                        <input
+                            ref={titleInputRef}
+                            type="text"
+                            className="text-base font-bold text-base-content mb-2 pr-8 w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 rounded px-1"
+                            value={editingValue}
+                            onChange={(e) => onEditingValueChange(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    ) : (
+                        <h3 className={`text-base font-bold text-base-content mb-2 pr-8 ${isTitleEditing ? "ring-2 ring-primary ring-offset-2 rounded px-1" : isTitleSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-1" : ""}`}>
+                            {card.title || <span className="text-base-content/30 italic">Click to add title</span>}
+                        </h3>
+                    )}
+                </div>
             )}
 
             {/* Subtitle */}
-            {card.subtitle && (
-                <p className={`text-sm italic text-base-content/70 mb-3 ${isSubtitleEditing ? "ring-2 ring-primary ring-offset-2 rounded px-1" : ""}`}>
-                    {card.subtitle}
-                </p>
+            {(card.subtitle || isSubtitleSelected || isSubtitleEditingFromPrint) && (
+                <div onClick={(e) => { e.stopPropagation(); onFieldClick("subtitle"); }} className="cursor-text">
+                    {isSubtitleEditingFromPrint ? (
+                        <input
+                            ref={subtitleInputRef}
+                            type="text"
+                            className="text-sm italic text-base-content/70 mb-3 w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 rounded px-1"
+                            value={editingValue}
+                            onChange={(e) => onEditingValueChange(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    ) : (
+                        <p className={`text-sm italic text-base-content/70 mb-3 ${isSubtitleEditing ? "ring-2 ring-primary ring-offset-2 rounded px-1" : isSubtitleSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-1" : ""}`}>
+                            {card.subtitle || <span className="text-base-content/30">Click to add subtitle</span>}
+                        </p>
+                    )}
+                </div>
             )}
 
             {/* Content */}
@@ -135,10 +225,38 @@ function Card({
                 <div className="text-sm text-base-content/90 space-y-2">
                     {card.content.map((text, idx) => {
                         const isContentEditing = editingContentIndices.includes(idx);
+                        const isContentSelected = selectedField !== null &&
+                            selectedField.cardIndex === card.index &&
+                            selectedField.fieldType === "content" &&
+                            selectedField.contentIndex === idx;
+                        const isContentEditingFromPrint = isEditingFromPrint &&
+                            editingCell !== null &&
+                            editingCell.row === card.index &&
+                            headers[editingCell.col] === card.contentColumnNames[idx];
+
                         return (
-                            <p key={idx} className={`line-clamp-3 ${isContentEditing ? "ring-2 ring-primary ring-offset-2 rounded px-1" : ""}`}>
-                                {text}
-                            </p>
+                            <div key={idx} onClick={(e) => { e.stopPropagation(); onFieldClick("content", idx); }} className="cursor-text">
+                                {isContentEditingFromPrint ? (
+                                    <input
+                                        ref={(el) => {
+                                            if (el) {
+                                                contentInputRefs.current.set(idx, el);
+                                                el.focus();
+                                                el.setSelectionRange(editingValue.length, editingValue.length);
+                                            }
+                                        }}
+                                        type="text"
+                                        className="line-clamp-3 w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 rounded px-1"
+                                        value={editingValue}
+                                        onChange={(e) => onEditingValueChange(e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                ) : (
+                                    <p className={`line-clamp-3 ${isContentEditing ? "ring-2 ring-primary ring-offset-2 rounded px-1" : isContentSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-1" : ""}`}>
+                                        {text}
+                                    </p>
+                                )}
+                            </div>
                         );
                     })}
                 </div>
@@ -171,8 +289,13 @@ function CardPrint({
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
     const { isDragging: globalIsDragging } = useDrag();
-    const { editingCell, editingValue } = useCSVStore();
+    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell } = useCSVStore();
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+    // State for Print view selection and editing
+    const [selectedField, setSelectedField] = useState<SelectedCardField | null>(null);
+    const [isEditingFromPrint, setIsEditingFromPrint] = useState(false);
+    const printContainerRef = useRef<HTMLDivElement>(null);
 
     // Get field mappings
     const titleColumn = getMappedColumn(configuration.fieldMappings, "title");
@@ -204,6 +327,102 @@ function CardPrint({
             }
         }
     }, [editingCell, containerRef]);
+
+    // Clear Print selection when editing cell from CSV grid changes
+    useEffect(() => {
+        if (editingCell && !isEditingFromPrint) {
+            // Clear Print selection since user is editing from CSV grid
+            setSelectedField(null);
+        }
+    }, [editingCell, isEditingFromPrint]);
+
+    // Keyboard handlers for Print view
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            const isInInput = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+
+            // Handle F2 or Enter to start editing from Print view
+            if ((e.key === "F2" || e.key === "Enter") && selectedField && !isEditingFromPrint && !isInInput) {
+                e.preventDefault();
+                startEditingFromPrint();
+            }
+
+            // Handle Enter or F2 to save editing from Print view
+            if ((e.key === "Enter" || e.key === "F2") && isEditingFromPrint) {
+                e.preventDefault();
+                saveEditingFromPrint();
+            }
+
+            // Handle Escape to cancel editing
+            if (e.key === "Escape") {
+                if (isEditingFromPrint) {
+                    e.preventDefault();
+                    cancelEditingFromPrint();
+                } else if (selectedField) {
+                    e.preventDefault();
+                    setSelectedField(null);
+                }
+            }
+        };
+
+        document.addEventListener("keydown", handleKeyDown);
+        return () => document.removeEventListener("keydown", handleKeyDown);
+    }, [selectedField, isEditingFromPrint]);
+
+    // Start editing from Print view
+    const startEditingFromPrint = () => {
+        if (!selectedField) return;
+
+        const colIndex = headers.indexOf(selectedField.columnName);
+        if (colIndex === -1) return;
+
+        const value = data[selectedField.cardIndex]?.[colIndex] || "";
+        setEditingCell(selectedField.cardIndex, colIndex, value);
+        setIsEditingFromPrint(true);
+    };
+
+    // Save editing from Print view
+    const saveEditingFromPrint = () => {
+        if (!editingCell) return;
+
+        updateCell(editingCell.row, editingCell.col, editingValue);
+        clearEditingCell();
+        setIsEditingFromPrint(false);
+    };
+
+    // Cancel editing from Print view
+    const cancelEditingFromPrint = () => {
+        clearEditingCell();
+        setIsEditingFromPrint(false);
+    };
+
+    // Handle clicking on a card field
+    const handleFieldClick = (cardIndex: number, fieldType: "title" | "subtitle" | "content", contentIndex?: number) => {
+        let columnName: string | undefined;
+
+        if (fieldType === "title") {
+            columnName = titleColumn;
+        } else if (fieldType === "subtitle") {
+            columnName = subtitleColumn;
+        } else if (fieldType === "content" && contentIndex !== undefined) {
+            columnName = contentColumns[contentIndex];
+        }
+
+        if (!columnName) return;
+
+        setSelectedField({
+            cardIndex,
+            fieldType,
+            contentIndex: fieldType === "content" ? contentIndex : undefined,
+            columnName,
+        });
+
+        // Focus the Print container so keyboard events work
+        if (printContainerRef.current) {
+            printContainerRef.current.focus();
+        }
+    };
 
     // Helper to get cell value (either from data or editingValue if being edited)
     const getCellValue = (rowIndex: number, colIndex: number): string => {
@@ -297,8 +516,12 @@ function CardPrint({
 
     return (
         <div
-            ref={setContainerRef}
-            className="w-full h-full overflow-auto bg-black/30"
+            ref={(el) => {
+                setContainerRef(el);
+                printContainerRef.current = el;
+            }}
+            className="w-full h-full overflow-auto bg-black/30 outline-none"
+            tabIndex={0}
         >
             <div style={gridStyle}>
                 {cards.map((card) => {
@@ -321,6 +544,11 @@ function CardPrint({
                                 isDragging={draggedIndex === card.index}
                                 editingCell={editingCell}
                                 headers={headers}
+                                selectedField={selectedField}
+                                isEditingFromPrint={isEditingFromPrint}
+                                editingValue={editingValue}
+                                onEditingValueChange={updateEditingValue}
+                                onFieldClick={(fieldType, contentIndex) => handleFieldClick(card.index, fieldType, contentIndex)}
                                 setRef={setRef}
                             />
                         </div>

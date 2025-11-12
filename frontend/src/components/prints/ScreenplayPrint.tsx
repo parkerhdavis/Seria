@@ -34,6 +34,15 @@ interface ScreenplayElement {
 }
 
 /**
+ * Represents a selected Print element for editing
+ */
+interface SelectedPrintElement {
+    rowIndex: number;
+    columnName: string;
+    elementIndex: number;  // Index in the elements array for navigation
+}
+
+/**
  * Converts indent value (in pixels at 96dpi) to inches for rendering
  */
 function pixelsToInches(pixels: number): number {
@@ -48,15 +57,26 @@ function ScreenplayElementView({
     marginLeft,
     showRowNumbers,
     isBeingEdited,
+    isSelected,
+    isEditingFromPrint,
+    editingValue,
+    onEditingValueChange,
+    onClick,
     setRef,
 }: {
     element: ScreenplayElement;
     marginLeft: number;
     showRowNumbers: boolean;
     isBeingEdited: boolean;
+    isSelected: boolean;
+    isEditingFromPrint: boolean;
+    editingValue: string;
+    onEditingValueChange: (value: string) => void;
+    onClick: () => void;
     setRef?: (el: HTMLDivElement | null) => void;
 }) {
     const ingredient = element.type;
+    const inputRef = useRef<HTMLInputElement>(null);
 
     // Get styling based on element type
     let textAlign: "left" | "right" = "left";
@@ -95,10 +115,30 @@ function ScreenplayElementView({
         maxWidth: textAlign === "left" ? maxWidth : undefined,
     };
 
+    // Auto-focus input when editing starts from Print view
+    useEffect(() => {
+        if (isEditingFromPrint && inputRef.current) {
+            inputRef.current.focus();
+            // Place cursor at end of text
+            inputRef.current.setSelectionRange(editingValue.length, editingValue.length);
+        }
+    }, [isEditingFromPrint, editingValue.length]);
+
+    // Format content based on element type
+    const formatContent = (content: string) => {
+        if (element.type === "parenthetical") {
+            return content.startsWith("(") ? content : `(${content})`;
+        } else if (element.type === "transition") {
+            return content.endsWith(":") ? content : `${content}:`;
+        }
+        return content;
+    };
+
     return (
         <div
             ref={setRef}
-            className={`screenplay-element mb-3 relative ${isBeingEdited ? "editing-indicator" : ""}`}
+            className={`screenplay-element mb-3 relative cursor-pointer ${isBeingEdited ? "editing-indicator" : ""} ${isSelected ? "selected-indicator" : ""}`}
+            onClick={onClick}
         >
             {/* Optional row number indicator */}
             {showRowNumbers && (
@@ -116,17 +156,33 @@ function ScreenplayElementView({
                 </div>
             )}
 
-            <p
-                className={`font-mono text-base leading-tight ${isBeingEdited ? "ring-2 ring-primary ring-offset-2 ring-offset-white rounded px-1" : ""}`}
-                style={style as React.CSSProperties}
-            >
-                {/* Format content based on element type */}
-                {element.type === "parenthetical"
-                    ? element.content.startsWith("(") ? element.content : `(${element.content})`
-                    : element.type === "transition"
-                        ? element.content.endsWith(":") ? element.content : `${element.content}:`
-                        : element.content}
-            </p>
+            {/* Selection indicator */}
+            {isSelected && !isEditingFromPrint && (
+                <div className="absolute -left-6 top-0 text-secondary">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            )}
+
+            {isEditingFromPrint ? (
+                <input
+                    ref={inputRef}
+                    type="text"
+                    className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 ring-offset-white rounded px-1"
+                    style={style as React.CSSProperties}
+                    value={editingValue}
+                    onChange={(e) => onEditingValueChange(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                />
+            ) : (
+                <p
+                    className={`font-mono text-base leading-tight ${isBeingEdited ? "ring-2 ring-primary ring-offset-2 ring-offset-white rounded px-1" : ""} ${isSelected ? "ring-2 ring-secondary ring-offset-2 ring-offset-white rounded px-1" : ""}`}
+                    style={style as React.CSSProperties}
+                >
+                    {formatContent(element.content)}
+                </p>
+            )}
         </div>
     );
 }
@@ -144,8 +200,13 @@ function ScreenplayPrint({
     containerHeight,
 }: ScreenplayPrintProps) {
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
-    const { editingCell, editingValue } = useCSVStore();
+    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell } = useCSVStore();
     const elementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+    // State for Print view selection and editing
+    const [selectedPrintElement, setSelectedPrintElement] = useState<SelectedPrintElement | null>(null);
+    const [isEditingFromPrint, setIsEditingFromPrint] = useState(false);
+    const printContainerRef = useRef<HTMLDivElement>(null);
 
     // Get field mappings
     const sceneHeadingColumn = getMappedColumn(configuration.fieldMappings, "scene_heading");
@@ -200,6 +261,98 @@ function ScreenplayPrint({
             }
         }
     }, [editingCell, headers, containerRef]);
+
+    // Clear Print selection when editing cell from CSV grid changes
+    useEffect(() => {
+        if (editingCell && !isEditingFromPrint) {
+            // Clear Print selection since user is editing from CSV grid
+            setSelectedPrintElement(null);
+        }
+    }, [editingCell, isEditingFromPrint]);
+
+    // Keyboard handlers for Print view
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Only handle if the Print container is focused or if we're not in any input
+            const target = e.target as HTMLElement;
+            const isInInput = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+
+            // Handle F2 or Enter to start editing from Print view
+            if ((e.key === "F2" || e.key === "Enter") && selectedPrintElement && !isEditingFromPrint && !isInInput) {
+                e.preventDefault();
+                startEditingFromPrint();
+            }
+
+            // Handle Enter or F2 to save editing from Print view
+            if ((e.key === "Enter" || e.key === "F2") && isEditingFromPrint) {
+                e.preventDefault();
+                saveEditingFromPrint();
+            }
+
+            // Handle Escape to cancel editing
+            if (e.key === "Escape") {
+                if (isEditingFromPrint) {
+                    e.preventDefault();
+                    cancelEditingFromPrint();
+                } else if (selectedPrintElement) {
+                    e.preventDefault();
+                    setSelectedPrintElement(null);
+                }
+            }
+
+            // Arrow key navigation (when not editing)
+            if (!isEditingFromPrint && selectedPrintElement && !isInInput) {
+                // We'll implement arrow navigation later if needed
+            }
+        };
+
+        document.addEventListener("keydown", handleKeyDown);
+        return () => document.removeEventListener("keydown", handleKeyDown);
+    }, [selectedPrintElement, isEditingFromPrint]);
+
+    // Start editing from Print view
+    const startEditingFromPrint = () => {
+        if (!selectedPrintElement) return;
+
+        const colIndex = headers.indexOf(selectedPrintElement.columnName);
+        if (colIndex === -1) return;
+
+        const value = data[selectedPrintElement.rowIndex]?.[colIndex] || "";
+        setEditingCell(selectedPrintElement.rowIndex, colIndex, value);
+        setIsEditingFromPrint(true);
+    };
+
+    // Save editing from Print view
+    const saveEditingFromPrint = () => {
+        if (!editingCell) return;
+
+        updateCell(editingCell.row, editingCell.col, editingValue);
+        clearEditingCell();
+        setIsEditingFromPrint(false);
+
+        // Keep the element selected after editing
+        // (selectedPrintElement remains unchanged)
+    };
+
+    // Cancel editing from Print view
+    const cancelEditingFromPrint = () => {
+        clearEditingCell();
+        setIsEditingFromPrint(false);
+    };
+
+    // Handle clicking on a Print element
+    const handleElementClick = (element: ScreenplayElement, elementIndex: number) => {
+        setSelectedPrintElement({
+            rowIndex: element.rowIndex,
+            columnName: element.columnName,
+            elementIndex,
+        });
+
+        // Focus the Print container so keyboard events work
+        if (printContainerRef.current) {
+            printContainerRef.current.focus();
+        }
+    };
 
     // Transform CSV data into screenplay elements
     // Use editingValue for real-time preview if a cell is being edited
@@ -333,8 +486,12 @@ function ScreenplayPrint({
 
     return (
         <div
-            ref={setContainerRef}
-            className="w-full h-full overflow-auto p-2 bg-black/20"
+            ref={(el) => {
+                setContainerRef(el);
+                printContainerRef.current = el;
+            }}
+            className="w-full h-full overflow-auto p-2 bg-black/20 outline-none"
+            tabIndex={0}
         >
             {/* Screenplay page */}
             <div
@@ -353,6 +510,17 @@ function ScreenplayPrint({
                     {elements.map((element, index) => {
                         // Check if this element corresponds to the cell being edited
                         const isBeingEdited = editingCell !== null &&
+                            editingCell.row === element.rowIndex &&
+                            headers[editingCell.col] === element.columnName;
+
+                        // Check if this element is selected
+                        const isSelected = selectedPrintElement !== null &&
+                            selectedPrintElement.rowIndex === element.rowIndex &&
+                            selectedPrintElement.columnName === element.columnName;
+
+                        // Check if this element is being edited from Print view
+                        const isEditingThisFromPrint = isEditingFromPrint &&
+                            editingCell !== null &&
                             editingCell.row === element.rowIndex &&
                             headers[editingCell.col] === element.columnName;
 
@@ -375,6 +543,11 @@ function ScreenplayPrint({
                                 marginLeft={marginLeft}
                                 showRowNumbers={false}
                                 isBeingEdited={isBeingEdited}
+                                isSelected={isSelected}
+                                isEditingFromPrint={isEditingThisFromPrint}
+                                editingValue={editingValue}
+                                onEditingValueChange={updateEditingValue}
+                                onClick={() => handleElementClick(element, index)}
                                 setRef={setRef}
                             />
                         );
