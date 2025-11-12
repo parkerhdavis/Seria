@@ -8,6 +8,7 @@ import { create } from "zustand";
 
 export type RowColoringMode = "off" | "alternating" | "by-field";
 export type FilterOperation = "contains" | "not-contains" | "equals" | "not-equals";
+export type HoverHighlightMode = "none" | "row" | "column" | "row-and-column";
 
 export interface RowColorFilter {
     field: string;
@@ -22,20 +23,24 @@ interface SettingsStore {
     theme: "light" | "dark" | "auto";
     showColumnSeparators: boolean;
     wrapText: boolean;
+    autoFitColumns: boolean;
     rowColoringMode: RowColoringMode;
     rowColorFilter: RowColorFilter | null;
     printFollowsCsvEdit: boolean;
     csvFollowsPrintEdit: boolean;
+    hoverHighlightMode: HoverHighlightMode;
 
     // Actions
     setShowNonCsvFiles: (show: boolean) => void;
     setTheme: (theme: "light" | "dark" | "auto") => void;
     setShowColumnSeparators: (show: boolean) => void;
     setWrapText: (wrap: boolean) => void;
+    setAutoFitColumns: (autoFit: boolean) => void;
     setRowColoringMode: (mode: RowColoringMode) => void;
     setRowColorFilter: (filter: RowColorFilter | null) => void;
     setPrintFollowsCsvEdit: (follow: boolean) => void;
     setCsvFollowsPrintEdit: (follow: boolean) => void;
+    setHoverHighlightMode: (mode: HoverHighlightMode) => void;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -44,10 +49,12 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     theme: "dark",
     showColumnSeparators: true,
     wrapText: false,
+    autoFitColumns: true,
     rowColoringMode: "off",
     rowColorFilter: null,
     printFollowsCsvEdit: true,
     csvFollowsPrintEdit: true,
+    hoverHighlightMode: "row-and-column",
 
     // Toggle showing non-CSV files in file tree
     setShowNonCsvFiles: (show: boolean) => {
@@ -69,6 +76,11 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
         set({ wrapText: wrap });
     },
 
+    // Toggle auto-fit columns
+    setAutoFitColumns: (autoFit: boolean) => {
+        set({ autoFitColumns: autoFit });
+    },
+
     // Set row coloring mode
     setRowColoringMode: (mode: RowColoringMode) => {
         set({ rowColoringMode: mode });
@@ -87,5 +99,10 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     // Toggle CSV follows Print edit
     setCsvFollowsPrintEdit: (follow: boolean) => {
         set({ csvFollowsPrintEdit: follow });
+    },
+
+    // Set hover highlight mode
+    setHoverHighlightMode: (mode: HoverHighlightMode) => {
+        set({ hoverHighlightMode: mode });
     },
 }));

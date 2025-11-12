@@ -60,6 +60,8 @@ function Card({
     editingValue,
     onEditingValueChange,
     onFieldClick,
+    onFieldDoubleClick,
+    onFieldContextMenu,
     setRef,
 }: {
     card: CardData;
@@ -74,6 +76,8 @@ function Card({
     editingValue: string;
     onEditingValueChange: (value: string) => void;
     onFieldClick: (fieldType: "title" | "subtitle" | "content", contentIndex?: number) => void;
+    onFieldDoubleClick: (fieldType: "title" | "subtitle" | "content", contentIndex?: number) => void;
+    onFieldContextMenu: (e: React.MouseEvent, fieldType: "title" | "subtitle" | "content", contentIndex?: number) => void;
     setRef?: (el: HTMLDivElement | null) => void;
 }) {
     const [isHovered, setIsHovered] = useState(false);
@@ -162,7 +166,21 @@ function Card({
         <div
             ref={setRef}
             draggable={!isEditingFromPrint}
-            onDragStart={() => !isEditingFromPrint && onDragStart(card.index)}
+            onMouseDown={(e) => {
+                // Only allow left-click to initiate drag
+                if (e.button !== 0) {
+                    e.preventDefault();
+                    return;
+                }
+            }}
+            onDragStart={(e) => {
+                // Only allow left-click drag (button 0)
+                if (e.button && e.button !== 0) {
+                    e.preventDefault();
+                    return;
+                }
+                !isEditingFromPrint && onDragStart(card.index);
+            }}
             onDragOver={(e) => {
                 e.preventDefault();
                 !isEditingFromPrint && onDragOver(card.index);
@@ -204,7 +222,12 @@ function Card({
 
             {/* Title */}
             {(card.title || isTitleSelected || isTitleEditingFromPrint) && (
-                <div onClick={(e) => { e.stopPropagation(); onFieldClick("title"); }} className="cursor-text">
+                <div
+                    onClick={(e) => { e.stopPropagation(); onFieldClick("title"); }}
+                    onDoubleClick={(e) => { e.stopPropagation(); onFieldDoubleClick("title"); }}
+                    onContextMenu={(e) => { e.stopPropagation(); onFieldContextMenu(e, "title"); }}
+                    className="cursor-text"
+                >
                     {isTitleEditingFromPrint ? (
                         <input
                             ref={titleInputRef}
@@ -224,7 +247,12 @@ function Card({
 
             {/* Subtitle */}
             {(card.subtitle || isSubtitleSelected || isSubtitleEditingFromPrint) && (
-                <div onClick={(e) => { e.stopPropagation(); onFieldClick("subtitle"); }} className="cursor-text">
+                <div
+                    onClick={(e) => { e.stopPropagation(); onFieldClick("subtitle"); }}
+                    onDoubleClick={(e) => { e.stopPropagation(); onFieldDoubleClick("subtitle"); }}
+                    onContextMenu={(e) => { e.stopPropagation(); onFieldContextMenu(e, "subtitle"); }}
+                    className="cursor-text"
+                >
                     {isSubtitleEditingFromPrint ? (
                         <input
                             ref={subtitleInputRef}
@@ -257,7 +285,13 @@ function Card({
                             headers[editingCell.col] === card.contentColumnNames[idx];
 
                         return (
-                            <div key={idx} onClick={(e) => { e.stopPropagation(); onFieldClick("content", idx); }} className="cursor-text">
+                            <div
+                                key={idx}
+                                onClick={(e) => { e.stopPropagation(); onFieldClick("content", idx); }}
+                                onDoubleClick={(e) => { e.stopPropagation(); onFieldDoubleClick("content", idx); }}
+                                onContextMenu={(e) => { e.stopPropagation(); onFieldContextMenu(e, "content", idx); }}
+                                className="cursor-text"
+                            >
                                 {isContentEditingFromPrint ? (
                                     <textarea
                                         ref={(el) => {
@@ -332,6 +366,16 @@ function CardPrint({
     const [isEditingFromPrint, setIsEditingFromPrint] = useState(false);
     const printContainerRef = useRef<HTMLDivElement>(null);
 
+    // Context menu state
+    const [contextMenu, setContextMenu] = useState<{
+        x: number;
+        y: number;
+        cardIndex: number;
+        fieldType: "title" | "subtitle" | "content";
+        contentIndex?: number;
+        columnName: string;
+    } | null>(null);
+
     // Get field mappings
     const titleColumn = getMappedColumn(configuration.fieldMappings, "title");
     const subtitleColumn = getMappedColumn(configuration.fieldMappings, "subtitle");
@@ -394,6 +438,15 @@ function CardPrint({
         document.addEventListener('click', handleDocumentClick);
         return () => document.removeEventListener('click', handleDocumentClick);
     }, [selectedField, isEditingFromPrint]);
+
+    // Handle global click to close context menu
+    useEffect(() => {
+        const handleClick = () => setContextMenu(null);
+        if (contextMenu) {
+            document.addEventListener("click", handleClick);
+            return () => document.removeEventListener("click", handleClick);
+        }
+    }, [contextMenu]);
 
     // Handle clicking outside editing element to save changes
     useEffect(() => {
@@ -496,6 +549,72 @@ function CardPrint({
         if (printContainerRef.current) {
             printContainerRef.current.focus();
         }
+    };
+
+    // Handle double-clicking on a card field to start editing
+    const handleFieldDoubleClick = (cardIndex: number, fieldType: "title" | "subtitle" | "content", contentIndex?: number) => {
+        let columnName: string | undefined;
+
+        if (fieldType === "title") {
+            columnName = titleColumn ?? undefined;
+        } else if (fieldType === "subtitle") {
+            columnName = subtitleColumn ?? undefined;
+        } else if (fieldType === "content" && contentIndex !== undefined) {
+            columnName = contentColumns[contentIndex];
+        }
+
+        if (!columnName) return;
+
+        // Set selected field
+        setSelectedField({
+            cardIndex,
+            fieldType,
+            contentIndex: fieldType === "content" ? contentIndex : undefined,
+            columnName,
+        });
+
+        // Start editing immediately
+        const colIndex = headers.indexOf(columnName);
+        if (colIndex === -1) return;
+
+        const value = data[cardIndex]?.[colIndex] || "";
+        setEditingCell(cardIndex, colIndex, value, "print");
+        setIsEditingFromPrint(true);
+    };
+
+    // Handle right-clicking on a card field to show context menu
+    const handleFieldContextMenu = (e: React.MouseEvent, cardIndex: number, fieldType: "title" | "subtitle" | "content", contentIndex?: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        let columnName: string | undefined;
+
+        if (fieldType === "title") {
+            columnName = titleColumn ?? undefined;
+        } else if (fieldType === "subtitle") {
+            columnName = subtitleColumn ?? undefined;
+        } else if (fieldType === "content" && contentIndex !== undefined) {
+            columnName = contentColumns[contentIndex];
+        }
+
+        if (!columnName) return;
+
+        setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            cardIndex,
+            fieldType,
+            contentIndex,
+            columnName,
+        });
+
+        // Also select the field
+        setSelectedField({
+            cardIndex,
+            fieldType,
+            contentIndex: fieldType === "content" ? contentIndex : undefined,
+            columnName,
+        });
     };
 
     // Helper to get cell value (either from data or editingValue if being edited)
@@ -678,6 +797,8 @@ function CardPrint({
                                 editingValue={editingValue}
                                 onEditingValueChange={updateEditingValue}
                                 onFieldClick={(fieldType, contentIndex) => handleFieldClick(card.index, fieldType, contentIndex)}
+                                onFieldDoubleClick={(fieldType, contentIndex) => handleFieldDoubleClick(card.index, fieldType, contentIndex)}
+                                onFieldContextMenu={(e, fieldType, contentIndex) => handleFieldContextMenu(e, card.index, fieldType, contentIndex)}
                                 setRef={setRef}
                             />
                         </div>
@@ -694,6 +815,72 @@ function CardPrint({
                         </svg>
                         Drag cards to reorder them
                     </p>
+                </div>
+            )}
+
+            {/* Context menu */}
+            {contextMenu && (
+                <div
+                    className="fixed bg-base-100 border border-base-300 rounded-lg shadow-lg z-50 min-w-[160px]"
+                    style={{ top: contextMenu.y, left: contextMenu.x }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <ul className="menu menu-sm p-2">
+                        <li>
+                            <a
+                                onClick={() => {
+                                    const colIndex = headers.indexOf(contextMenu.columnName);
+                                    if (colIndex === -1) return;
+                                    const value = data[contextMenu.cardIndex]?.[colIndex] || "";
+                                    setEditingCell(contextMenu.cardIndex, colIndex, value, "print");
+                                    setIsEditingFromPrint(true);
+                                    setContextMenu(null);
+                                }}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Edit
+                            </a>
+                        </li>
+                        <div className="divider my-1"></div>
+                        <li>
+                            <a
+                                onClick={() => {
+                                    const colIndex = headers.indexOf(contextMenu.columnName);
+                                    if (colIndex === -1) return;
+                                    const value = data[contextMenu.cardIndex]?.[colIndex] || "";
+                                    navigator.clipboard.writeText(value);
+                                    setContextMenu(null);
+                                }}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                                Copy
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                onClick={async () => {
+                                    try {
+                                        const text = await navigator.clipboard.readText();
+                                        const colIndex = headers.indexOf(contextMenu.columnName);
+                                        if (colIndex === -1) return;
+                                        updateCell(contextMenu.cardIndex, colIndex, text);
+                                        setContextMenu(null);
+                                    } catch (err) {
+                                        console.error("Failed to paste:", err);
+                                    }
+                                }}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                                Paste
+                            </a>
+                        </li>
+                    </ul>
                 </div>
             )}
         </div>

@@ -70,6 +70,8 @@ function ScreenplayElementView({
     editingValue,
     onEditingValueChange,
     onClick,
+    onDoubleClick,
+    onContextMenu,
     setRef,
 }: {
     element: ScreenplayElement;
@@ -81,6 +83,8 @@ function ScreenplayElementView({
     editingValue: string;
     onEditingValueChange: (value: string) => void;
     onClick: () => void;
+    onDoubleClick: () => void;
+    onContextMenu: (e: React.MouseEvent) => void;
     setRef?: (el: HTMLDivElement | null) => void;
 }) {
     const ingredient = element.type;
@@ -160,6 +164,8 @@ function ScreenplayElementView({
             ref={setRef}
             className={`screenplay-element mb-3 relative cursor-pointer ${isBeingEdited ? "editing-indicator" : ""} ${isSelected ? "selected-indicator" : ""}`}
             onClick={onClick}
+            onDoubleClick={onDoubleClick}
+            onContextMenu={onContextMenu}
         >
             {/* Optional row number indicator */}
             {showRowNumbers && (
@@ -263,6 +269,15 @@ function ScreenplayPrint({
     const [isEditingFromPrint, setIsEditingFromPrint] = useState(false);
     const printContainerRef = useRef<HTMLDivElement>(null);
 
+    // Context menu state
+    const [contextMenu, setContextMenu] = useState<{
+        x: number;
+        y: number;
+        rowIndex: number;
+        columnName: string;
+        elementIndex: number;
+    } | null>(null);
+
     // Get field mappings
     const sceneHeadingColumn = getMappedColumn(configuration.fieldMappings, "scene_heading");
     const actionColumn = getMappedColumn(configuration.fieldMappings, "action");
@@ -348,6 +363,15 @@ function ScreenplayPrint({
         document.addEventListener('click', handleDocumentClick);
         return () => document.removeEventListener('click', handleDocumentClick);
     }, [selectedPrintElement, isEditingFromPrint]);
+
+    // Handle global click to close context menu
+    useEffect(() => {
+        const handleClick = () => setContextMenu(null);
+        if (contextMenu) {
+            document.addEventListener("click", handleClick);
+            return () => document.removeEventListener("click", handleClick);
+        }
+    }, [contextMenu]);
 
     // Handle clicking outside editing element to save changes
     useEffect(() => {
@@ -444,6 +468,45 @@ function ScreenplayPrint({
         if (printContainerRef.current) {
             printContainerRef.current.focus();
         }
+    };
+
+    // Handle double-clicking on a Print element to start editing
+    const handleElementDoubleClick = (element: ScreenplayElement, elementIndex: number) => {
+        // Set selected element
+        setSelectedPrintElement({
+            rowIndex: element.rowIndex,
+            columnName: element.columnName,
+            elementIndex,
+        });
+
+        // Start editing immediately
+        const colIndex = headers.indexOf(element.columnName);
+        if (colIndex === -1) return;
+
+        const value = data[element.rowIndex]?.[colIndex] || "";
+        setEditingCell(element.rowIndex, colIndex, value, "print");
+        setIsEditingFromPrint(true);
+    };
+
+    // Handle right-clicking on a Print element to show context menu
+    const handleElementContextMenu = (e: React.MouseEvent, element: ScreenplayElement, elementIndex: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            rowIndex: element.rowIndex,
+            columnName: element.columnName,
+            elementIndex,
+        });
+
+        // Also select the element
+        setSelectedPrintElement({
+            rowIndex: element.rowIndex,
+            columnName: element.columnName,
+            elementIndex,
+        });
     };
 
     // Transform CSV data into screenplay elements
@@ -694,12 +757,80 @@ function ScreenplayPrint({
                                 editingValue={editingValue}
                                 onEditingValueChange={updateEditingValue}
                                 onClick={() => handleElementClick(element, index)}
+                                onDoubleClick={() => handleElementDoubleClick(element, index)}
+                                onContextMenu={(e) => handleElementContextMenu(e, element, index)}
                                 setRef={setRef}
                             />
                         );
                     })}
                 </div>
             </div>
+
+            {/* Context menu */}
+            {contextMenu && (
+                <div
+                    className="fixed bg-base-100 border border-base-300 rounded-lg shadow-lg z-50 min-w-[160px]"
+                    style={{ top: contextMenu.y, left: contextMenu.x }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <ul className="menu menu-sm p-2">
+                        <li>
+                            <a
+                                onClick={() => {
+                                    const colIndex = headers.indexOf(contextMenu.columnName);
+                                    if (colIndex === -1) return;
+                                    const value = data[contextMenu.rowIndex]?.[colIndex] || "";
+                                    setEditingCell(contextMenu.rowIndex, colIndex, value, "print");
+                                    setIsEditingFromPrint(true);
+                                    setContextMenu(null);
+                                }}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Edit
+                            </a>
+                        </li>
+                        <div className="divider my-1"></div>
+                        <li>
+                            <a
+                                onClick={() => {
+                                    const colIndex = headers.indexOf(contextMenu.columnName);
+                                    if (colIndex === -1) return;
+                                    const value = data[contextMenu.rowIndex]?.[colIndex] || "";
+                                    navigator.clipboard.writeText(value);
+                                    setContextMenu(null);
+                                }}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                                Copy
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                onClick={async () => {
+                                    try {
+                                        const text = await navigator.clipboard.readText();
+                                        const colIndex = headers.indexOf(contextMenu.columnName);
+                                        if (colIndex === -1) return;
+                                        updateCell(contextMenu.rowIndex, colIndex, text);
+                                        setContextMenu(null);
+                                    } catch (err) {
+                                        console.error("Failed to paste:", err);
+                                    }
+                                }}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                                Paste
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            )}
         </div>
     );
 }
