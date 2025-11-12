@@ -81,11 +81,19 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
     // Summary row positioning
     const [summaryRowLeftOffset, setSummaryRowLeftOffset] = useState(0);
+    const [summaryRowScrollLeft, setSummaryRowScrollLeft] = useState(0);
+
+    // Column resizing
+    const [columnWidths, setColumnWidths] = useState<Record<number, number>>({});
+    const [resizingColumn, setResizingColumn] = useState<number | null>(null);
+    const [resizeStartX, setResizeStartX] = useState(0);
+    const [resizeStartWidth, setResizeStartWidth] = useState(0);
 
     // Refs
     const tableContainerRef = useRef<HTMLDivElement>(null);
     const gridFocusRef = useRef<HTMLDivElement>(null);
     const summaryRowRef = useRef<HTMLDivElement>(null);
+    const summaryRowContentRef = useRef<HTMLDivElement>(null);
 
     // Filter data based on column filters
     const filteredData = useMemo(() => {
@@ -253,7 +261,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         }
     }, [filteredData.length]);
 
-    // Scroll indicators
+    // Scroll indicators and summary row sync
     useEffect(() => {
         const tableContainer = tableContainerRef.current;
         if (!tableContainer) return;
@@ -266,6 +274,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
             // Show right indicator if there's more content to scroll to
             setShowRightScrollIndicator(scrollLeft + clientWidth < scrollWidth - 1);
+
+            // Sync summary row horizontal scroll
+            setSummaryRowScrollLeft(scrollLeft);
         };
 
         // Check on mount and scroll
@@ -307,6 +318,58 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         };
     }, []);
 
+    // Sync summary row horizontal scroll with table scroll
+    useEffect(() => {
+        if (summaryRowContentRef.current) {
+            summaryRowContentRef.current.scrollLeft = summaryRowScrollLeft;
+        }
+    }, [summaryRowScrollLeft]);
+
+    // Column resizing effect
+    useEffect(() => {
+        if (resizingColumn === null) return;
+
+        // Prevent text selection while resizing
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'col-resize';
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const deltaX = e.clientX - resizeStartX;
+            const newWidth = Math.max(100, resizeStartWidth + deltaX);
+            setColumnWidths(prev => ({
+                ...prev,
+                [resizingColumn]: newWidth
+            }));
+        };
+
+        const handleMouseUp = () => {
+            setResizingColumn(null);
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+        };
+
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+
+        return () => {
+            document.removeEventListener("mousemove", handleMouseMove);
+            document.removeEventListener("mouseup", handleMouseUp);
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+        };
+    }, [resizingColumn, resizeStartX, resizeStartWidth]);
+
+    // Column resize handlers
+    const handleColumnResizeStart = (e: React.MouseEvent, colIndex: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const currentWidth = columnWidths[colIndex] || 150; // Default width
+        setResizingColumn(colIndex);
+        setResizeStartX(e.clientX);
+        setResizeStartWidth(currentWidth);
+    };
+
     // Start editing a cell
     const handleStartEdit = (row: number, col: number, value: string) => {
         setEditingCell(row, col, value);
@@ -338,49 +401,43 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             e.preventDefault();
             handleSaveEdit(row, col);
 
-            // Move to next row if not Shift
+            // Move selection to next row if not Shift
             if (!e.shiftKey && row < filteredData.length - 1) {
                 setTimeout(() => {
-                    const nextValue = filteredData[row + 1]?.[col] || "";
-                    handleStartEdit(row + 1, col, nextValue);
+                    setSelectedCell(row + 1, col);
                 }, 0);
             } else if (e.shiftKey && row > 0) {
-                // Shift+Enter moves to previous row
+                // Shift+Enter moves selection to previous row
                 setTimeout(() => {
-                    const prevValue = filteredData[row - 1]?.[col] || "";
-                    handleStartEdit(row - 1, col, prevValue);
+                    setSelectedCell(row - 1, col);
                 }, 0);
             }
         } else if (e.key === "Tab") {
             e.preventDefault();
             handleSaveEdit(row, col);
 
-            // Move to next column if not Shift
+            // Move selection to next column if not Shift
             if (!e.shiftKey) {
                 if (col < headers.length - 1) {
                     setTimeout(() => {
-                        const nextValue = filteredData[row]?.[col + 1] || "";
-                        handleStartEdit(row, col + 1, nextValue);
+                        setSelectedCell(row, col + 1);
                     }, 0);
                 } else if (row < filteredData.length - 1) {
                     // Wrap to next row
                     setTimeout(() => {
-                        const nextValue = filteredData[row + 1]?.[0] || "";
-                        handleStartEdit(row + 1, 0, nextValue);
+                        setSelectedCell(row + 1, 0);
                     }, 0);
                 }
             } else {
-                // Shift+Tab moves to previous column
+                // Shift+Tab moves selection to previous column
                 if (col > 0) {
                     setTimeout(() => {
-                        const prevValue = filteredData[row]?.[col - 1] || "";
-                        handleStartEdit(row, col - 1, prevValue);
+                        setSelectedCell(row, col - 1);
                     }, 0);
                 } else if (row > 0) {
                     // Wrap to previous row
                     setTimeout(() => {
-                        const prevValue = filteredData[row - 1]?.[headers.length - 1] || "";
-                        handleStartEdit(row - 1, headers.length - 1, prevValue);
+                        setSelectedCell(row - 1, headers.length - 1);
                     }, 0);
                 }
             }
@@ -519,6 +576,12 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 WebkitUserSelect: isSelecting ? 'none' : 'auto',
             }}
         >
+            {/* Hide scrollbar for summary row */}
+            <style>{`
+                .summary-row-scroll::-webkit-scrollbar {
+                    display: none;
+                }
+            `}</style>
             {/* Left scroll indicator */}
             {showLeftScrollIndicator && (
                 <div
@@ -539,50 +602,69 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 />
             )}
 
-            <table className="table table-xs">
+            <table
+                className="table table-xs"
+                style={{
+                    tableLayout: 'fixed',
+                    width: `${64 + headers.reduce((sum, _, idx) => sum + (columnWidths[idx] || 150), 0)}px`
+                }}
+            >
                 <thead>
                     <tr>
                         {/* Row number header */}
-                        <th className="bg-base-300 text-center w-16 sticky left-0 z-20">#</th>
+                        <th className="bg-base-300 text-center sticky left-0 z-20" style={{ width: '64px', minWidth: '64px', maxWidth: '64px' }}>#</th>
 
                         {/* Column headers */}
-                        {headers.map((header, colIndex) => (
-                            <th
-                                key={colIndex}
-                                className={`bg-base-300 font-bold relative ${dropTargetColumn === colIndex ? "border-l-4 border-primary" : ""}`}
-                                onDragOver={(e) => handleColumnDragOver(e, colIndex)}
-                                onDrop={(e) => handleColumnDrop(e, colIndex)}
-                            >
-                                <div className="flex items-center gap-2 justify-between min-w-[150px]">
-                                    {/* Drag handle */}
-                                    <div
-                                        draggable={true}
-                                        onDragStart={(e) => {
-                                            e.stopPropagation();
-                                            handleColumnDragStart(e, colIndex);
-                                        }}
-                                        onDragEnd={handleColumnDragEnd}
-                                        className="cursor-move text-base-content/30 hover:text-base-content"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                                        </svg>
+                        {headers.map((header, colIndex) => {
+                            const columnWidth = columnWidths[colIndex] || 150;
+                            return (
+                                <th
+                                    key={colIndex}
+                                    className={`bg-base-300 font-bold relative ${dropTargetColumn === colIndex ? "border-l-4 border-primary" : ""}`}
+                                    style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
+                                    onDragOver={(e) => handleColumnDragOver(e, colIndex)}
+                                    onDrop={(e) => handleColumnDrop(e, colIndex)}
+                                >
+                                    <div className="flex items-center gap-2 justify-between">
+                                        {/* Drag handle */}
+                                        <div
+                                            draggable={true}
+                                            onDragStart={(e) => {
+                                                e.stopPropagation();
+                                                handleColumnDragStart(e, colIndex);
+                                            }}
+                                            onDragEnd={handleColumnDragEnd}
+                                            className="cursor-move text-base-content/30 hover:text-base-content"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                                            </svg>
+                                        </div>
+
+                                        {/* Header text */}
+                                        <span className="flex-1 truncate">{header}</span>
+
+                                        {/* Filter dropdown */}
+                                        <ColumnFilterDropdown
+                                            columnName={header}
+                                            operation={columnFilters.find((f) => f.column === header)?.operation || "contains"}
+                                            value={columnFilters.find((f) => f.column === header)?.value || ""}
+                                            onFilterChange={(operation, value) => setColumnFilter(header, operation, value)}
+                                            onClearFilter={() => clearColumnFilter(header)}
+                                        />
                                     </div>
 
-                                    {/* Header text */}
-                                    <span className="flex-1">{header}</span>
-
-                                    {/* Filter dropdown */}
-                                    <ColumnFilterDropdown
-                                        columnName={header}
-                                        operation={columnFilters.find((f) => f.column === header)?.operation || "contains"}
-                                        value={columnFilters.find((f) => f.column === header)?.value || ""}
-                                        onFilterChange={(operation, value) => setColumnFilter(header, operation, value)}
-                                        onClearFilter={() => clearColumnFilter(header)}
-                                    />
-                                </div>
-                            </th>
-                        ))}
+                                    {/* Resize handle */}
+                                    <div
+                                        className={`absolute top-0 right-0 bottom-0 w-2 cursor-col-resize select-none z-10 ${resizingColumn === colIndex ? "bg-primary/50" : "hover:bg-primary/30"}`}
+                                        style={{ marginRight: '-4px', paddingLeft: '3px', paddingRight: '3px' }}
+                                        onMouseDown={(e) => handleColumnResizeStart(e, colIndex)}
+                                    >
+                                        <div className={`w-px h-full transition-colors ${resizingColumn === colIndex ? "bg-primary" : "bg-base-content/20 hover:bg-primary/70"}`} />
+                                    </div>
+                                </th>
+                            );
+                        })}
                     </tr>
                 </thead>
                 <tbody>
@@ -608,6 +690,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                 {/* Row number */}
                                 <td
                                     className={`bg-base-200 text-center font-mono text-sm border-r-2 ${showColumnSeparators ? "border-base-300" : "border-transparent"} sticky left-0 z-10 cursor-move`}
+                                    style={{ width: '64px', minWidth: '64px', maxWidth: '64px' }}
                                     draggable={true}
                                     onDragStart={(e) => handleRowDragStart(e, rowIndex)}
                                     onDragEnd={handleRowDragEnd}
@@ -660,10 +743,13 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                         cellClass += ` border-r-2 ${showColumnSeparators ? "border-base-300" : "border-transparent"}`;
                                     }
 
+                                    const columnWidth = columnWidths[colIndex] || 150;
+
                                     return (
                                         <td
                                             key={colIndex}
                                             className={cellClass}
+                                            style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
                                             onMouseDown={() => handleCellMouseDown(rowIndex, colIndex)}
                                             onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                                             onContextMenu={(e) => handleContextMenu(e, rowIndex, colIndex)}
@@ -671,7 +757,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                             {isEditing ? (
                                                 <input
                                                     type="text"
-                                                    className="w-full focus:outline-none border-none bg-transparent px-2 py-1 min-h-[32px] text-sm"
+                                                    className="w-full focus:outline-none border-none bg-transparent px-2 py-1 min-h-[32px] text-sm leading-tight"
                                                     value={editingValue}
                                                     onChange={(e) => updateEditingValue(e.target.value)}
                                                     onBlur={() => handleSaveEdit(rowIndex, colIndex)}
@@ -680,7 +766,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                 />
                                             ) : (
                                                 <div
-                                                    className={`px-2 py-1 min-h-[32px] text-sm ${wrapText ? "whitespace-normal" : "whitespace-nowrap overflow-hidden text-ellipsis"}`}
+                                                    className={`px-2 py-1 min-h-[32px] text-sm leading-tight ${wrapText ? "whitespace-normal" : "whitespace-nowrap overflow-hidden text-ellipsis flex items-center"}`}
                                                 >
                                                     {cell}
                                                 </div>
@@ -697,24 +783,36 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             {/* Summary row */}
             <div
                 ref={summaryRowRef}
-                className="fixed bottom-0 bg-base-300 border-t-2 border-base-300 shadow-lg z-40 flex items-center"
-                style={{ left: `${summaryRowLeftOffset}px`, right: 0, height: '60px' }}
+                className="fixed bottom-0 bg-base-300 border-t-2 border-base-300 shadow-lg z-40"
+                style={{ left: `${summaryRowLeftOffset}px`, right: 0, height: '60px', overflow: 'hidden' }}
             >
-                <div className="flex items-center h-full overflow-x-auto">
-                    {/* Row number column placeholder */}
-                    <div className="w-16 flex-shrink-0 bg-base-300 h-full border-r-2 border-base-300"></div>
+                {/* Row number column placeholder - sticky */}
+                <div className="absolute left-0 h-full bg-base-300 border-r-2 border-base-300 z-10" style={{ width: '64px' }}></div>
 
+                <div
+                    ref={summaryRowContentRef}
+                    className="h-full summary-row-scroll"
+                    style={{
+                        overflowX: 'scroll',
+                        overflowY: 'hidden',
+                        scrollbarWidth: 'none', /* Firefox */
+                        msOverflowStyle: 'none', /* IE and Edge */
+                        paddingLeft: '64px'
+                    }}
+                >
+                    <div className="flex items-center h-full" style={{ width: `${headers.reduce((sum, _, idx) => sum + (columnWidths[idx] || 150), 0)}px` }}>
                     {/* Summary dropdowns for each column */}
                     {headers.map((columnName, colIndex) => {
                         const summaryType = columnSummaries[columnName] || "count";
                         const columnData = filteredData.map((row) => row[colIndex] || "");
                         const summaryValue = calculateSummary(columnData, summaryType);
+                        const columnWidth = columnWidths[colIndex] || 150;
 
                         return (
                             <div
                                 key={colIndex}
                                 className={`flex-shrink-0 h-full flex items-center border-r-2 ${showColumnSeparators ? "border-base-300" : "border-transparent"}`}
-                                style={{ minWidth: '150px' }}
+                                style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
                             >
                                 <div className="flex flex-col-reverse gap-1 p-2">
                                     {/* Summary value (displayed above dropdown) */}
@@ -750,6 +848,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                             </div>
                         );
                     })}
+                    </div>
                 </div>
             </div>
 
