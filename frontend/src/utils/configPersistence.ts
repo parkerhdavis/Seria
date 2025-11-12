@@ -7,6 +7,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCSVStore } from "@stores/csvStore";
 import { useSettingsStore } from "@stores/settingsStore";
+import { useDrawerStore } from "@stores/drawerStore";
 import { useFileConfigStore, type FileIdentifiers, type FileConfig } from "@stores/fileConfigStore";
 
 /**
@@ -15,6 +16,7 @@ import { useFileConfigStore, type FileIdentifiers, type FileConfig } from "@stor
 export async function saveCurrentFileConfig(): Promise<void> {
     const csvStore = useCSVStore.getState();
     const settingsStore = useSettingsStore.getState();
+    const drawerStore = useDrawerStore.getState();
     const fileConfigStore = useFileConfigStore.getState();
 
     // Only save if we have a file open
@@ -50,6 +52,11 @@ export async function saveCurrentFileConfig(): Promise<void> {
             showColumnSeparators: settingsStore.showColumnSeparators,
             autoFitColumns: settingsStore.autoFitColumns,
             hoverHighlightMode: settingsStore.hoverHighlightMode,
+
+            // Drawer settings (from drawerStore)
+            drawerPosition: drawerStore.position,
+            rightDrawerSize: drawerStore.rightDrawerSize,
+            bottomDrawerSize: drawerStore.bottomDrawerSize,
         };
 
         // Save config

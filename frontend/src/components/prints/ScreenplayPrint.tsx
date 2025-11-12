@@ -354,14 +354,14 @@ function ScreenplayPrint({
         const handleDocumentClick = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
             // Check if click is within CSV grid container
-            const csvGrid = document.querySelector('.csv-grid-container');
+            const csvGrid = document.querySelector(".csv-grid-container");
             if (csvGrid && csvGrid.contains(target) && selectedPrintElement && !isEditingFromPrint) {
                 setSelectedPrintElement(null);
             }
         };
 
-        document.addEventListener('click', handleDocumentClick);
-        return () => document.removeEventListener('click', handleDocumentClick);
+        document.addEventListener("click", handleDocumentClick);
+        return () => document.removeEventListener("click", handleDocumentClick);
     }, [selectedPrintElement, isEditingFromPrint]);
 
     // Handle global click to close context menu
@@ -652,7 +652,7 @@ function ScreenplayPrint({
             onClick={(e) => {
                 // Clear CSV selection when clicking anywhere in Print view
                 // Only if we didn't click on an element (which handles its own selection)
-                if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.screenplay-page')) {
+                if (e.target === e.currentTarget || (e.target as HTMLElement).closest(".screenplay-page")) {
                     clearSelection();
                     // Focus the Print container
                     if (printContainerRef.current) {

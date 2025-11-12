@@ -22,7 +22,7 @@ interface DrawerStore {
 
 export const useDrawerStore = create<DrawerStore>((set, get) => ({
     // Initial state
-    position: "right",
+    position: null, // Default to closed (drawer state persists per-file)
     rightDrawerSize: 768,
     bottomDrawerSize: 320,
 

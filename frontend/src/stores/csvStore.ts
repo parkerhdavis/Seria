@@ -11,6 +11,7 @@ import { CSVData, CSVFileInfo } from "@/types/csv";
 import { parseCSV, serializeCSV, validateCSV } from "@utils/csvParser";
 import { useFileConfigStore, type FileIdentifiers } from "./fileConfigStore";
 import { useSettingsStore } from "./settingsStore";
+import { useDrawerStore } from "./drawerStore";
 
 // Snapshot of data state for undo/redo
 interface DataSnapshot {
@@ -75,6 +76,8 @@ interface CSVStore {
     clipboard: ClipboardData | null;
 
     // Display settings
+    // Column widths stored as proportions (0-1 range) of available width
+    // e.g., {0: 0.3, 1: 0.5, 2: 0.2} means col 0 gets 30%, col 1 gets 50%, col 2 gets 20%
     columnWidths: Record<number, number>;
 
     // Filtering and summaries
@@ -98,7 +101,7 @@ interface CSVStore {
     renameColumn: (index: number, newName: string) => void;
     clearData: () => void;
     setError: (error: string | null) => void;
-    setColumnWidths: (widths: Record<number, number>) => void;
+    setColumnWidths: (widths: Record<number, number> | ((prev: Record<number, number>) => Record<number, number>)) => void;
     undo: () => void;
     redo: () => void;
     canUndo: () => boolean;
@@ -257,6 +260,21 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
 
                     if (fileConfig.config.hoverHighlightMode !== undefined) {
                         settingsStore.setHoverHighlightMode(fileConfig.config.hoverHighlightMode as any);
+                    }
+
+                    // Apply config to drawer store
+                    const drawerStore = useDrawerStore.getState();
+
+                    if (fileConfig.config.drawerPosition !== undefined) {
+                        drawerStore.setPosition(fileConfig.config.drawerPosition);
+                    }
+
+                    if (fileConfig.config.rightDrawerSize !== undefined) {
+                        drawerStore.setRightDrawerSize(fileConfig.config.rightDrawerSize);
+                    }
+
+                    if (fileConfig.config.bottomDrawerSize !== undefined) {
+                        drawerStore.setBottomDrawerSize(fileConfig.config.bottomDrawerSize);
                     }
 
                     // Update config's last seen timestamp
@@ -504,8 +522,14 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     },
 
     // Set column widths
-    setColumnWidths: (widths: Record<number, number>) => {
-        set({ columnWidths: widths });
+    setColumnWidths: (widths: Record<number, number> | ((prev: Record<number, number>) => Record<number, number>)) => {
+        if (typeof widths === "function") {
+            const currentWidths = get().columnWidths;
+            const newWidths = widths(currentWidths);
+            set({ columnWidths: newWidths });
+        } else {
+            set({ columnWidths: widths });
+        }
     },
 
     // Undo last action

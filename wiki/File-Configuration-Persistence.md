@@ -7,7 +7,10 @@ Juniper automatically saves your per-file settings so you don't have to reconfig
 Juniper automatically saves the following settings for each CSV file you work with:
 
 **Column Settings:**
-- Column widths (manual resizing or auto-fit state)
+- Column widths stored as proportions (0-1 range, e.g., 0.3 = 30% of available width)
+  - Proportional storage ensures columns resize gracefully when the drawer opens/closes
+  - Settings work across different screen sizes and monitor resolutions
+  - Columns maintain their relative importance even as the view area changes
 - Column summaries (count, unique, mode, average, min, max, sum)
 
 **Filtering & Data:**
@@ -22,13 +25,18 @@ Juniper automatically saves the following settings for each CSV file you work wi
 - Row color filters
 - Hover highlight mode (none, row, column, row-and-column)
 
+**Print Preview Drawer:**
+- Drawer position (right, bottom, or closed)
+- Right drawer width
+- Bottom drawer height
+
 ## Where Data is Stored
 
 Configuration data is stored in a platform-specific application data directory:
 
 **Windows:**
 ```
-%APPDATA%\juniper\file-configs.json
+%LOCALAPPDATA%\juniper\file-configs.json
 ```
 
 **macOS:**
@@ -38,7 +46,7 @@ Configuration data is stored in a platform-specific application data directory:
 
 **Linux:**
 ```
-~/.config/juniper/file-configs.json
+~/.local/share/juniper/file-configs.json
 ```
 
 The configuration file is stored as human-readable JSON, making it easy to back up, version control, or manually edit if needed.
@@ -144,9 +152,9 @@ The exported JSON file has this structure:
       "lastSeen": "2025-11-12T10:30:00Z",
       "config": {
         "columnWidths": {
-          "0": 200,
-          "1": 150,
-          "2": 300
+          "0": 0.3,
+          "1": 0.25,
+          "2": 0.45
         },
         "columnSummaries": {
           "Name": "count",

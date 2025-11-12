@@ -60,6 +60,11 @@ export interface FileConfig {
         showColumnSeparators?: boolean;
         autoFitColumns?: boolean;
         hoverHighlightMode?: string;
+
+        // Drawer settings (from drawerStore)
+        drawerPosition?: "right" | "bottom" | null;
+        rightDrawerSize?: number;
+        bottomDrawerSize?: number;
     };
 }
 

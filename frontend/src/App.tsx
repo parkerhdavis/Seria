@@ -24,7 +24,7 @@ function App() {
     const [zoomLevel, setZoomLevel] = useState(100);
     const { saveCSV, undo, redo, canUndo, canRedo, columnFilters, currentFile } = useCSVStore();
     const { openFind, openReplace } = useFindReplaceStore();
-    const { position: printPreviewPosition, togglePosition } = useDrawerStore();
+    const { position: printPreviewPosition, togglePosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
     const { loadConfigs } = useFileConfigStore();
     const {
         rowColoringMode,
@@ -42,7 +42,7 @@ function App() {
         });
     }, [loadConfigs]);
 
-    // Save config when settings or filters change
+    // Save config when settings, filters, or drawer state change
     useEffect(() => {
         // Only save if we have a file open
         if (currentFile) {
@@ -56,6 +56,9 @@ function App() {
         autoFitColumns,
         hoverHighlightMode,
         columnFilters,
+        printPreviewPosition,
+        rightDrawerSize,
+        bottomDrawerSize,
         currentFile,
     ]);
 

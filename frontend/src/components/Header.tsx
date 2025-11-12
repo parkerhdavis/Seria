@@ -119,187 +119,187 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
 
                     {/* File info section */}
                     <div className="flex items-center gap-2">
-                    {/* File name */}
-                    <h2 className="text-lg font-semibold">
-                        {fileInfo?.name || "No file open"}
-                    </h2>
-                    {/* Saved/Unsaved status badge */}
-                    {fileInfo && (
-                        isDirty ? (
-                            <span className="badge badge-warning badge-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
+                        {/* File name */}
+                        <h2 className="text-lg font-semibold">
+                            {fileInfo?.name || "No file open"}
+                        </h2>
+                        {/* Saved/Unsaved status badge */}
+                        {fileInfo && (
+                            isDirty ? (
+                                <span className="badge badge-warning badge-sm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
                                 Unsaved
-                            </span>
-                        ) : (
-                            <span className="badge badge-success badge-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
+                                </span>
+                            ) : (
+                                <span className="badge badge-success badge-sm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
                                 Saved
-                            </span>
-                        )
-                    )}
-                    {/* Outside Tree badge */}
-                    {isOutsideTree && (
-                        <span className="badge badge-info badge-sm" title="File is outside the current directory tree">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                                </span>
+                            )
+                        )}
+                        {/* Outside Tree badge */}
+                        {isOutsideTree && (
+                            <span className="badge badge-info badge-sm" title="File is outside the current directory tree">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
                             Outside Tree
-                        </span>
-                    )}
-                    {isLoading && (
-                        <span className="loading loading-spinner loading-sm"></span>
-                    )}
-                </div>
+                            </span>
+                        )}
+                        {isLoading && (
+                            <span className="loading loading-spinner loading-sm"></span>
+                        )}
+                    </div>
 
-                {/* Divider */}
-                <div className="divider divider-horizontal mx-0"></div>
+                    {/* Divider */}
+                    <div className="divider divider-horizontal mx-0"></div>
 
-                {/* File operations - Open and Save */}
-                <button
-                    className="btn btn-sm btn-ghost"
-                    onClick={handleOpen}
-                    title="Open CSV file"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                    </svg>
-                    Open
-                </button>
-
-                <button
-                    className="btn btn-sm btn-primary"
-                    onClick={handleSave}
-                    title="Save current file (Ctrl+S)"
-                    disabled={!fileInfo || isLoading}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                    </svg>
-                    Save
-                </button>
-
-                <div className="dropdown dropdown-end">
-                    <label tabIndex={0} className="btn btn-sm btn-ghost">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                        </svg>
-                    </label>
-                    <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
-                        <li><a onClick={handleSaveAs}>Save As...</a></li>
-                        <li><a onClick={handleClose}>Close File</a></li>
-                    </ul>
-                </div>
-
-                {/* Spacer */}
-                <div className="flex-1"></div>
-            </div>
-
-            {/* Row 2: Content Toolbar (only shown when data is loaded) */}
-            {hasData && (
-                <div className="flex items-center px-2 py-2 gap-2 bg-base-100 border-t border-base-300">
-                    {/* Toolbar label */}
-                    <span className="text-sm font-semibold text-base-content/70 w-20">Content:</span>
-
-                    {/* Add Row button */}
+                    {/* File operations - Open and Save */}
                     <button
                         className="btn btn-sm btn-ghost"
-                        onClick={() => addRow()}
-                        title="Add new row"
+                        onClick={handleOpen}
+                        title="Open CSV file"
                     >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 4v16m8-8H4"
-                            />
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                         </svg>
-                        Add Row
+                    Open
                     </button>
 
-                    {/* Wrap Text toggle */}
                     <button
-                        className={`btn btn-sm ${wrapText ? "btn-primary" : "btn-ghost"}`}
-                        onClick={() => setWrapText(!wrapText)}
-                        title="Toggle text wrapping in cells"
+                        className="btn btn-sm btn-primary"
+                        onClick={handleSave}
+                        title="Save current file (Ctrl+S)"
+                        disabled={!fileInfo || isLoading}
                     >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M4 6h16M4 12h16m-7 6h7"
-                            />
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                         </svg>
-                        Wrap Text
+                    Save
                     </button>
 
-                    {/* Column Lines toggle */}
-                    <button
-                        className={`btn btn-sm ${showColumnSeparators ? "btn-primary" : "btn-ghost"}`}
-                        onClick={() => setShowColumnSeparators(!showColumnSeparators)}
-                        title="Toggle column separator lines"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 4v16m6-16v16M4 9h16M4 15h16"
-                            />
-                        </svg>
-                        Column Lines
-                    </button>
+                    <div className="dropdown dropdown-end">
+                        <label tabIndex={0} className="btn btn-sm btn-ghost">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                            </svg>
+                        </label>
+                        <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+                            <li><a onClick={handleSaveAs}>Save As...</a></li>
+                            <li><a onClick={handleClose}>Close File</a></li>
+                        </ul>
+                    </div>
 
-                    {/* Auto-Fit toggle */}
-                    <button
-                        className={`btn btn-sm ${autoFitColumns ? "btn-primary" : "btn-ghost"}`}
-                        onClick={() => setAutoFitColumns(!autoFitColumns)}
-                        title="Auto-fit columns to available width"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M8 7H20m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4-4m-4 4l4 4"
-                            />
-                        </svg>
-                        Auto-Fit
-                    </button>
-
-                    {/* Row Coloring dropdown */}
-                    <RowColoringDropdown />
+                    {/* Spacer */}
+                    <div className="flex-1"></div>
                 </div>
-            )}
+
+                {/* Row 2: Content Toolbar (only shown when data is loaded) */}
+                {hasData && (
+                    <div className="flex items-center px-2 py-2 gap-2 bg-base-100 border-t border-base-300">
+                        {/* Toolbar label */}
+                        <span className="text-sm font-semibold text-base-content/70 w-20">Content:</span>
+
+                        {/* Add Row button */}
+                        <button
+                            className="btn btn-sm btn-ghost"
+                            onClick={() => addRow()}
+                            title="Add new row"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 4v16m8-8H4"
+                                />
+                            </svg>
+                        Add Row
+                        </button>
+
+                        {/* Wrap Text toggle */}
+                        <button
+                            className={`btn btn-sm ${wrapText ? "btn-primary" : "btn-ghost"}`}
+                            onClick={() => setWrapText(!wrapText)}
+                            title="Toggle text wrapping in cells"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M4 6h16M4 12h16m-7 6h7"
+                                />
+                            </svg>
+                        Wrap Text
+                        </button>
+
+                        {/* Column Lines toggle */}
+                        <button
+                            className={`btn btn-sm ${showColumnSeparators ? "btn-primary" : "btn-ghost"}`}
+                            onClick={() => setShowColumnSeparators(!showColumnSeparators)}
+                            title="Toggle column separator lines"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 4v16m6-16v16M4 9h16M4 15h16"
+                                />
+                            </svg>
+                        Column Lines
+                        </button>
+
+                        {/* Auto-Fit toggle */}
+                        <button
+                            className={`btn btn-sm ${autoFitColumns ? "btn-primary" : "btn-ghost"}`}
+                            onClick={() => setAutoFitColumns(!autoFitColumns)}
+                            title="Auto-fit columns to available width"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M8 7H20m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4-4m-4 4l4 4"
+                                />
+                            </svg>
+                        Auto-Fit
+                        </button>
+
+                        {/* Row Coloring dropdown */}
+                        <RowColoringDropdown />
+                    </div>
+                )}
             </div>
 
             {/* Print preview toggle - spans full toolbar height */}

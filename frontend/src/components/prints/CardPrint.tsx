@@ -429,14 +429,14 @@ function CardPrint({
         const handleDocumentClick = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
             // Check if click is within CSV grid container
-            const csvGrid = document.querySelector('.csv-grid-container');
+            const csvGrid = document.querySelector(".csv-grid-container");
             if (csvGrid && csvGrid.contains(target) && selectedField && !isEditingFromPrint) {
                 setSelectedField(null);
             }
         };
 
-        document.addEventListener('click', handleDocumentClick);
-        return () => document.removeEventListener('click', handleDocumentClick);
+        document.addEventListener("click", handleDocumentClick);
+        return () => document.removeEventListener("click", handleDocumentClick);
     }, [selectedField, isEditingFromPrint]);
 
     // Handle global click to close context menu
@@ -721,7 +721,7 @@ function CardPrint({
                 // Clear CSV selection when clicking anywhere in Print view
                 // Only if we didn't click on a card (which handles its own selection)
                 const target = e.target as HTMLElement;
-                if (!target.closest('.bg-base-100')) {  // Cards have bg-base-100
+                if (!target.closest(".bg-base-100")) {  // Cards have bg-base-100
                     clearSelection();
                     // Focus the Print container
                     if (printContainerRef.current) {

@@ -165,6 +165,58 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         }
     };
 
+    /**
+     * Helper: Get available width for columns
+     * Calculates container width minus row number column (64px)
+     */
+    const getAvailableWidth = (): number => {
+        if (!tableContainerRef.current) return 800; // Default fallback
+        const containerWidth = tableContainerRef.current.clientWidth;
+        const rowNumberWidth = 64;
+        return Math.max(containerWidth - rowNumberWidth, 200);
+    };
+
+    /**
+     * Helper: Convert column proportion to pixel width
+     * @param colIndex - Column index
+     * @returns Pixel width for the column
+     */
+    const getPixelWidth = (colIndex: number): number => {
+        const availableWidth = getAvailableWidth();
+        const proportion = columnWidths[colIndex];
+
+        // If no proportion saved, use equal distribution
+        if (proportion === undefined || proportion === 0) {
+            const equalProportion = 1 / headers.length;
+            return Math.floor(equalProportion * availableWidth);
+        }
+
+        return Math.floor(proportion * availableWidth);
+    };
+
+    /**
+     * Helper: Calculate total pixel width of all columns
+     */
+    const getTotalPixelWidth = (): number => {
+        return headers.reduce((sum, _, idx) => sum + getPixelWidth(idx), 0);
+    };
+
+    /**
+     * Helper: Convert pixel widths to proportions
+     * @param pixelWidths - Object mapping column index to pixel width
+     * @returns Object mapping column index to proportion (0-1)
+     */
+    const convertPixelsToProportions = (pixelWidths: Record<number, number>): Record<number, number> => {
+        const totalWidth = Object.values(pixelWidths).reduce((sum, w) => sum + w, 0);
+        if (totalWidth === 0) return {};
+
+        const proportions: Record<number, number> = {};
+        for (const [colIndex, pixelWidth] of Object.entries(pixelWidths)) {
+            proportions[Number(colIndex)] = pixelWidth / totalWidth;
+        }
+        return proportions;
+    };
+
     // Handle global mouseup for selection
     useEffect(() => {
         const handleMouseUp = () => {
@@ -373,58 +425,36 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         }
     }, [summaryRowScrollLeft]);
 
-    // Auto-fit columns effect - calculate and distribute column widths
+    // Auto-fit columns effect - set initial equal proportions if needed
     useEffect(() => {
         if (!autoFitColumns || headers.length === 0) return;
 
-        // Calculate available width
-        const calculateColumnWidths = () => {
-            if (!tableContainerRef.current) return;
+        // Check if we already have column proportions set (e.g., from loaded config)
+        const hasExistingProportions = Object.keys(columnWidths).length === headers.length &&
+            Object.values(columnWidths).every(p => p > 0);
 
-            // Get the actual container width from the container element
-            const containerWidth = tableContainerRef.current.clientWidth;
-
-            // Subtract row number column width (64px)
-            const rowNumberWidth = 64;
-            let availableWidth = containerWidth - rowNumberWidth;
-
-            const finalAvailableWidth = Math.max(availableWidth, 200); // Minimum available width
-            const columnCount = headers.length;
-            const columnWidth = Math.floor(finalAvailableWidth / columnCount);
-
-            // Set all columns to equal width
-            const newWidths: Record<number, number> = {};
-            for (let i = 0; i < columnCount; i++) {
-                newWidths[i] = columnWidth;
+        // Only set initial proportions if we don't have existing ones
+        // When drawer/window resizes, proportions stay the same - pixel widths recalculate automatically
+        if (!hasExistingProportions) {
+            // Set equal proportions for all columns
+            const equalProportion = 1 / headers.length;
+            const newProportions: Record<number, number> = {};
+            for (let i = 0; i < headers.length; i++) {
+                newProportions[i] = equalProportion;
             }
-            setColumnWidths(newWidths);
-        };
-
-        // Calculate on mount and when dependencies change
-        calculateColumnWidths();
-
-        // Recalculate when window is resized
-        window.addEventListener("resize", calculateColumnWidths);
-
-        // Use ResizeObserver to detect container size changes (drawer resizing)
-        const resizeObserver = new ResizeObserver(calculateColumnWidths);
-        if (tableContainerRef.current) {
-            resizeObserver.observe(tableContainerRef.current);
+            setColumnWidths(newProportions);
         }
 
-        return () => {
-            window.removeEventListener("resize", calculateColumnWidths);
-            resizeObserver.disconnect();
-        };
-    }, [autoFitColumns, headers.length]);
+        // No resize listeners needed! Proportions stay constant, pixels recalculate on render
+    }, [autoFitColumns, headers.length, columnWidths, setColumnWidths]);
 
     // Column resizing effect
     useEffect(() => {
         if (resizingColumn === null) return;
 
         // Prevent text selection while resizing
-        document.body.style.userSelect = 'none';
-        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = "none";
+        document.body.style.cursor = "col-resize";
 
         const handleMouseMove = (e: MouseEvent) => {
             const deltaX = e.clientX - resizeStartX;
@@ -432,51 +462,55 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             if (autoFitColumns) {
                 if (isShiftResize) {
                     // Distributed resize: distribute delta across all other columns
-                    const otherColumnCount = headers.length - 1; // All columns except the one being resized
+                    const otherColumnCount = headers.length - 1;
 
                     if (otherColumnCount > 0) {
-                        const deltaPerColumn = -deltaX / otherColumnCount; // Negative because others shrink when current grows
+                        const deltaPerColumn = -deltaX / otherColumnCount;
                         const minWidth = 100;
 
-                        // Calculate new widths for all columns
-                        const newWidths: Record<number, number> = {};
+                        // Calculate new pixel widths for all columns
+                        const newPixelWidths: Record<number, number> = {};
                         let totalAdjustment = 0;
 
                         // First pass: calculate new widths and track violations
                         for (let i = 0; i < headers.length; i++) {
                             if (i === resizingColumn) {
-                                newWidths[i] = resizeStartWidth + deltaX;
+                                newPixelWidths[i] = resizeStartWidth + deltaX;
                             } else {
-                                const startWidth = resizeAllStartWidths[i] || 150;
-                                newWidths[i] = startWidth + deltaPerColumn;
+                                const startWidth = resizeAllStartWidths[i];
+                                newPixelWidths[i] = startWidth + deltaPerColumn;
                             }
 
                             // Enforce minimum width
-                            if (newWidths[i] < minWidth) {
-                                totalAdjustment += minWidth - newWidths[i];
-                                newWidths[i] = minWidth;
+                            if (newPixelWidths[i] < minWidth) {
+                                totalAdjustment += minWidth - newPixelWidths[i];
+                                newPixelWidths[i] = minWidth;
                             }
                         }
 
                         // Second pass: distribute the adjustment if needed
                         if (totalAdjustment > 0) {
-                            // Reduce the resizing column to compensate
-                            newWidths[resizingColumn] = Math.max(minWidth, newWidths[resizingColumn] - totalAdjustment);
+                            newPixelWidths[resizingColumn] = Math.max(minWidth, newPixelWidths[resizingColumn] - totalAdjustment);
                         }
 
-                        setColumnWidths(newWidths);
+                        // Convert pixel widths to proportions
+                        const newProportions = convertPixelsToProportions(newPixelWidths);
+                        setColumnWidths(newProportions);
                     } else {
                         // Only one column - just resize normally
                         const newWidth = Math.max(100, resizeStartWidth + deltaX);
-                        setColumnWidths({ [resizingColumn]: newWidth });
+                        const currentPixelWidths: Record<number, number> = {};
+                        headers.forEach((_, i) => {
+                            currentPixelWidths[i] = i === resizingColumn ? newWidth : getPixelWidth(i);
+                        });
+                        setColumnWidths(convertPixelsToProportions(currentPixelWidths));
                     }
                 } else {
                     // Zero-sum resizing: making one column larger makes the next one smaller
                     const nextColumnIndex = resizingColumn + 1;
 
-                    // Only do zero-sum if there's a next column
                     if (nextColumnIndex < headers.length) {
-                        // Calculate new widths based on starting widths
+                        // Calculate new pixel widths
                         let newCurrentWidth = resizeStartWidth + deltaX;
                         let newNextWidth = resizeNextStartWidth - deltaX;
 
@@ -493,34 +527,43 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                             newCurrentWidth -= diff;
                         }
 
-                        setColumnWidths(prev => ({
-                            ...prev,
-                            [resizingColumn]: newCurrentWidth,
-                            [nextColumnIndex]: newNextWidth
-                        }));
+                        // Build full pixel widths object
+                        const currentPixelWidths: Record<number, number> = {};
+                        headers.forEach((_, i) => {
+                            if (i === resizingColumn) {
+                                currentPixelWidths[i] = newCurrentWidth;
+                            } else if (i === nextColumnIndex) {
+                                currentPixelWidths[i] = newNextWidth;
+                            } else {
+                                currentPixelWidths[i] = getPixelWidth(i);
+                            }
+                        });
+                        setColumnWidths(convertPixelsToProportions(currentPixelWidths));
                     } else {
-                        // Last column - just resize normally with minimum width constraint
+                        // Last column - just resize normally
                         const newWidth = Math.max(100, resizeStartWidth + deltaX);
-                        setColumnWidths(prev => ({
-                            ...prev,
-                            [resizingColumn]: newWidth
-                        }));
+                        const currentPixelWidths: Record<number, number> = {};
+                        headers.forEach((_, i) => {
+                            currentPixelWidths[i] = i === resizingColumn ? newWidth : getPixelWidth(i);
+                        });
+                        setColumnWidths(convertPixelsToProportions(currentPixelWidths));
                     }
                 }
             } else {
                 // Normal resizing (non-zero-sum)
                 const newWidth = Math.max(100, resizeStartWidth + deltaX);
-                setColumnWidths(prev => ({
-                    ...prev,
-                    [resizingColumn]: newWidth
-                }));
+                const currentPixelWidths: Record<number, number> = {};
+                headers.forEach((_, i) => {
+                    currentPixelWidths[i] = i === resizingColumn ? newWidth : getPixelWidth(i);
+                });
+                setColumnWidths(convertPixelsToProportions(currentPixelWidths));
             }
         };
 
         const handleMouseUp = () => {
             setResizingColumn(null);
-            document.body.style.userSelect = '';
-            document.body.style.cursor = '';
+            document.body.style.userSelect = "";
+            document.body.style.cursor = "";
         };
 
         document.addEventListener("mousemove", handleMouseMove);
@@ -529,22 +572,22 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         return () => {
             document.removeEventListener("mousemove", handleMouseMove);
             document.removeEventListener("mouseup", handleMouseUp);
-            document.body.style.userSelect = '';
-            document.body.style.cursor = '';
+            document.body.style.userSelect = "";
+            document.body.style.cursor = "";
         };
-    }, [resizingColumn, resizeStartX, resizeStartWidth, resizeNextStartWidth, resizeAllStartWidths, isShiftResize, autoFitColumns, headers.length]);
+    }, [resizingColumn, resizeStartX, resizeStartWidth, resizeNextStartWidth, resizeAllStartWidths, isShiftResize, autoFitColumns, headers.length, headers, columnWidths, setColumnWidths]);
 
     // Disable text selection during drag operations
     useEffect(() => {
         if (!isDraggingRow && !isDraggingColumn) return;
 
         // Prevent text selection while dragging
-        document.body.style.userSelect = 'none';
-        document.body.style.cursor = 'grabbing';
+        document.body.style.userSelect = "none";
+        document.body.style.cursor = "grabbing";
 
         return () => {
-            document.body.style.userSelect = '';
-            document.body.style.cursor = '';
+            document.body.style.userSelect = "";
+            document.body.style.cursor = "";
         };
     }, [isDraggingRow, isDraggingColumn]);
 
@@ -561,24 +604,25 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         e.preventDefault();
         e.stopPropagation();
 
-        const currentWidth = columnWidths[colIndex] || 150; // Default width
+        // Convert current proportion to pixel width for resize tracking
+        const currentWidth = getPixelWidth(colIndex);
         setResizingColumn(colIndex);
         setResizeStartX(e.clientX);
         setResizeStartWidth(currentWidth);
         setIsShiftResize(e.shiftKey);
 
-        // For zero-sum resizing, capture starting widths
+        // For zero-sum resizing, capture starting pixel widths (converted from proportions)
         if (autoFitColumns) {
             if (e.shiftKey) {
-                // Distributed resize: capture all column widths
+                // Distributed resize: capture all column pixel widths
                 const allWidths: Record<number, number> = {};
                 for (let i = 0; i < headers.length; i++) {
-                    allWidths[i] = columnWidths[i] || 150;
+                    allWidths[i] = getPixelWidth(i);
                 }
                 setResizeAllStartWidths(allWidths);
             } else if (colIndex + 1 < headers.length) {
-                // Normal zero-sum: capture next column's starting width
-                const nextWidth = columnWidths[colIndex + 1] || 150;
+                // Normal zero-sum: capture next column's starting pixel width
+                const nextWidth = getPixelWidth(colIndex + 1);
                 setResizeNextStartWidth(nextWidth);
             }
         }
@@ -830,14 +874,14 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     // Container height is reduced so scrollbar appears above summary row
     const summaryRowHeight = 60;
     const containerStyle: React.CSSProperties = {
-        width: drawerPosition === "right" ? `calc(100% - ${rightDrawerSize}px)` : '100%',
+        width: drawerPosition === "right" ? `calc(100% - ${rightDrawerSize}px)` : "100%",
         height: drawerPosition === "bottom"
             ? `calc(100% - ${bottomDrawerSize}px - ${summaryRowHeight}px)`
             : `calc(100% - ${summaryRowHeight}px)`,
-        paddingBottom: '20px', // Small padding for content breathing room
-        userSelect: (isSelecting || isDraggingRow || isDraggingColumn) ? 'none' : 'auto',
-        WebkitUserSelect: (isSelecting || isDraggingRow || isDraggingColumn) ? 'none' : 'auto',
-        position: 'relative',
+        paddingBottom: "20px", // Small padding for content breathing room
+        userSelect: (isSelecting || isDraggingRow || isDraggingColumn) ? "none" : "auto",
+        WebkitUserSelect: (isSelecting || isDraggingRow || isDraggingColumn) ? "none" : "auto",
+        position: "relative",
     };
 
     return (
@@ -937,7 +981,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 <div
                     className="absolute left-0 top-0 bottom-0 w-8 pointer-events-none z-30"
                     style={{
-                        background: 'linear-gradient(to right, rgba(0, 0, 0, 0.15), transparent)',
+                        background: "linear-gradient(to right, rgba(0, 0, 0, 0.15), transparent)",
                     }}
                 />
             )}
@@ -947,7 +991,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 <div
                     className="absolute right-0 top-0 bottom-0 w-8 pointer-events-none z-30"
                     style={{
-                        background: 'linear-gradient(to left, rgba(0, 0, 0, 0.15), transparent)',
+                        background: "linear-gradient(to left, rgba(0, 0, 0, 0.15), transparent)",
                     }}
                 />
             )}
@@ -955,18 +999,18 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             <table
                 className="table table-xs"
                 style={{
-                    tableLayout: 'fixed',
-                    width: `${64 + headers.reduce((sum, _, idx) => sum + (columnWidths[idx] || 150), 0)}px`
+                    tableLayout: "fixed",
+                    width: `${64 + getTotalPixelWidth()}px`
                 }}
             >
                 <thead>
                     <tr>
                         {/* Row number header */}
-                        <th className="bg-base-300 text-center sticky left-0 top-0 z-30" style={{ width: '64px', minWidth: '64px', maxWidth: '64px' }}>#</th>
+                        <th className="bg-base-300 text-center sticky left-0 top-0 z-30" style={{ width: "64px", minWidth: "64px", maxWidth: "64px" }}>#</th>
 
                         {/* Column headers */}
                         {headers.map((header, colIndex) => {
-                            const columnWidth = columnWidths[colIndex] || 150;
+                            const columnWidth = getPixelWidth(colIndex);
                             // Apply hover highlight to header as well
                             const headerClass = `bg-base-300 font-bold relative sticky top-0 z-20 ${hoveredColumn === colIndex ? "bg-base-200/70" : ""} ${dropTargetColumn === colIndex ? "border-l-4 border-primary" : ""}`;
                             return (
@@ -993,9 +1037,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                             onDragStart={(e) => handleColumnDragStart(e, colIndex)}
                                             onDragEnd={handleColumnDragEnd}
                                             className="cursor-move text-base-content/30 hover:text-base-content relative z-10"
-                                            style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+                                            style={{ userSelect: "none", WebkitUserSelect: "none" }}
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ pointerEvents: 'none' }}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ pointerEvents: "none" }}>
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                                             </svg>
                                         </div>
@@ -1016,7 +1060,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                     {/* Resize handle */}
                                     <div
                                         className={`absolute top-0 right-0 bottom-0 w-2 cursor-col-resize select-none z-20 ${resizingColumn === colIndex ? "bg-primary/50" : "hover:bg-primary/30"}`}
-                                        style={{ marginRight: '-4px', paddingLeft: '3px', paddingRight: '3px' }}
+                                        style={{ marginRight: "-4px", paddingLeft: "3px", paddingRight: "3px" }}
                                         onMouseDown={(e) => {
                                             e.stopPropagation();
                                             handleColumnResizeStart(e, colIndex);
@@ -1037,7 +1081,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                     {filteredData.map((row, rowIndex) => {
                         // Determine row background color
                         let rowBgClass = "";
-                        let rowStyle: React.CSSProperties = {};
+                        const rowStyle: React.CSSProperties = {};
 
                         if (rowColoringMode === "by-field" && rowMatchesFilter(row)) {
                             rowStyle.backgroundColor = rowColorFilter?.color;
@@ -1066,7 +1110,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                 {/* Row number */}
                                 <td
                                     className={`bg-base-200 text-center font-mono text-sm border-r-2 ${showColumnSeparators ? "border-base-300" : "border-transparent"} sticky left-0 z-10 cursor-move`}
-                                    style={{ width: '64px', minWidth: '64px', maxWidth: '64px', userSelect: 'none', WebkitUserSelect: 'none' }}
+                                    style={{ width: "64px", minWidth: "64px", maxWidth: "64px", userSelect: "none", WebkitUserSelect: "none" }}
                                     draggable={true}
                                     onMouseDown={(e) => {
                                         // Only allow left-click to initiate drag
@@ -1081,7 +1125,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                     onDragEnd={handleRowDragEnd}
                                     onContextMenu={(e) => handleContextMenu(e, rowIndex, undefined)}
                                 >
-                                    <div className="flex items-center justify-center gap-1" style={{ pointerEvents: 'none' }}>
+                                    <div className="flex items-center justify-center gap-1" style={{ pointerEvents: "none" }}>
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-base-content/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                                         </svg>
@@ -1139,10 +1183,10 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                         cellClass += ` border-r-2 ${showColumnSeparators ? "border-base-300" : "border-transparent"}`;
                                     }
 
-                                    const columnWidth = columnWidths[colIndex] || 150;
+                                    const columnWidth = getPixelWidth(colIndex);
 
                                     // Determine if this cell should be edited with multi-line support
-                                    const cellHasNewlines = cell.includes('\n');
+                                    const cellHasNewlines = cell.includes("\n");
                                     const shouldUseTextarea = wrapText || cellHasNewlines;
 
                                     return (
@@ -1231,75 +1275,75 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                     left: `${summaryRowLeftOffset}px`,
                     right: drawerPosition === "right" ? `${rightDrawerSize}px` : 0,
                     bottom: drawerPosition === "bottom" ? `${bottomDrawerSize}px` : 0,
-                    height: '60px',
-                    overflow: 'hidden'
+                    height: "60px",
+                    overflow: "hidden"
                 }}
             >
                 {/* Row number column placeholder - sticky */}
-                <div className="absolute left-0 h-full bg-base-300 border-r-2 border-base-300 z-10" style={{ width: '64px' }}></div>
+                <div className="absolute left-0 h-full bg-base-300 border-r-2 border-base-300 z-10" style={{ width: "64px" }}></div>
 
                 <div
                     ref={summaryRowContentRef}
                     className="h-full summary-row-scroll"
                     style={{
-                        overflowX: 'scroll',
-                        overflowY: 'hidden',
-                        scrollbarWidth: 'none', /* Firefox */
-                        msOverflowStyle: 'none', /* IE and Edge */
-                        paddingLeft: '64px'
+                        overflowX: "scroll",
+                        overflowY: "hidden",
+                        scrollbarWidth: "none", /* Firefox */
+                        msOverflowStyle: "none", /* IE and Edge */
+                        paddingLeft: "64px"
                     }}
                 >
-                    <div className="flex items-center h-full" style={{ width: `${headers.reduce((sum, _, idx) => sum + (columnWidths[idx] || 150), 0)}px` }}>
-                    {/* Summary dropdowns for each column */}
-                    {headers.map((columnName, colIndex) => {
-                        const summaryType = columnSummaries[columnName] || "count";
-                        const columnData = filteredData.map((row) => row[colIndex] || "");
-                        const summaryValue = calculateSummary(columnData, summaryType);
-                        const columnWidth = columnWidths[colIndex] || 150;
+                    <div className="flex items-center h-full" style={{ width: `${getTotalPixelWidth()}px` }}>
+                        {/* Summary dropdowns for each column */}
+                        {headers.map((columnName, colIndex) => {
+                            const summaryType = columnSummaries[columnName] || "count";
+                            const columnData = filteredData.map((row) => row[colIndex] || "");
+                            const summaryValue = calculateSummary(columnData, summaryType);
+                            const columnWidth = getPixelWidth(colIndex);
 
-                        // Apply hover highlight to summary row as well
-                        const summaryClass = `flex-shrink-0 h-full flex items-center border-r-2 ${hoveredColumn === colIndex ? "bg-base-200/70" : ""} ${showColumnSeparators ? "border-base-300" : "border-transparent"}`;
+                            // Apply hover highlight to summary row as well
+                            const summaryClass = `flex-shrink-0 h-full flex items-center border-r-2 ${hoveredColumn === colIndex ? "bg-base-200/70" : ""} ${showColumnSeparators ? "border-base-300" : "border-transparent"}`;
 
-                        return (
-                            <div
-                                key={colIndex}
-                                className={summaryClass}
-                                style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
-                            >
-                                <div className="flex flex-col-reverse gap-1 p-2">
-                                    {/* Summary value (displayed above dropdown) */}
-                                    <div className="text-sm font-semibold text-primary truncate min-h-[20px]" title={summaryValue}>
-                                        {summaryValue || "\u00A0"}
-                                    </div>
+                            return (
+                                <div
+                                    key={colIndex}
+                                    className={summaryClass}
+                                    style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
+                                >
+                                    <div className="flex flex-col-reverse gap-1 p-2">
+                                        {/* Summary value (displayed above dropdown) */}
+                                        <div className="text-sm font-semibold text-primary truncate min-h-[20px]" title={summaryValue}>
+                                            {summaryValue || "\u00A0"}
+                                        </div>
 
-                                    {/* Summary type selector (opens upward) */}
-                                    <div className="relative">
-                                        <select
-                                            className="select select-xs select-bordered w-full bg-base-100"
-                                            value={summaryType}
-                                            onChange={(e) => setColumnSummary(columnName, e.target.value as any)}
-                                            style={{
-                                                appearance: 'none',
-                                                backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4-4 4 4\'/%3e%3c/svg%3e")',
-                                                backgroundPosition: 'right 0.5rem center',
-                                                backgroundRepeat: 'no-repeat',
-                                                backgroundSize: '1.5em 1.5em',
-                                                paddingRight: '2.5rem'
-                                            }}
-                                        >
-                                            <option value="count">Count</option>
-                                            <option value="unique">Unique</option>
-                                            <option value="mode">Mode</option>
-                                            <option value="average">Average</option>
-                                            <option value="min">Min</option>
-                                            <option value="max">Max</option>
-                                            <option value="sum">Sum</option>
-                                        </select>
+                                        {/* Summary type selector (opens upward) */}
+                                        <div className="relative">
+                                            <select
+                                                className="select select-xs select-bordered w-full bg-base-100"
+                                                value={summaryType}
+                                                onChange={(e) => setColumnSummary(columnName, e.target.value as any)}
+                                                style={{
+                                                    appearance: "none",
+                                                    backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4-4 4 4\'/%3e%3c/svg%3e")',
+                                                    backgroundPosition: "right 0.5rem center",
+                                                    backgroundRepeat: "no-repeat",
+                                                    backgroundSize: "1.5em 1.5em",
+                                                    paddingRight: "2.5rem"
+                                                }}
+                                            >
+                                                <option value="count">Count</option>
+                                                <option value="unique">Unique</option>
+                                                <option value="mode">Mode</option>
+                                                <option value="average">Average</option>
+                                                <option value="min">Min</option>
+                                                <option value="max">Max</option>
+                                                <option value="sum">Sum</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
                     </div>
                 </div>
             </div>
