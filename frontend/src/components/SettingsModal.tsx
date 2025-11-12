@@ -5,7 +5,7 @@
  * Uses daisyUI modal component.
  */
 
-import { useSettingsStore } from "@stores/settingsStore";
+import { useSettingsStore, type HoverHighlightMode } from "@stores/settingsStore";
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -25,6 +25,8 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setPrintFollowsCsvEdit,
         csvFollowsPrintEdit,
         setCsvFollowsPrintEdit,
+        hoverHighlightMode,
+        setHoverHighlightMode,
     } = useSettingsStore();
 
     if (!isOpen) {
@@ -133,6 +135,25 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                             Display non-CSV files in the file tree (greyed out and non-clickable)
                                         </span>
                                     </div>
+                                </label>
+                            </div>
+
+                            <div className="form-control mt-4">
+                                <label className="label">
+                                    <span className="label-text font-semibold">Hover Highlighting</span>
+                                </label>
+                                <select
+                                    className="select select-bordered w-full max-w-xs"
+                                    value={hoverHighlightMode}
+                                    onChange={(e) => setHoverHighlightMode(e.target.value as "none" | "row" | "column" | "row-and-column")}
+                                >
+                                    <option value="none">None</option>
+                                    <option value="row">Row</option>
+                                    <option value="column">Column</option>
+                                    <option value="row-and-column">Row and Column</option>
+                                </select>
+                                <label className="label">
+                                    <span className="label-text-alt">Choose which parts of the CSV grid to highlight when hovering over a cell</span>
                                 </label>
                             </div>
 
@@ -288,9 +309,17 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     <span>Save & move to previous column</span>
                                     <div><kbd className="kbd kbd-sm">Shift</kbd> + <kbd className="kbd kbd-sm">Tab</kbd></div>
                                 </div>
-                                <div className="flex justify-between items-center py-2">
+                                <div className="flex justify-between items-center py-2 border-b border-base-300">
                                     <span>Cancel edit</span>
                                     <div><kbd className="kbd kbd-sm">Esc</kbd></div>
+                                </div>
+
+                                {/* Column Actions */}
+                                <div className="mt-4 mb-2 font-semibold text-base-content/70">Column Actions (when Auto-Fit is enabled)</div>
+
+                                <div className="flex justify-between items-center py-2">
+                                    <span>Distributed Resize</span>
+                                    <div><kbd className="kbd kbd-sm">Shift</kbd> + <span className="mx-1">Drag column edge</span></div>
                                 </div>
                             </div>
                         </div>

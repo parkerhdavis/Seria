@@ -21,7 +21,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
     const { headers, data, fileInfo, isDirty, isLoading, loadCSV, saveCSV, clearData, addRow } = useCSVStore();
 
     // Get settings store state and actions
-    const { wrapText, setWrapText, showColumnSeparators, setShowColumnSeparators } = useSettingsStore();
+    const { wrapText, setWrapText, showColumnSeparators, setShowColumnSeparators, autoFitColumns, setAutoFitColumns } = useSettingsStore();
 
     // Get file tree store to check if file is in tree
     const { isFileInTree } = useFileTreeStore();
@@ -271,6 +271,29 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                             />
                         </svg>
                         Column Lines
+                    </button>
+
+                    {/* Auto-Fit toggle */}
+                    <button
+                        className={`btn btn-sm ${autoFitColumns ? "btn-primary" : "btn-ghost"}`}
+                        onClick={() => setAutoFitColumns(!autoFitColumns)}
+                        title="Auto-fit columns to available width"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M8 7H20m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4-4m-4 4l4 4"
+                            />
+                        </svg>
+                        Auto-Fit
                     </button>
 
                     {/* Row Coloring dropdown */}

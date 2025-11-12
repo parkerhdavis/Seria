@@ -53,9 +53,11 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     const {
         showColumnSeparators,
         wrapText,
+        autoFitColumns,
         rowColoringMode,
         rowColorFilter,
         csvFollowsPrintEdit,
+        hoverHighlightMode,
     } = useSettingsStore();
 
     const { matches, currentMatchIndex } = useFindReplaceStore();
@@ -82,6 +84,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         col?: number;
     } | null>(null);
 
+    // Hover state for column highlighting
+    const [hoveredColumn, setHoveredColumn] = useState<number | null>(null);
+
     // Scroll indicators
     const [showLeftScrollIndicator, setShowLeftScrollIndicator] = useState(false);
     const [showRightScrollIndicator, setShowRightScrollIndicator] = useState(false);
@@ -95,6 +100,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     const [resizingColumn, setResizingColumn] = useState<number | null>(null);
     const [resizeStartX, setResizeStartX] = useState(0);
     const [resizeStartWidth, setResizeStartWidth] = useState(0);
+    const [resizeNextStartWidth, setResizeNextStartWidth] = useState(0);
+    const [resizeAllStartWidths, setResizeAllStartWidths] = useState<Record<number, number>>({});
+    const [isShiftResize, setIsShiftResize] = useState(false);
 
     // Refs
     const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -363,6 +371,51 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         }
     }, [summaryRowScrollLeft]);
 
+    // Auto-fit columns effect - calculate and distribute column widths
+    useEffect(() => {
+        if (!autoFitColumns || headers.length === 0) return;
+
+        // Calculate available width
+        const calculateColumnWidths = () => {
+            if (!tableContainerRef.current) return;
+
+            // Get the actual container width from the container element
+            const containerWidth = tableContainerRef.current.clientWidth;
+
+            // Subtract row number column width (64px)
+            const rowNumberWidth = 64;
+            let availableWidth = containerWidth - rowNumberWidth;
+
+            const finalAvailableWidth = Math.max(availableWidth, 200); // Minimum available width
+            const columnCount = headers.length;
+            const columnWidth = Math.floor(finalAvailableWidth / columnCount);
+
+            // Set all columns to equal width
+            const newWidths: Record<number, number> = {};
+            for (let i = 0; i < columnCount; i++) {
+                newWidths[i] = columnWidth;
+            }
+            setColumnWidths(newWidths);
+        };
+
+        // Calculate on mount and when dependencies change
+        calculateColumnWidths();
+
+        // Recalculate when window is resized
+        window.addEventListener("resize", calculateColumnWidths);
+
+        // Use ResizeObserver to detect container size changes (drawer resizing)
+        const resizeObserver = new ResizeObserver(calculateColumnWidths);
+        if (tableContainerRef.current) {
+            resizeObserver.observe(tableContainerRef.current);
+        }
+
+        return () => {
+            window.removeEventListener("resize", calculateColumnWidths);
+            resizeObserver.disconnect();
+        };
+    }, [autoFitColumns, headers.length]);
+
     // Column resizing effect
     useEffect(() => {
         if (resizingColumn === null) return;
@@ -373,11 +426,93 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
         const handleMouseMove = (e: MouseEvent) => {
             const deltaX = e.clientX - resizeStartX;
-            const newWidth = Math.max(100, resizeStartWidth + deltaX);
-            setColumnWidths(prev => ({
-                ...prev,
-                [resizingColumn]: newWidth
-            }));
+
+            if (autoFitColumns) {
+                if (isShiftResize) {
+                    // Distributed resize: distribute delta across all other columns
+                    const otherColumnCount = headers.length - 1; // All columns except the one being resized
+
+                    if (otherColumnCount > 0) {
+                        const deltaPerColumn = -deltaX / otherColumnCount; // Negative because others shrink when current grows
+                        const minWidth = 100;
+
+                        // Calculate new widths for all columns
+                        const newWidths: Record<number, number> = {};
+                        let totalAdjustment = 0;
+
+                        // First pass: calculate new widths and track violations
+                        for (let i = 0; i < headers.length; i++) {
+                            if (i === resizingColumn) {
+                                newWidths[i] = resizeStartWidth + deltaX;
+                            } else {
+                                const startWidth = resizeAllStartWidths[i] || 150;
+                                newWidths[i] = startWidth + deltaPerColumn;
+                            }
+
+                            // Enforce minimum width
+                            if (newWidths[i] < minWidth) {
+                                totalAdjustment += minWidth - newWidths[i];
+                                newWidths[i] = minWidth;
+                            }
+                        }
+
+                        // Second pass: distribute the adjustment if needed
+                        if (totalAdjustment > 0) {
+                            // Reduce the resizing column to compensate
+                            newWidths[resizingColumn] = Math.max(minWidth, newWidths[resizingColumn] - totalAdjustment);
+                        }
+
+                        setColumnWidths(newWidths);
+                    } else {
+                        // Only one column - just resize normally
+                        const newWidth = Math.max(100, resizeStartWidth + deltaX);
+                        setColumnWidths({ [resizingColumn]: newWidth });
+                    }
+                } else {
+                    // Zero-sum resizing: making one column larger makes the next one smaller
+                    const nextColumnIndex = resizingColumn + 1;
+
+                    // Only do zero-sum if there's a next column
+                    if (nextColumnIndex < headers.length) {
+                        // Calculate new widths based on starting widths
+                        let newCurrentWidth = resizeStartWidth + deltaX;
+                        let newNextWidth = resizeNextStartWidth - deltaX;
+
+                        // Enforce minimum widths
+                        const minWidth = 100;
+                        if (newCurrentWidth < minWidth) {
+                            const diff = minWidth - newCurrentWidth;
+                            newCurrentWidth = minWidth;
+                            newNextWidth -= diff;
+                        }
+                        if (newNextWidth < minWidth) {
+                            const diff = minWidth - newNextWidth;
+                            newNextWidth = minWidth;
+                            newCurrentWidth -= diff;
+                        }
+
+                        setColumnWidths(prev => ({
+                            ...prev,
+                            [resizingColumn]: newCurrentWidth,
+                            [nextColumnIndex]: newNextWidth
+                        }));
+                    } else {
+                        // Last column - just resize normally with minimum width constraint
+                        const newWidth = Math.max(100, resizeStartWidth + deltaX);
+                        setColumnWidths(prev => ({
+                            ...prev,
+                            [resizingColumn]: newWidth
+                        }));
+                    }
+                }
+            } else {
+                // Normal resizing (non-zero-sum)
+                const newWidth = Math.max(100, resizeStartWidth + deltaX);
+                setColumnWidths(prev => ({
+                    ...prev,
+                    [resizingColumn]: newWidth
+                }));
+            }
         };
 
         const handleMouseUp = () => {
@@ -395,7 +530,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             document.body.style.userSelect = '';
             document.body.style.cursor = '';
         };
-    }, [resizingColumn, resizeStartX, resizeStartWidth]);
+    }, [resizingColumn, resizeStartX, resizeStartWidth, resizeNextStartWidth, resizeAllStartWidths, isShiftResize, autoFitColumns, headers.length]);
 
     // Disable text selection during drag operations
     useEffect(() => {
@@ -420,6 +555,23 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         setResizingColumn(colIndex);
         setResizeStartX(e.clientX);
         setResizeStartWidth(currentWidth);
+        setIsShiftResize(e.shiftKey);
+
+        // For zero-sum resizing, capture starting widths
+        if (autoFitColumns) {
+            if (e.shiftKey) {
+                // Distributed resize: capture all column widths
+                const allWidths: Record<number, number> = {};
+                for (let i = 0; i < headers.length; i++) {
+                    allWidths[i] = columnWidths[i] || 150;
+                }
+                setResizeAllStartWidths(allWidths);
+            } else if (colIndex + 1 < headers.length) {
+                // Normal zero-sum: capture next column's starting width
+                const nextWidth = columnWidths[colIndex + 1] || 150;
+                setResizeNextStartWidth(nextWidth);
+            }
+        }
     };
 
     // Start editing a cell
@@ -515,16 +667,35 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     };
 
     // Cell selection handlers
-    const handleCellMouseDown = (row: number, col: number) => {
+    const handleCellMouseDown = (e: React.MouseEvent, row: number, col: number) => {
+        // Only handle left-click for selection (button 0)
+        if (e.button !== 0) return;
+
         if (gridFocusRef.current) {
             gridFocusRef.current.focus();
         }
+
+        // Shift-click: extend selection from current selected cell to clicked cell
+        if (e.shiftKey && selectedCell) {
+            e.preventDefault(); // Prevent default text selection behavior
+            setSelectedRange(selectedCell.row, selectedCell.col, row, col);
+            // Don't start new drag selection on shift-click
+            return;
+        }
+
+        // Normal click: start new selection
         setIsSelecting(true);
         setSelectionStart({ row, col });
         setSelectedCell(row, col);
     };
 
     const handleCellMouseEnter = (row: number, col: number) => {
+        // Set hovered column for column highlighting (only if column highlighting is enabled)
+        if (hoverHighlightMode === "column" || hoverHighlightMode === "row-and-column") {
+            setHoveredColumn(col);
+        }
+
+        // Handle drag selection
         if (isSelecting && selectionStart) {
             // Only create range if moved to different cell
             if (row !== selectionStart.row || col !== selectionStart.col) {
@@ -533,8 +704,18 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         }
     };
 
+    const handleCellMouseLeave = () => {
+        // Clear hovered column when mouse leaves a cell
+        setHoveredColumn(null);
+    };
+
     // Row drag and drop handlers
     const handleRowDragStart = (e: React.DragEvent, rowIndex: number) => {
+        // Only allow left-click drag (button 0)
+        if (e.button && e.button !== 0) {
+            e.preventDefault();
+            return;
+        }
         e.stopPropagation();
         setDraggedRow(rowIndex);
         setIsDraggingRow(true);
@@ -573,6 +754,11 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
     // Column drag and drop handlers
     const handleColumnDragStart = (e: React.DragEvent, colIndex: number) => {
+        // Only allow left-click drag (button 0)
+        if (e.button && e.button !== 0) {
+            e.preventDefault();
+            return;
+        }
         e.stopPropagation();
         setDraggedColumn(colIndex);
         setIsDraggingColumn(true);
@@ -771,10 +957,12 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                         {/* Column headers */}
                         {headers.map((header, colIndex) => {
                             const columnWidth = columnWidths[colIndex] || 150;
+                            // Apply hover highlight to header as well
+                            const headerClass = `bg-base-300 font-bold relative sticky top-0 z-20 ${hoveredColumn === colIndex ? "bg-base-200/70" : ""} ${dropTargetColumn === colIndex ? "border-l-4 border-primary" : ""}`;
                             return (
                                 <th
                                     key={colIndex}
-                                    className={`bg-base-300 font-bold relative sticky top-0 z-20 ${dropTargetColumn === colIndex ? "border-l-4 border-primary" : ""}`}
+                                    className={headerClass}
                                     style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
                                     onDragOver={(e) => handleColumnDragOver(e, colIndex)}
                                     onDrop={(e) => handleColumnDrop(e, colIndex)}
@@ -784,6 +972,11 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                         <div
                                             draggable={true}
                                             onMouseDown={(e) => {
+                                                // Only allow left-click to initiate drag
+                                                if (e.button !== 0) {
+                                                    e.preventDefault();
+                                                    return;
+                                                }
                                                 e.stopPropagation();
                                                 // Don't preventDefault - it blocks drag start
                                             }}
@@ -842,6 +1035,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                             rowBgClass = "bg-base-200/50";
                         }
 
+                        // Apply row hover class only if row highlighting is enabled
+                        const rowHoverClass = (hoverHighlightMode === "row" || hoverHighlightMode === "row-and-column") ? "hover:bg-base-200/70" : "";
+
                         return (
                             <tr
                                 key={rowIndex}
@@ -852,7 +1048,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                         rowRefs.current.delete(rowIndex);
                                     }
                                 }}
-                                className={`hover:bg-base-200/70 ${rowBgClass} ${dropTargetRow === rowIndex ? "border-t-4 border-primary" : ""}`}
+                                className={`${rowHoverClass} ${rowBgClass} ${dropTargetRow === rowIndex ? "border-t-4 border-primary" : ""}`}
                                 style={rowStyle}
                                 onDragOver={(e) => handleRowDragOver(e, rowIndex)}
                                 onDrop={(e) => handleRowDrop(e, rowIndex)}
@@ -863,6 +1059,11 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                     style={{ width: '64px', minWidth: '64px', maxWidth: '64px', userSelect: 'none', WebkitUserSelect: 'none' }}
                                     draggable={true}
                                     onMouseDown={(e) => {
+                                        // Only allow left-click to initiate drag
+                                        if (e.button !== 0) {
+                                            e.preventDefault();
+                                            return;
+                                        }
                                         e.stopPropagation();
                                         // Don't preventDefault - it blocks drag start
                                     }}
@@ -901,6 +1102,12 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
                                     // Determine cell class
                                     let cellClass = "p-0";
+
+                                    // Column hover highlight (same as row hover)
+                                    if (hoveredColumn === colIndex) {
+                                        cellClass += " bg-base-200/70";
+                                    }
+
                                     if (isSingleSelected) {
                                         cellClass += " ring-2 ring-primary ring-inset";
                                     } else if (isInRange) {
@@ -933,8 +1140,13 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                             key={colIndex}
                                             className={`${cellClass} relative`}
                                             style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
-                                            onMouseDown={() => handleCellMouseDown(rowIndex, colIndex)}
+                                            onMouseDown={(e) => handleCellMouseDown(e, rowIndex, colIndex)}
                                             onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                                            onMouseLeave={handleCellMouseLeave}
+                                            onDoubleClick={() => {
+                                                const value = row[colIndex] || "";
+                                                handleStartEdit(rowIndex, colIndex, value);
+                                            }}
                                             onContextMenu={(e) => handleContextMenu(e, rowIndex, colIndex)}
                                         >
                                             {/* "Editing from Print" overlay indicator */}
@@ -1035,10 +1247,13 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                         const summaryValue = calculateSummary(columnData, summaryType);
                         const columnWidth = columnWidths[colIndex] || 150;
 
+                        // Apply hover highlight to summary row as well
+                        const summaryClass = `flex-shrink-0 h-full flex items-center border-r-2 ${hoveredColumn === colIndex ? "bg-base-200/70" : ""} ${showColumnSeparators ? "border-base-300" : "border-transparent"}`;
+
                         return (
                             <div
                                 key={colIndex}
-                                className={`flex-shrink-0 h-full flex items-center border-r-2 ${showColumnSeparators ? "border-base-300" : "border-transparent"}`}
+                                className={summaryClass}
                                 style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
                             >
                                 <div className="flex flex-col-reverse gap-1 p-2">
@@ -1094,6 +1309,25 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                     onClick={(e) => e.stopPropagation()}
                 >
                     <ul className="menu menu-sm p-2">
+                        {contextMenu.row !== undefined && contextMenu.col !== undefined && (
+                            <>
+                                <li>
+                                    <a
+                                        onClick={() => {
+                                            const value = filteredData[contextMenu.row!]?.[contextMenu.col!] || "";
+                                            handleStartEdit(contextMenu.row!, contextMenu.col!, value);
+                                            setContextMenu(null);
+                                        }}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                        Edit
+                                    </a>
+                                </li>
+                                <div className="divider my-1"></div>
+                            </>
+                        )}
                         <li>
                             <a
                                 onClick={() => {
