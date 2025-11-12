@@ -56,7 +56,7 @@ export interface RecipeRenderSettings {
     sceneNumbering?: boolean;       // Show scene numbers (for Screenplay Print)
 
     // Custom settings (extensible)
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 /**
@@ -110,7 +110,7 @@ export interface RenderedElement {
     ingredientId: string;           // Which ingredient this element represents
     content: string;                // The actual text content
     style: PrintFieldStyle;         // Applied styling
-    metadata?: Record<string, any>; // Optional metadata (e.g., page breaks, scene numbers)
+    metadata?: Record<string, unknown>; // Optional metadata (e.g., page breaks, scene numbers)
 }
 
 /**

@@ -9,7 +9,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 import { getMappedColumn, getMappedColumns } from "@/utils/printRecipeMapper";
-import { useDrag } from "@/contexts/DragContext";
 import { useCSVStore } from "@/stores/csvStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 
@@ -356,7 +355,6 @@ function CardPrint({
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
-    const { isDragging: globalIsDragging } = useDrag();
     const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell, clearSelection } = useCSVStore();
     const { printFollowsCsvEdit } = useSettingsStore();
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -422,6 +420,7 @@ function CardPrint({
             // User clicked in CSV grid, clear Print selection
             setSelectedField(null);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing isEditingFromPrint, selectedField dependencies. Adding these would create an infinite loop - the effect clears selectedField, which would trigger the effect again, clearing it again, etc. Alternative: Restructure logic to use a ref for tracking state or separate the concerns.
     }, [selectedCell, selectedRange]);
 
     // Clear Print selection when clicking anywhere in CSV grid area (including background)

@@ -11,9 +11,9 @@ import { persist } from "zustand/middleware";
 import type {
     PrintRecipe,
     RecipeConfiguration,
-    RecipeFieldMapping,
+    RecipeRenderSettings,
 } from "@/types/printRecipe";
-import { getBundledRecipes, getBundledRecipe } from "@/utils/bundledRecipes";
+import { getBundledRecipes } from "@/utils/bundledRecipes";
 import { autoMapRecipe, updateFieldMapping, validateRecipeConfiguration } from "@/utils/printRecipeMapper";
 
 interface PrintRecipeState {
@@ -35,7 +35,7 @@ interface PrintRecipeState {
     selectRecipe: (recipeId: string) => void;
     autoMapFields: (recipeId: string) => void;
     updateMapping: (recipeId: string, ingredientId: string, csvColumn: string | null) => void;
-    updateRenderSettings: (recipeId: string, settings: Record<string, any>) => void;
+    updateRenderSettings: (recipeId: string, settings: RecipeRenderSettings) => void;
     getConfiguration: (recipeId: string) => RecipeConfiguration | undefined;
     getRecipe: (recipeId: string) => PrintRecipe | undefined;
     validateConfiguration: (recipeId: string) => { isValid: boolean; errors: string[] };
@@ -173,7 +173,7 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
             /**
              * Updates render settings for a recipe
              */
-            updateRenderSettings: (recipeId: string, settings: Record<string, any>) => {
+            updateRenderSettings: (recipeId: string, settings: RecipeRenderSettings) => {
                 const { configurations } = get();
                 const currentConfig = configurations[recipeId];
 

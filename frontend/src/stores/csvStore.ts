@@ -7,7 +7,7 @@
 
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import { CSVData, CSVFileInfo } from "@/types/csv";
+import { CSVFileInfo } from "@/types/csv";
 import { parseCSV, serializeCSV, validateCSV } from "@utils/csvParser";
 import { useFileConfigStore, type FileIdentifiers } from "./fileConfigStore";
 import { useSettingsStore } from "./settingsStore";
@@ -228,22 +228,37 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                     }
 
                     if (fileConfig.config.filters) {
-                        set({ columnFilters: fileConfig.config.filters });
+                        // Map 'field' to 'column' for ColumnFilter compatibility
+                        const filters: ColumnFilter[] = fileConfig.config.filters.map(f => ({
+                            column: f.field,
+                            operation: f.operation as "contains" | "not-contains" | "equals" | "not-equals",
+                            value: f.value
+                        }));
+                        set({ columnFilters: filters });
                     }
 
                     if (fileConfig.config.columnSummaries) {
-                        set({ columnSummaries: fileConfig.config.columnSummaries });
+                        // Cast string values to SummaryType (validation happens in store)
+                        const summaries = fileConfig.config.columnSummaries as Record<string, SummaryType>;
+                        set({ columnSummaries: summaries });
                     }
 
                     // Apply config to settings store
                     const settingsStore = useSettingsStore.getState();
 
                     if (fileConfig.config.rowColoringMode !== undefined) {
-                        settingsStore.setRowColoringMode(fileConfig.config.rowColoringMode as any);
+                        settingsStore.setRowColoringMode(fileConfig.config.rowColoringMode as "off" | "alternating" | "by-field");
                     }
 
                     if (fileConfig.config.rowColorFilter !== undefined) {
-                        settingsStore.setRowColorFilter(fileConfig.config.rowColorFilter);
+                        // Cast to proper RowColorFilter type
+                        const filter = fileConfig.config.rowColorFilter ? {
+                            field: fileConfig.config.rowColorFilter.field,
+                            operation: fileConfig.config.rowColorFilter.operation as "contains" | "not-contains" | "equals" | "not-equals",
+                            value: fileConfig.config.rowColorFilter.value,
+                            color: fileConfig.config.rowColorFilter.color
+                        } : null;
+                        settingsStore.setRowColorFilter(filter);
                     }
 
                     if (fileConfig.config.wrapText !== undefined) {
@@ -259,7 +274,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                     }
 
                     if (fileConfig.config.hoverHighlightMode !== undefined) {
-                        settingsStore.setHoverHighlightMode(fileConfig.config.hoverHighlightMode as any);
+                        settingsStore.setHoverHighlightMode(fileConfig.config.hoverHighlightMode as "none" | "row" | "column" | "row-and-column");
                     }
 
                     // Apply config to drawer store
@@ -678,7 +693,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     },
 
     pasteClipboard: () => {
-        const { selectedCell, selectedRange, clipboard, data, headers } = get();
+        const { selectedCell, selectedRange, clipboard, data } = get();
 
         if (!clipboard) return;
 

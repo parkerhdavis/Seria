@@ -62,7 +62,6 @@ function pixelsToInches(pixels: number): number {
  */
 function ScreenplayElementView({
     element,
-    marginLeft,
     showRowNumbers,
     isBeingEdited,
     isSelected,
@@ -75,7 +74,6 @@ function ScreenplayElementView({
     setRef,
 }: {
     element: ScreenplayElement;
-    marginLeft: number;
     showRowNumbers: boolean;
     isBeingEdited: boolean;
     isSelected: boolean;
@@ -87,7 +85,6 @@ function ScreenplayElementView({
     onContextMenu: (e: React.MouseEvent) => void;
     setRef?: (el: HTMLDivElement | null) => void;
 }) {
-    const ingredient = element.type;
     const inputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -347,6 +344,7 @@ function ScreenplayPrint({
             // User clicked in CSV grid, clear Print selection
             setSelectedPrintElement(null);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing isEditingFromPrint, selectedPrintElement dependencies. Adding these would create an infinite loop - the effect clears selectedPrintElement, which would trigger the effect again, clearing it again, etc. Alternative: Restructure logic to use a ref for tracking state or separate the concerns.
     }, [selectedCell, selectedRange]);
 
     // Clear Print selection when clicking anywhere in CSV grid area (including background)
@@ -451,6 +449,7 @@ function ScreenplayPrint({
 
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing elements dependency. elements is derived from data and is recalculated on every render. Adding it would cause the keyboard handler to constantly detach/reattach, causing performance issues. The effect already depends on data, which is sufficient. Alternative: Memoize elements array with useMemo, then add to dependencies.
     }, [selectedPrintElement, isEditingFromPrint, headers, data, editingCell, editingValue, setEditingCell, updateCell, clearEditingCell]);
 
     // Handle clicking on a Print element
@@ -749,7 +748,6 @@ function ScreenplayPrint({
                             <ScreenplayElementView
                                 key={index}
                                 element={element}
-                                marginLeft={marginLeft}
                                 showRowNumbers={false}
                                 isBeingEdited={isBeingEdited}
                                 isSelected={isSelected}

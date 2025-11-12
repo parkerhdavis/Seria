@@ -18,7 +18,7 @@ interface HeaderProps {
  */
 function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: HeaderProps) {
     // Get CSV store state and actions
-    const { headers, data, fileInfo, isDirty, isLoading, loadCSV, saveCSV, clearData, addRow } = useCSVStore();
+    const { headers, fileInfo, isDirty, isLoading, loadCSV, saveCSV, clearData, addRow } = useCSVStore();
 
     // Get settings store state and actions
     const { wrapText, setWrapText, showColumnSeparators, setShowColumnSeparators, autoFitColumns, setAutoFitColumns } = useSettingsStore();

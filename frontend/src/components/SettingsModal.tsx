@@ -5,7 +5,7 @@
  * Uses daisyUI modal component.
  */
 
-import { useSettingsStore, type HoverHighlightMode } from "@stores/settingsStore";
+import { useSettingsStore } from "@stores/settingsStore";
 import { useFileConfigStore } from "@stores/fileConfigStore";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";

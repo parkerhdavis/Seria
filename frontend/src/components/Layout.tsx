@@ -19,7 +19,7 @@ interface LayoutProps {
  * Supports responsive design with drawer navigation on smaller screens.
  * Sidebar is resizable via draggable edge.
  */
-function Layout({ children, printPreviewPosition, isSidebarOpen, onTogglePrintPreview, onToggleSidebar }: LayoutProps) {
+function Layout({ children, isSidebarOpen, onTogglePrintPreview, onToggleSidebar }: LayoutProps) {
     const [sidebarWidth, setSidebarWidth] = useState(256);
     const [isResizing, setIsResizing] = useState(false);
     const sidebarRef = useRef<HTMLElement>(null);

@@ -337,6 +337,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing handleStartEdit dependency. handleStartEdit is a stable function defined in component scope. Adding it would cause the effect to re-run on every render, constantly detaching/reattaching event listeners. Alternative: Wrap handleStartEdit in useCallback to memoize it, then add to dependencies.
     }, [editingCell, editingSource, selectedCell, selectedRange, filteredData, headers, copySelection, pasteClipboard, clearSelection, setSelectedCell, addRow]);
 
     // Scroll to row when editing from Print view
@@ -575,6 +576,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             document.body.style.userSelect = "";
             document.body.style.cursor = "";
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing getPixelWidth, convertPixelsToProportions dependencies. These are stable helper functions defined in component scope. Adding them would cause the resize effect to re-run unnecessarily, creating performance issues. Alternative: Move these functions outside component scope or wrap in useCallback.
     }, [resizingColumn, resizeStartX, resizeStartWidth, resizeNextStartWidth, resizeAllStartWidths, isShiftResize, autoFitColumns, headers.length, headers, columnWidths, setColumnWidths]);
 
     // Disable text selection during drag operations
@@ -1321,7 +1323,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                             <select
                                                 className="select select-xs select-bordered w-full bg-base-100"
                                                 value={summaryType}
-                                                onChange={(e) => setColumnSummary(columnName, e.target.value as any)}
+                                                onChange={(e) => setColumnSummary(columnName, e.target.value as "count" | "unique" | "mode" | "average" | "min" | "max" | "sum")}
                                                 style={{
                                                     appearance: "none",
                                                     backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4-4 4 4\'/%3e%3c/svg%3e")',

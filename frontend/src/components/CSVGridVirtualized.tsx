@@ -5,7 +5,7 @@
  * for handling large CSV files (1000+ rows) efficiently.
  */
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCSVStore } from "@stores/csvStore";
 

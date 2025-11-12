@@ -92,7 +92,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
             document.removeEventListener("mousemove", handleMouseMove);
             document.removeEventListener("mouseup", handleMouseUp);
         };
-    }, [isResizing, position, endDrag]);
+    }, [isResizing, position, endDrag, setRightDrawerSize, setBottomDrawerSize]);
 
     if (!isOpen) {
         return null;
