@@ -25,7 +25,7 @@ interface PrintPreviewDrawerProps {
  */
 function PrintDrawer({ isOpen, position, onClose }: PrintPreviewDrawerProps) {
     const { headers, data, fileInfo } = useCSVStore();
-    const [size, setSize] = useState(position === "right" ? 384 : 320);
+    const [size, setSize] = useState(position === "right" ? 768 : 320);
     const [isResizing, setIsResizing] = useState(false);
     const drawerRef = useRef<HTMLDivElement>(null);
     const { startDrag, endDrag } = useDrag();
@@ -98,7 +98,7 @@ function PrintDrawer({ isOpen, position, onClose }: PrintPreviewDrawerProps) {
     return (
         <div
             ref={drawerRef}
-            className={`fixed bg-base-200 shadow-xl border-base-300 z-50 flex ${position === "right" ? "flex-col border-l" : "flex-row border-t"}`}
+            className={`fixed bg-base-200 shadow-black shadow-md border-black/50 z-50 flex ${position === "right" ? "flex-col border-l-4" : "flex-row border-t-4"}`}
             style={positionStyles}
         >
             {/* Resize handle */}

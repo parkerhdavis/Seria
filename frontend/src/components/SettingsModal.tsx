@@ -184,13 +184,73 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     <span>Undo</span>
                                     <div><kbd className="kbd kbd-sm">Ctrl</kbd> + <kbd className="kbd kbd-sm">Z</kbd></div>
                                 </div>
-                                <div className="flex justify-between items-center py-2">
+                                <div className="flex justify-between items-center py-2 border-b border-base-300">
                                     <span>Redo</span>
                                     <div>
                                         <kbd className="kbd kbd-sm">Ctrl</kbd> + <kbd className="kbd kbd-sm">Shift</kbd> + <kbd className="kbd kbd-sm">Z</kbd>
                                         <span className="mx-1">or</span>
                                         <kbd className="kbd kbd-sm">Ctrl</kbd> + <kbd className="kbd kbd-sm">Y</kbd>
                                     </div>
+                                </div>
+
+                                {/* Cell Selection & Editing */}
+                                <div className="mt-4 mb-2 font-semibold text-base-content/70">Cell Selection & Editing</div>
+
+                                <div className="flex justify-between items-center py-2 border-b border-base-300">
+                                    <span>Edit selected cell</span>
+                                    <div>
+                                        <kbd className="kbd kbd-sm">F2</kbd>
+                                        <span className="mx-1">or</span>
+                                        <kbd className="kbd kbd-sm">Enter</kbd>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-base-300">
+                                    <span>Copy selection</span>
+                                    <div><kbd className="kbd kbd-sm">Ctrl</kbd> + <kbd className="kbd kbd-sm">C</kbd></div>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-base-300">
+                                    <span>Paste</span>
+                                    <div><kbd className="kbd kbd-sm">Ctrl</kbd> + <kbd className="kbd kbd-sm">V</kbd></div>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-base-300">
+                                    <span>Add row below selection</span>
+                                    <div><kbd className="kbd kbd-sm">Ctrl</kbd> + <kbd className="kbd kbd-sm">Enter</kbd></div>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-base-300">
+                                    <span>Clear selection</span>
+                                    <div><kbd className="kbd kbd-sm">Esc</kbd></div>
+                                </div>
+
+                                {/* Arrow Key Navigation */}
+                                <div className="mt-4 mb-2 font-semibold text-base-content/70">Arrow Key Navigation (when cell selected)</div>
+
+                                <div className="flex justify-between items-center py-2 border-b border-base-300">
+                                    <span>Move selection up/down/left/right</span>
+                                    <div><kbd className="kbd kbd-sm">↑</kbd> <kbd className="kbd kbd-sm">↓</kbd> <kbd className="kbd kbd-sm">←</kbd> <kbd className="kbd kbd-sm">→</kbd></div>
+                                </div>
+
+                                {/* Cell Navigation (while editing) */}
+                                <div className="mt-4 mb-2 font-semibold text-base-content/70">Cell Navigation (while editing)</div>
+
+                                <div className="flex justify-between items-center py-2 border-b border-base-300">
+                                    <span>Save & move to next row</span>
+                                    <div><kbd className="kbd kbd-sm">Enter</kbd></div>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-base-300">
+                                    <span>Save & move to previous row</span>
+                                    <div><kbd className="kbd kbd-sm">Shift</kbd> + <kbd className="kbd kbd-sm">Enter</kbd></div>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-base-300">
+                                    <span>Save & move to next column</span>
+                                    <div><kbd className="kbd kbd-sm">Tab</kbd></div>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-base-300">
+                                    <span>Save & move to previous column</span>
+                                    <div><kbd className="kbd kbd-sm">Shift</kbd> + <kbd className="kbd kbd-sm">Tab</kbd></div>
+                                </div>
+                                <div className="flex justify-between items-center py-2">
+                                    <span>Cancel edit</span>
+                                    <div><kbd className="kbd kbd-sm">Esc</kbd></div>
                                 </div>
                             </div>
                         </div>

@@ -177,9 +177,11 @@ function ScreenplayPrint({
     const pageHeightPx = pageHeight * 96;
     const maxScaleHeight = availableHeight / pageHeightPx;
 
-    // Use the smaller scale to ensure the page fits in both dimensions
-    // But don't scale up beyond 1.0 (100%)
-    const scale = Math.min(1.0, maxScaleWidth, maxScaleHeight);
+    // For right drawer: always scale to fill width
+    // For bottom drawer: scale to fit both dimensions (use smaller scale)
+    const scale = drawerPosition === "right"
+        ? maxScaleWidth  // Always fill width when on the right
+        : Math.min(maxScaleWidth, maxScaleHeight); // Fit both dimensions when on bottom
 
     // Scroll to element when editing cell changes
     useEffect(() => {
@@ -332,11 +334,11 @@ function ScreenplayPrint({
     return (
         <div
             ref={setContainerRef}
-            className="w-full h-full overflow-auto bg-black/50 p-4" // TODO: This shows the margin/padding I want to eliminate
+            className="w-full h-full overflow-auto p-2 bg-black/30"
         >
             {/* Screenplay page */}
             <div
-                className={`screenplay-page bg-white text-black shadow-2xl mb-8 relative ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
+                className={`screenplay-page text-grey-50 mb-8 relative ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
                 style={pageStyle}
             >
                 {/* Page number (top right, only if enabled) */}

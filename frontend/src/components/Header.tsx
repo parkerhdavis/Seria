@@ -45,6 +45,10 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
             });
             if (filePath) {
                 await loadCSV(filePath);
+                // Blur the active element (Open button) so keyboard shortcuts work
+                if (document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                }
             }
         } catch (error) {
             console.error("Failed to open file:", error);
