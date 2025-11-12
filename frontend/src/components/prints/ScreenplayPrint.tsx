@@ -215,7 +215,7 @@ function ScreenplayPrint({
 
     data.forEach((row, rowIndex) => {
         // Determine element type and content based on which columns have data
-        // Priority order: scene_heading > transition > character > parenthetical > dialogue > action
+        // Priority order: transition > scene_heading > character > parenthetical > dialogue > action
 
         const sceneHeadingIdx = sceneHeadingColumn ? headers.indexOf(sceneHeadingColumn) : -1;
         const actionIdx = actionColumn ? headers.indexOf(actionColumn) : -1;
@@ -223,6 +223,19 @@ function ScreenplayPrint({
         const dialogueIdx = dialogueColumn ? headers.indexOf(dialogueColumn) : -1;
         const parentheticalIdx = parentheticalColumn ? headers.indexOf(parentheticalColumn) : -1;
         const transitionIdx = transitionColumn ? headers.indexOf(transitionColumn) : -1;
+
+        // Check for transition (appears before scene heading)
+        if (transitionIdx >= 0) {
+            const content = getCellValue(rowIndex, transitionIdx);
+            if (content.trim()) {
+                elements.push({
+                    type: "transition",
+                    content,
+                    rowIndex,
+                    columnName: headers[transitionIdx],
+                });
+            }
+        }
 
         // Check for scene heading
         if (sceneHeadingIdx >= 0) {
@@ -233,19 +246,6 @@ function ScreenplayPrint({
                     content,
                     rowIndex,
                     columnName: headers[sceneHeadingIdx],
-                });
-            }
-        }
-
-        // Check for transition
-        if (transitionIdx >= 0) {
-            const content = getCellValue(rowIndex, transitionIdx);
-            if (content.trim()) {
-                elements.push({
-                    type: "transition",
-                    content,
-                    rowIndex,
-                    columnName: headers[transitionIdx],
                 });
             }
         }
@@ -334,7 +334,7 @@ function ScreenplayPrint({
     return (
         <div
             ref={setContainerRef}
-            className="w-full h-full overflow-auto p-2 bg-black/30"
+            className="w-full h-full overflow-auto p-2 bg-black/20"
         >
             {/* Screenplay page */}
             <div
@@ -379,31 +379,6 @@ function ScreenplayPrint({
                             />
                         );
                     })}
-                </div>
-            </div>
-
-            {/* Format guide */}
-            <div className="max-w-2xl mx-auto bg-base-100 rounded-lg p-4 text-xs space-y-2 mb-8">
-                <h3 className="font-bold text-sm mb-2">Screenplay Format Guide</h3>
-                <div className="grid grid-cols-2 gap-2">
-                    <div>
-                        <span className="font-semibold">Scene Heading:</span> ALL CAPS, left-aligned
-                    </div>
-                    <div>
-                        <span className="font-semibold">Action:</span> Standard case, left-aligned
-                    </div>
-                    <div>
-                        <span className="font-semibold">Character:</span> ALL CAPS, indented 3.7"
-                    </div>
-                    <div>
-                        <span className="font-semibold">Dialogue:</span> Standard case, indented 2.5"
-                    </div>
-                    <div>
-                        <span className="font-semibold">Parenthetical:</span> (in parentheses), indented 3.1"
-                    </div>
-                    <div>
-                        <span className="font-semibold">Transition:</span> ALL CAPS:, right-aligned
-                    </div>
                 </div>
             </div>
         </div>

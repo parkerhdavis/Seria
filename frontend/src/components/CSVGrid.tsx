@@ -66,6 +66,8 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     const [draggedColumn, setDraggedColumn] = useState<number | null>(null);
     const [dropTargetRow, setDropTargetRow] = useState<number | null>(null);
     const [dropTargetColumn, setDropTargetColumn] = useState<number | null>(null);
+    const [isDraggingRow, setIsDraggingRow] = useState(false);
+    const [isDraggingColumn, setIsDraggingColumn] = useState(false);
 
     // Context menu state
     const [contextMenu, setContextMenu] = useState<{
@@ -188,6 +190,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     // Keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore if event came from an input element (cell being edited)
+            if (e.target instanceof HTMLInputElement) return;
+
             // Ignore if editing cell
             if (editingCell) return;
 
@@ -359,6 +364,20 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         };
     }, [resizingColumn, resizeStartX, resizeStartWidth]);
 
+    // Disable text selection during drag operations
+    useEffect(() => {
+        if (!isDraggingRow && !isDraggingColumn) return;
+
+        // Prevent text selection while dragging
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'grabbing';
+
+        return () => {
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+        };
+    }, [isDraggingRow, isDraggingColumn]);
+
     // Column resize handlers
     const handleColumnResizeStart = (e: React.MouseEvent, colIndex: number) => {
         e.preventDefault();
@@ -399,6 +418,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     ) => {
         if (e.key === "Enter") {
             e.preventDefault();
+            e.stopPropagation(); // Prevent event from bubbling to global handler
             handleSaveEdit(row, col);
 
             // Move selection to next row if not Shift
@@ -414,6 +434,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             }
         } else if (e.key === "Tab") {
             e.preventDefault();
+            e.stopPropagation(); // Prevent event from bubbling to global handler
             handleSaveEdit(row, col);
 
             // Move selection to next column if not Shift
@@ -442,6 +463,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 }
             }
         } else if (e.key === "Escape") {
+            e.stopPropagation(); // Prevent event from bubbling to global handler
             clearEditingCell();
             // Restore focus to grid
             if (gridFocusRef.current) {
@@ -471,56 +493,88 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
     // Row drag and drop handlers
     const handleRowDragStart = (e: React.DragEvent, rowIndex: number) => {
+        e.stopPropagation();
         setDraggedRow(rowIndex);
+        setIsDraggingRow(true);
         e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", rowIndex.toString());
+
+        // Create transparent ghost image
+        const ghost = document.createElement('div');
+        ghost.style.position = 'absolute';
+        ghost.style.top = '-1000px';
+        ghost.style.opacity = '0';
+        document.body.appendChild(ghost);
+        e.dataTransfer.setDragImage(ghost, 0, 0);
+        setTimeout(() => document.body.removeChild(ghost), 0);
     };
 
     const handleRowDragOver = (e: React.DragEvent, rowIndex: number) => {
         e.preventDefault();
-        setDropTargetRow(rowIndex);
+        e.dataTransfer.dropEffect = "move";
+
+        if (draggedRow !== null && draggedRow !== rowIndex) {
+            // Live reorder during drag
+            reorderRows(draggedRow, rowIndex);
+            setDraggedRow(rowIndex);
+        }
     };
 
     const handleRowDrop = (e: React.DragEvent, targetIndex: number) => {
         e.preventDefault();
-
-        if (draggedRow !== null && draggedRow !== targetIndex) {
-            reorderRows(draggedRow, targetIndex);
-        }
-
+        // Reordering already happened during drag, just confirm
         setDraggedRow(null);
         setDropTargetRow(null);
+        setIsDraggingRow(false);
     };
 
     const handleRowDragEnd = () => {
         setDraggedRow(null);
         setDropTargetRow(null);
+        setIsDraggingRow(false);
     };
 
     // Column drag and drop handlers
     const handleColumnDragStart = (e: React.DragEvent, colIndex: number) => {
+        e.stopPropagation();
         setDraggedColumn(colIndex);
+        setIsDraggingColumn(true);
         e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", colIndex.toString());
+
+        // Create transparent ghost image
+        const ghost = document.createElement('div');
+        ghost.style.position = 'absolute';
+        ghost.style.top = '-1000px';
+        ghost.style.opacity = '0';
+        document.body.appendChild(ghost);
+        e.dataTransfer.setDragImage(ghost, 0, 0);
+        setTimeout(() => document.body.removeChild(ghost), 0);
     };
 
     const handleColumnDragOver = (e: React.DragEvent, colIndex: number) => {
         e.preventDefault();
-        setDropTargetColumn(colIndex);
+        e.dataTransfer.dropEffect = "move";
+
+        if (draggedColumn !== null && draggedColumn !== colIndex) {
+            // Live reorder during drag
+            reorderColumns(draggedColumn, colIndex);
+            setDraggedColumn(colIndex);
+        }
     };
 
     const handleColumnDrop = (e: React.DragEvent, targetIndex: number) => {
         e.preventDefault();
-
-        if (draggedColumn !== null && draggedColumn !== targetIndex) {
-            reorderColumns(draggedColumn, targetIndex);
-        }
-
+        // Reordering already happened during drag, just confirm
         setDraggedColumn(null);
         setDropTargetColumn(null);
+        setIsDraggingColumn(false);
     };
 
     const handleColumnDragEnd = () => {
         setDraggedColumn(null);
         setDropTargetColumn(null);
+        setIsDraggingColumn(false);
     };
 
     // Context menu handlers
@@ -572,8 +626,8 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             }}
             style={{
                 paddingBottom: '80px',
-                userSelect: isSelecting ? 'none' : 'auto',
-                WebkitUserSelect: isSelecting ? 'none' : 'auto',
+                userSelect: (isSelecting || isDraggingRow || isDraggingColumn) ? 'none' : 'auto',
+                WebkitUserSelect: (isSelecting || isDraggingRow || isDraggingColumn) ? 'none' : 'auto',
             }}
         >
             {/* Hide scrollbar for summary row */}
@@ -629,12 +683,14 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                         {/* Drag handle */}
                                         <div
                                             draggable={true}
-                                            onDragStart={(e) => {
+                                            onMouseDown={(e) => {
                                                 e.stopPropagation();
-                                                handleColumnDragStart(e, colIndex);
+                                                e.preventDefault();
                                             }}
+                                            onDragStart={(e) => handleColumnDragStart(e, colIndex)}
                                             onDragEnd={handleColumnDragEnd}
-                                            className="cursor-move text-base-content/30 hover:text-base-content"
+                                            className="cursor-move text-base-content/30 hover:text-base-content relative z-10"
+                                            style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
@@ -656,9 +712,16 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
                                     {/* Resize handle */}
                                     <div
-                                        className={`absolute top-0 right-0 bottom-0 w-2 cursor-col-resize select-none z-10 ${resizingColumn === colIndex ? "bg-primary/50" : "hover:bg-primary/30"}`}
+                                        className={`absolute top-0 right-0 bottom-0 w-2 cursor-col-resize select-none z-20 ${resizingColumn === colIndex ? "bg-primary/50" : "hover:bg-primary/30"}`}
                                         style={{ marginRight: '-4px', paddingLeft: '3px', paddingRight: '3px' }}
-                                        onMouseDown={(e) => handleColumnResizeStart(e, colIndex)}
+                                        onMouseDown={(e) => {
+                                            e.stopPropagation();
+                                            handleColumnResizeStart(e, colIndex);
+                                        }}
+                                        onDragStart={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                        }}
                                     >
                                         <div className={`w-px h-full transition-colors ${resizingColumn === colIndex ? "bg-primary" : "bg-base-content/20 hover:bg-primary/70"}`} />
                                     </div>
@@ -690,8 +753,12 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                 {/* Row number */}
                                 <td
                                     className={`bg-base-200 text-center font-mono text-sm border-r-2 ${showColumnSeparators ? "border-base-300" : "border-transparent"} sticky left-0 z-10 cursor-move`}
-                                    style={{ width: '64px', minWidth: '64px', maxWidth: '64px' }}
+                                    style={{ width: '64px', minWidth: '64px', maxWidth: '64px', userSelect: 'none', WebkitUserSelect: 'none' }}
                                     draggable={true}
+                                    onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                    }}
                                     onDragStart={(e) => handleRowDragStart(e, rowIndex)}
                                     onDragEnd={handleRowDragEnd}
                                     onContextMenu={(e) => handleContextMenu(e, rowIndex, undefined)}
