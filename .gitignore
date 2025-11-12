@@ -133,5 +133,5 @@ wiki-internal/
 # LLM Tools
 # ────────────────────────────────────────────────────────────────────────────────
 CLAUDE.md
-.claude
+.claude/
 frontend/daisy-llms.txt
