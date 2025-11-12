@@ -10,6 +10,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useCSVStore } from "@stores/csvStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
+import { useDrawerStore } from "@stores/drawerStore";
 import ColumnFilterDropdown from "./ColumnFilterDropdown";
 import { calculateSummary } from "@utils/summaryCalculations";
 
@@ -58,6 +59,8 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     } = useSettingsStore();
 
     const { matches, currentMatchIndex } = useFindReplaceStore();
+
+    const { position: drawerPosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
 
     // Selection state for drag selection
     const [isSelecting, setIsSelecting] = useState(false);
@@ -175,10 +178,10 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     // Handle clicking outside editing cell to save
     useEffect(() => {
         const handleMouseDown = (e: MouseEvent) => {
-            if (editingCell) {
+            if (editingCell && editingSource === "csv") {
                 const target = e.target as HTMLElement;
-                // Check if click is outside the editing input
-                if (!target.closest("input[type='text']")) {
+                // Check if click is outside the editing input/textarea
+                if (!target.closest("input[type='text']") && !target.closest("textarea")) {
                     const value = editingValue;
                     updateCell(editingCell.row, editingCell.col, value);
                     clearEditingCell();
@@ -188,7 +191,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
         document.addEventListener("mousedown", handleMouseDown);
         return () => document.removeEventListener("mousedown", handleMouseDown);
-    }, [editingCell, editingValue, updateCell, clearEditingCell]);
+    }, [editingCell, editingSource, editingValue, updateCell, clearEditingCell]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -626,12 +629,31 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         );
     }
 
+    // Calculate container dimensions based on drawer position
+    // Summary row is 60px tall and fixed at the bottom
+    // Container height is reduced so scrollbar appears above summary row
+    const summaryRowHeight = 60;
+    const containerStyle: React.CSSProperties = {
+        width: drawerPosition === "right" ? `calc(100% - ${rightDrawerSize}px)` : '100%',
+        height: drawerPosition === "bottom"
+            ? `calc(100% - ${bottomDrawerSize}px - ${summaryRowHeight}px)`
+            : `calc(100% - ${summaryRowHeight}px)`,
+        paddingBottom: '20px', // Small padding for content breathing room
+        userSelect: (isSelecting || isDraggingRow || isDraggingColumn) ? 'none' : 'auto',
+        WebkitUserSelect: (isSelecting || isDraggingRow || isDraggingColumn) ? 'none' : 'auto',
+        position: 'relative',
+    };
+
     return (
         <div
-            className="csv-grid-container overflow-auto w-full h-full pr-32 relative outline-none"
+            className="csv-grid-container overflow-scroll relative outline-none"
             ref={(el) => {
-                tableContainerRef.current = el;
-                gridFocusRef.current = el;
+                if (tableContainerRef.current !== el) {
+                    (tableContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                }
+                if (gridFocusRef.current !== el) {
+                    (gridFocusRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                }
             }}
             tabIndex={0}
             onClick={(e) => {
@@ -667,14 +689,49 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                     tableContainerRef.current.scrollLeft += e.deltaY;
                 }
             }}
-            style={{
-                paddingBottom: '80px',
-                userSelect: (isSelecting || isDraggingRow || isDraggingColumn) ? 'none' : 'auto',
-                WebkitUserSelect: (isSelecting || isDraggingRow || isDraggingColumn) ? 'none' : 'auto',
-            }}
+            style={containerStyle}
         >
-            {/* Hide scrollbar for summary row */}
+            {/* Force scrollbars to always be visible and hide scrollbar for summary row */}
             <style>{`
+                .csv-grid-container {
+                    overflow: scroll !important;
+                    scrollbar-width: thin; /* Firefox - always show */
+                    scrollbar-gutter: stable both-edges; /* Reserve space for scrollbar */
+                    -webkit-overflow-scrolling: touch;
+                }
+
+                /* Force scrollbar to always be visible in Webkit browsers */
+                .csv-grid-container::-webkit-scrollbar {
+                    -webkit-appearance: none;
+                    width: 14px;
+                    height: 14px;
+                }
+
+                .csv-grid-container::-webkit-scrollbar-track {
+                    background: oklch(var(--b2));
+                    border: 1px solid oklch(var(--bc) / 0.1);
+                }
+
+                .csv-grid-container::-webkit-scrollbar-thumb {
+                    background: oklch(var(--bc) / 0.4);
+                    border-radius: 7px;
+                    border: 2px solid oklch(var(--b2));
+                    min-height: 30px;
+                    min-width: 30px;
+                }
+
+                .csv-grid-container::-webkit-scrollbar-thumb:hover {
+                    background: oklch(var(--bc) / 0.6);
+                }
+
+                .csv-grid-container::-webkit-scrollbar-thumb:active {
+                    background: oklch(var(--bc) / 0.7);
+                }
+
+                .csv-grid-container::-webkit-scrollbar-corner {
+                    background: oklch(var(--b2));
+                }
+
                 .summary-row-scroll::-webkit-scrollbar {
                     display: none;
                 }
@@ -874,16 +931,23 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                     return (
                                         <td
                                             key={colIndex}
-                                            className={cellClass}
+                                            className={`${cellClass} relative`}
                                             style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
                                             onMouseDown={() => handleCellMouseDown(rowIndex, colIndex)}
                                             onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                                             onContextMenu={(e) => handleContextMenu(e, rowIndex, colIndex)}
                                         >
+                                            {/* "Editing from Print" overlay indicator */}
+                                            {isEditing && editingSource === "print" && (
+                                                <div className="absolute -top-5 left-0 text-xs text-primary/70 italic bg-base-100/90 px-2 py-0.5 rounded shadow-sm border border-primary/20 z-10 whitespace-nowrap">
+                                                    (editing from Print)
+                                                </div>
+                                            )}
+
                                             {isEditing && editingSource === "csv" ? (
                                                 shouldUseTextarea ? (
                                                     <textarea
-                                                        className="w-full focus:outline-none border-none bg-transparent px-2 py-1 min-h-[32px] text-sm leading-tight resize-none overflow-hidden"
+                                                        className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight resize-none overflow-hidden"
                                                         value={editingValue}
                                                         onChange={(e) => {
                                                             updateEditingValue(e.target.value);
@@ -913,7 +977,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                 ) : (
                                                     <input
                                                         type="text"
-                                                        className="w-full focus:outline-none border-none bg-transparent px-2 py-1 min-h-[32px] text-sm leading-tight"
+                                                        className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight"
                                                         value={editingValue}
                                                         onChange={(e) => updateEditingValue(e.target.value)}
                                                         onBlur={() => handleSaveEdit(rowIndex, colIndex)}
@@ -923,12 +987,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                 )
                                             ) : (
                                                 <div
-                                                    className={`px-2 py-1 min-h-[32px] text-sm leading-tight ${wrapText ? "whitespace-normal" : "whitespace-nowrap overflow-hidden text-ellipsis flex items-center"} ${isEditing && editingSource === "print" ? "bg-primary/10" : ""}`}
+                                                    className={`px-3 py-2 min-h-[40px] text-sm leading-tight flex items-center ${wrapText ? "whitespace-normal" : "whitespace-nowrap overflow-hidden text-ellipsis"} ${isEditing && editingSource === "print" ? "bg-primary/10" : ""}`}
                                                 >
                                                     {isEditing && editingSource === "print" ? editingValue : cell}
-                                                    {isEditing && editingSource === "print" && (
-                                                        <span className="ml-2 text-xs text-primary/70 italic">(editing from Print)</span>
-                                                    )}
                                                 </div>
                                             )}
                                         </td>
@@ -943,8 +1004,14 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             {/* Summary row */}
             <div
                 ref={summaryRowRef}
-                className="fixed bottom-0 bg-base-300 border-t-2 border-base-300 shadow-lg z-40"
-                style={{ left: `${summaryRowLeftOffset}px`, right: 0, height: '60px', overflow: 'hidden' }}
+                className="fixed bg-base-300 border-t-2 border-base-300 shadow-lg z-40"
+                style={{
+                    left: `${summaryRowLeftOffset}px`,
+                    right: drawerPosition === "right" ? `${rightDrawerSize}px` : 0,
+                    bottom: drawerPosition === "bottom" ? `${bottomDrawerSize}px` : 0,
+                    height: '60px',
+                    overflow: 'hidden'
+                }}
             >
                 {/* Row number column placeholder - sticky */}
                 <div className="absolute left-0 h-full bg-base-300 border-r-2 border-base-300 z-10" style={{ width: '64px' }}></div>

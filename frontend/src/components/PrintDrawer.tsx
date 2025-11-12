@@ -10,6 +10,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useCSVStore } from "@stores/csvStore";
 import { useDrag } from "@/contexts/DragContext";
+import { useDrawerStore } from "@/stores/drawerStore";
 import { usePrintRecipeStore } from "@/stores/printRecipeStore";
 import CardPrint from "@/components/prints/CardPrint";
 import ScreenplayPrint from "@/components/prints/ScreenplayPrint";
@@ -17,18 +18,26 @@ import ScreenplayPrint from "@/components/prints/ScreenplayPrint";
 interface PrintPreviewDrawerProps {
     isOpen: boolean;
     position: "right" | "bottom";
-    onClose: () => void;
 }
 
 /**
  * PrintDrawer - Flexible drawer for print preview
  */
-function PrintDrawer({ isOpen, position, onClose }: PrintPreviewDrawerProps) {
+function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
     const { headers, data, fileInfo } = useCSVStore();
-    const [size, setSize] = useState(position === "right" ? 768 : 320);
+    const {
+        rightDrawerSize,
+        bottomDrawerSize,
+        setRightDrawerSize,
+        setBottomDrawerSize,
+        setPosition,
+    } = useDrawerStore();
     const [isResizing, setIsResizing] = useState(false);
     const drawerRef = useRef<HTMLDivElement>(null);
     const { startDrag, endDrag } = useDrag();
+
+    // Get the current size based on position
+    const size = position === "right" ? rightDrawerSize : bottomDrawerSize;
 
     // Recipe store
     const {
@@ -62,10 +71,12 @@ function PrintDrawer({ isOpen, position, onClose }: PrintPreviewDrawerProps) {
         const handleMouseMove = (e: MouseEvent) => {
             if (position === "right") {
                 const newWidth = window.innerWidth - e.clientX;
-                setSize(Math.max(200, Math.min(newWidth, window.innerWidth * 0.8)));
+                const clampedWidth = Math.max(200, Math.min(newWidth, window.innerWidth * 0.8));
+                setRightDrawerSize(clampedWidth);
             } else {
                 const newHeight = window.innerHeight - e.clientY;
-                setSize(Math.max(150, Math.min(newHeight, window.innerHeight * 0.8)));
+                const clampedHeight = Math.max(150, Math.min(newHeight, window.innerHeight * 0.8));
+                setBottomDrawerSize(clampedHeight);
             }
         };
 
@@ -130,7 +141,7 @@ function PrintDrawer({ isOpen, position, onClose }: PrintPreviewDrawerProps) {
                 {/*</div>*/}
                 <button
                     className="btn btn-sm btn-ghost btn-circle"
-                    onClick={onClose}
+                    onClick={() => setPosition(null)}
                     title={`Close Print Preview (Ctrl+${position === "right" ? "\\" : "/"})`}
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

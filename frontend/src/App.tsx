@@ -6,6 +6,7 @@ import SettingsModal from "./components/SettingsModal";
 import FindReplaceModal from "./components/FindReplaceModal";
 import { useCSVStore } from "./stores/csvStore";
 import { useFindReplaceStore } from "./stores/findReplaceStore";
+import { useDrawerStore } from "./stores/drawerStore";
 import { DragProvider } from "./contexts/DragContext";
 
 /**
@@ -15,12 +16,12 @@ import { DragProvider } from "./contexts/DragContext";
  * and global keyboard shortcuts.
  */
 function App() {
-    const [printPreviewPosition, setPrintPreviewPosition] = useState<"right" | "bottom" | null>("right");
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(100);
     const { saveCSV, undo, redo, canUndo, canRedo } = useCSVStore();
     const { openFind, openReplace } = useFindReplaceStore();
+    const { position: printPreviewPosition, togglePosition } = useDrawerStore();
 
     // Apply zoom level to document
     useEffect(() => {
@@ -42,12 +43,12 @@ function App() {
             // Ctrl+\ - Toggle right print preview drawer
             else if (e.ctrlKey && e.key === "\\") {
                 e.preventDefault();
-                setPrintPreviewPosition((prev) => (prev === "right" ? null : "right"));
+                togglePosition("right");
             }
             // Ctrl+/ - Toggle bottom print preview drawer
             else if (e.ctrlKey && e.key === "/") {
                 e.preventDefault();
-                setPrintPreviewPosition((prev) => (prev === "bottom" ? null : "bottom"));
+                togglePosition("bottom");
             }
             // Ctrl+. - Toggle left sidebar
             else if (e.ctrlKey && e.key === ".") {
@@ -102,7 +103,7 @@ function App() {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [saveCSV, openFind, openReplace, undo, redo, canUndo, canRedo]);
+    }, [saveCSV, openFind, openReplace, undo, redo, canUndo, canRedo, togglePosition]);
 
     return (
         <DragProvider>
@@ -110,7 +111,7 @@ function App() {
                 printPreviewPosition={printPreviewPosition}
                 isSidebarOpen={isSidebarOpen}
                 onTogglePrintPreview={(position: "right" | "bottom") => {
-                    setPrintPreviewPosition((prev) => (prev === position ? null : position));
+                    togglePosition(position);
                 }}
                 onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
             >
@@ -119,13 +120,11 @@ function App() {
                 <PrintDrawer
                     isOpen={printPreviewPosition === "right"}
                     position="right"
-                    onClose={() => setPrintPreviewPosition(null)}
                 />
 
                 <PrintDrawer
                     isOpen={printPreviewPosition === "bottom"}
                     position="bottom"
-                    onClose={() => setPrintPreviewPosition(null)}
                 />
 
                 <SettingsModal

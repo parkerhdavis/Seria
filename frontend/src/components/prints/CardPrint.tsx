@@ -190,6 +190,13 @@ function Card({
                 </div>
             )}
 
+            {/* "Editing from CSV" overlay indicator */}
+            {hasAnyEditing && !isEditingFromPrint && (
+                <div className="absolute -top-6 left-4 text-xs text-primary/70 italic bg-base-100/90 px-2 py-0.5 rounded shadow-sm border border-primary/20">
+                    (editing from CSV)
+                </div>
+            )}
+
             {/* Card number badge */}
             <div className="absolute top-2 right-2">
                 <span className="badge badge-sm badge-ghost">{card.index + 1}</span>
@@ -202,13 +209,13 @@ function Card({
                         <input
                             ref={titleInputRef}
                             type="text"
-                            className="text-base font-bold text-base-content mb-2 pr-8 w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 rounded px-1"
+                            className="text-base font-bold text-base-content mb-2 pr-8 w-full bg-transparent border-none outline-none ring-2 ring-primary/40 ring-offset-2 rounded px-2 py-1"
                             value={editingValue}
                             onChange={(e) => onEditingValueChange(e.target.value)}
                             onClick={(e) => e.stopPropagation()}
                         />
                     ) : (
-                        <h3 className={`text-base font-bold text-base-content mb-2 pr-8 ${isTitleEditing ? "ring-2 ring-primary ring-offset-2 rounded px-1" : isTitleSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-1" : ""}`}>
+                        <h3 className={`text-base font-bold text-base-content mb-2 pr-8 ${isTitleEditing ? "ring-2 ring-primary/40 ring-offset-2 rounded px-2 py-1" : isTitleSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-2 py-1" : ""}`}>
                             {card.title || <span className="text-base-content/30 italic">Click to add title</span>}
                         </h3>
                     )}
@@ -222,13 +229,13 @@ function Card({
                         <input
                             ref={subtitleInputRef}
                             type="text"
-                            className="text-sm italic text-base-content/70 mb-3 w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 rounded px-1"
+                            className="text-sm italic text-base-content/70 mb-3 w-full bg-transparent border-none outline-none ring-2 ring-primary/40 ring-offset-2 rounded px-2 py-1"
                             value={editingValue}
                             onChange={(e) => onEditingValueChange(e.target.value)}
                             onClick={(e) => e.stopPropagation()}
                         />
                     ) : (
-                        <p className={`text-sm italic text-base-content/70 mb-3 ${isSubtitleEditing ? "ring-2 ring-primary ring-offset-2 rounded px-1" : isSubtitleSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-1" : ""}`}>
+                        <p className={`text-sm italic text-base-content/70 mb-3 ${isSubtitleEditing ? "ring-2 ring-primary/40 ring-offset-2 rounded px-2 py-1" : isSubtitleSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-2 py-1" : ""}`}>
                             {card.subtitle || <span className="text-base-content/30">Click to add subtitle</span>}
                         </p>
                     )}
@@ -258,7 +265,7 @@ function Card({
                                                 contentTextareaRefs.current.set(idx, el);
                                             }
                                         }}
-                                        className="w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 rounded px-1 resize-none overflow-hidden"
+                                        className="w-full bg-transparent border-none outline-none ring-2 ring-primary/40 ring-offset-2 rounded px-2 py-1 resize-none overflow-hidden"
                                         style={{
                                             minHeight: "1.5rem",
                                             height: "auto",
@@ -279,7 +286,7 @@ function Card({
                                         }}
                                     />
                                 ) : (
-                                    <p className={`line-clamp-3 ${isContentEditing ? "ring-2 ring-primary ring-offset-2 rounded px-1" : isContentSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-1" : ""}`}>
+                                    <p className={`line-clamp-3 ${isContentEditing ? "ring-2 ring-primary/40 ring-offset-2 rounded px-2 py-1" : isContentSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-2 py-1" : ""}`}>
                                         {text}
                                     </p>
                                 )}
@@ -388,6 +395,25 @@ function CardPrint({
         return () => document.removeEventListener('click', handleDocumentClick);
     }, [selectedField, isEditingFromPrint]);
 
+    // Handle clicking outside editing element to save changes
+    useEffect(() => {
+        if (!isEditingFromPrint || !editingCell) return;
+
+        const handleMouseDown = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            // Check if click is outside the editing input/textarea
+            if (!target.closest("input[type='text']") && !target.closest("textarea")) {
+                // Save the edit
+                updateCell(editingCell.row, editingCell.col, editingValue);
+                clearEditingCell();
+                setIsEditingFromPrint(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleMouseDown);
+        return () => document.removeEventListener("mousedown", handleMouseDown);
+    }, [isEditingFromPrint, editingCell, editingValue, updateCell, clearEditingCell]);
+
     // Keyboard handlers for Print view
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -447,9 +473,9 @@ function CardPrint({
         let columnName: string | undefined;
 
         if (fieldType === "title") {
-            columnName = titleColumn;
+            columnName = titleColumn ?? undefined;
         } else if (fieldType === "subtitle") {
-            columnName = subtitleColumn;
+            columnName = subtitleColumn ?? undefined;
         } else if (fieldType === "content" && contentIndex !== undefined) {
             columnName = contentColumns[contentIndex];
         }
@@ -493,8 +519,8 @@ function CardPrint({
             title: titleIdx >= 0 ? getCellValue(index, titleIdx) : "",
             subtitle: subtitleIdx >= 0 ? getCellValue(index, subtitleIdx) : "",
             content: contentIndices.map(idx => getCellValue(index, idx)).filter(text => text && text.trim()),
-            titleColumnName: titleColumn,
-            subtitleColumnName: subtitleColumn,
+            titleColumnName: titleColumn ?? undefined,
+            subtitleColumnName: subtitleColumn ?? undefined,
             contentColumnNames: contentColumns,
         };
     });
@@ -566,9 +592,11 @@ function CardPrint({
         <div
             ref={(el) => {
                 setContainerRef(el);
-                printContainerRef.current = el;
+                if (printContainerRef.current !== el) {
+                    (printContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                }
             }}
-            className="w-full h-full overflow-auto bg-black/30 outline-none"
+            className="card-print-container w-full h-full overflow-scroll bg-black/30 outline-none"
             tabIndex={0}
             onClick={(e) => {
                 // Clear CSV selection when clicking anywhere in Print view
@@ -583,6 +611,47 @@ function CardPrint({
                 }
             }}
         >
+            {/* Force scrollbars to always be visible */}
+            <style>{`
+                .card-print-container {
+                    overflow: scroll !important;
+                    scrollbar-width: thin; /* Firefox - always show */
+                    -webkit-overflow-scrolling: touch;
+                }
+
+                /* Force scrollbar to always be visible in Webkit browsers */
+                .card-print-container::-webkit-scrollbar {
+                    -webkit-appearance: none;
+                    width: 14px;
+                    height: 14px;
+                }
+
+                .card-print-container::-webkit-scrollbar-track {
+                    background: oklch(var(--b3));
+                    border: 1px solid oklch(var(--bc) / 0.1);
+                }
+
+                .card-print-container::-webkit-scrollbar-thumb {
+                    background: oklch(var(--bc) / 0.4);
+                    border-radius: 7px;
+                    border: 2px solid oklch(var(--b3));
+                    min-height: 30px;
+                    min-width: 30px;
+                }
+
+                .card-print-container::-webkit-scrollbar-thumb:hover {
+                    background: oklch(var(--bc) / 0.6);
+                }
+
+                .card-print-container::-webkit-scrollbar-thumb:active {
+                    background: oklch(var(--bc) / 0.7);
+                }
+
+                .card-print-container::-webkit-scrollbar-corner {
+                    background: oklch(var(--b3));
+                }
+            `}</style>
+
             <div style={gridStyle}>
                 {cards.map((card) => {
                     // Create ref callback to store card ref

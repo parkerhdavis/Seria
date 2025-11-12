@@ -177,6 +177,13 @@ function ScreenplayElementView({
                 </div>
             )}
 
+            {/* "Editing from CSV" overlay indicator */}
+            {isBeingEdited && !isEditingFromPrint && (
+                <div className="absolute -top-5 left-0 text-xs text-primary/70 italic bg-base-100/90 px-2 py-0.5 rounded shadow-sm border border-primary/20">
+                    (editing from CSV)
+                </div>
+            )}
+
             {/* Selection indicator */}
             {isSelected && !isEditingFromPrint && (
                 <div className="absolute -left-6 top-0 text-secondary">
@@ -190,7 +197,7 @@ function ScreenplayElementView({
                 isMultiLine ? (
                     <textarea
                         ref={textareaRef}
-                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 ring-offset-white rounded px-1 resize-none overflow-hidden"
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary/40 ring-offset-2 ring-offset-white rounded px-2 py-1 resize-none overflow-hidden"
                         style={{
                             ...style as React.CSSProperties,
                             minHeight: "1.5rem",
@@ -215,7 +222,7 @@ function ScreenplayElementView({
                     <input
                         ref={inputRef}
                         type="text"
-                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-offset-2 ring-offset-white rounded px-1"
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary/40 ring-offset-2 ring-offset-white rounded px-2 py-1"
                         style={style as React.CSSProperties}
                         value={editingValue}
                         onChange={(e) => onEditingValueChange(e.target.value)}
@@ -224,7 +231,7 @@ function ScreenplayElementView({
                 )
             ) : (
                 <p
-                    className={`font-mono text-base leading-tight ${isBeingEdited ? "ring-2 ring-primary ring-offset-2 ring-offset-white rounded px-1" : ""} ${isSelected ? "ring-2 ring-secondary ring-offset-2 ring-offset-white rounded px-1" : ""}`}
+                    className={`font-mono text-base leading-tight ${isBeingEdited ? "ring-2 ring-primary/40 ring-offset-2 ring-offset-white rounded px-2 py-1" : ""} ${isSelected ? "ring-2 ring-secondary ring-offset-2 ring-offset-white rounded px-2 py-1" : ""}`}
                     style={style as React.CSSProperties}
                 >
                     {formatContent(element.content)}
@@ -341,6 +348,25 @@ function ScreenplayPrint({
         document.addEventListener('click', handleDocumentClick);
         return () => document.removeEventListener('click', handleDocumentClick);
     }, [selectedPrintElement, isEditingFromPrint]);
+
+    // Handle clicking outside editing element to save changes
+    useEffect(() => {
+        if (!isEditingFromPrint || !editingCell) return;
+
+        const handleMouseDown = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            // Check if click is outside the editing input/textarea
+            if (!target.closest("input[type='text']") && !target.closest("textarea")) {
+                // Save the edit
+                updateCell(editingCell.row, editingCell.col, editingValue);
+                clearEditingCell();
+                setIsEditingFromPrint(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleMouseDown);
+        return () => document.removeEventListener("mousedown", handleMouseDown);
+    }, [isEditingFromPrint, editingCell, editingValue, updateCell, clearEditingCell]);
 
     // Keyboard handlers for Print view
     useEffect(() => {
@@ -554,9 +580,11 @@ function ScreenplayPrint({
         <div
             ref={(el) => {
                 setContainerRef(el);
-                printContainerRef.current = el;
+                if (printContainerRef.current !== el) {
+                    (printContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                }
             }}
-            className="w-full h-full overflow-auto p-2 bg-black/20 outline-none"
+            className="screenplay-print-container w-full h-full overflow-scroll p-2 bg-black/20 outline-none"
             tabIndex={0}
             onClick={(e) => {
                 // Clear CSV selection when clicking anywhere in Print view
@@ -570,6 +598,47 @@ function ScreenplayPrint({
                 }
             }}
         >
+            {/* Force scrollbars to always be visible */}
+            <style>{`
+                .screenplay-print-container {
+                    overflow: scroll !important;
+                    scrollbar-width: thin; /* Firefox - always show */
+                    -webkit-overflow-scrolling: touch;
+                }
+
+                /* Force scrollbar to always be visible in Webkit browsers */
+                .screenplay-print-container::-webkit-scrollbar {
+                    -webkit-appearance: none;
+                    width: 14px;
+                    height: 14px;
+                }
+
+                .screenplay-print-container::-webkit-scrollbar-track {
+                    background: oklch(var(--b3));
+                    border: 1px solid oklch(var(--bc) / 0.1);
+                }
+
+                .screenplay-print-container::-webkit-scrollbar-thumb {
+                    background: oklch(var(--bc) / 0.4);
+                    border-radius: 7px;
+                    border: 2px solid oklch(var(--b3));
+                    min-height: 30px;
+                    min-width: 30px;
+                }
+
+                .screenplay-print-container::-webkit-scrollbar-thumb:hover {
+                    background: oklch(var(--bc) / 0.6);
+                }
+
+                .screenplay-print-container::-webkit-scrollbar-thumb:active {
+                    background: oklch(var(--bc) / 0.7);
+                }
+
+                .screenplay-print-container::-webkit-scrollbar-corner {
+                    background: oklch(var(--b3));
+                }
+            `}</style>
+
             {/* Screenplay page */}
             <div
                 className={`screenplay-page text-grey-50 mb-8 relative ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
