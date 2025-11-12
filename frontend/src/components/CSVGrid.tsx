@@ -13,6 +13,7 @@ import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { useDrawerStore } from "@stores/drawerStore";
 import ColumnFilterDropdown from "./ColumnFilterDropdown";
 import { calculateSummary } from "@utils/summaryCalculations";
+import { debouncedSaveCurrentFileConfig } from "@utils/configPersistence";
 
 interface CSVGridProps {
     onCellEdit?: (row: number, col: number, value: string) => void;
@@ -39,6 +40,8 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         clearSelection,
         copySelection,
         pasteClipboard,
+        columnWidths,
+        setColumnWidths,
         columnFilters,
         setColumnFilter,
         clearColumnFilter,
@@ -96,7 +99,6 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     const [summaryRowScrollLeft, setSummaryRowScrollLeft] = useState(0);
 
     // Column resizing
-    const [columnWidths, setColumnWidths] = useState<Record<number, number>>({});
     const [resizingColumn, setResizingColumn] = useState<number | null>(null);
     const [resizeStartX, setResizeStartX] = useState(0);
     const [resizeStartWidth, setResizeStartWidth] = useState(0);
@@ -545,6 +547,14 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             document.body.style.cursor = '';
         };
     }, [isDraggingRow, isDraggingColumn]);
+
+    // Save config when column widths change
+    useEffect(() => {
+        // Only save if we have column widths set (not empty object)
+        if (Object.keys(columnWidths).length > 0) {
+            debouncedSaveCurrentFileConfig(1000);
+        }
+    }, [columnWidths]);
 
     // Column resize handlers
     const handleColumnResizeStart = (e: React.MouseEvent, colIndex: number) => {

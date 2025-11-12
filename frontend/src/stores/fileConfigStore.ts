@@ -1,0 +1,324 @@
+/**
+ * File Config Store
+ *
+ * Manages persistent per-file configurations using a hybrid multi-identifier approach.
+ * This allows configs to survive file renames, moves, and other filesystem changes.
+ *
+ * Matching Algorithm Priority:
+ * 1. Absolute path (fast path - most common case)
+ * 2. OS file ID + filename + size (survives rename in same volume)
+ * 3. Filename + parent directory + file size
+ * 4. Partial content hash (first 1MB or 100 rows)
+ */
+
+import { create } from "zustand";
+import { invoke } from "@tauri-apps/api/core";
+
+// File identifiers used for matching configs to files
+export interface FileIdentifiers {
+    absolutePath: string;
+    filename: string;
+    parentDir: string;
+    fileSize: number;
+    contentHashPartial?: string;
+    osFileId?: string;
+}
+
+// Per-file configuration data
+export interface FileConfig {
+    id: string;  // UUID for this config
+    identifiers: FileIdentifiers;
+    lastSeen: string;  // ISO timestamp
+    config: {
+        // Column display settings
+        columnWidths?: Record<number, number>;
+
+        // Column summaries
+        columnSummaries?: Record<string, string>;
+
+        // Filtering and sorting (from filterStore)
+        filters?: Array<{
+            field: string;
+            operation: string;
+            value: string;
+        }>;
+        sortBy?: {
+            field: string;
+            direction: "asc" | "desc";
+        } | null;
+        groupBy?: string | null;
+
+        // Display settings (from settingsStore)
+        rowColoringMode?: string;
+        rowColorFilter?: {
+            field: string;
+            operation: string;
+            value: string;
+            color: string;
+        } | null;
+        wrapText?: boolean;
+        showColumnSeparators?: boolean;
+        autoFitColumns?: boolean;
+        hoverHighlightMode?: string;
+    };
+}
+
+// Root structure for the config file
+export interface FileConfigData {
+    version: number;
+    configs: FileConfig[];
+}
+
+// Store preferences for config management
+interface ConfigPreferences {
+    autoSaveConfigs: boolean;
+    configRetentionDays: number;
+    promptForAmbiguousMatches: boolean;
+}
+
+interface FileConfigStore {
+    // State
+    configData: FileConfigData | null;
+    preferences: ConfigPreferences;
+    isLoaded: boolean;
+
+    // Actions
+    loadConfigs: () => Promise<void>;
+    saveConfigs: () => Promise<void>;
+    findConfigForFile: (identifiers: FileIdentifiers) => FileConfig | null;
+    saveConfigForFile: (identifiers: FileIdentifiers, config: FileConfig["config"]) => Promise<void>;
+    exportConfigs: () => string;
+    importConfigs: (jsonData: string) => Promise<void>;
+    cleanupOldConfigs: (retentionDays?: number) => Promise<void>;
+    updatePreferences: (preferences: Partial<ConfigPreferences>) => void;
+}
+
+export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
+    // Initial state
+    configData: null,
+    preferences: {
+        autoSaveConfigs: true,
+        configRetentionDays: 180,
+        promptForAmbiguousMatches: true,
+    },
+    isLoaded: false,
+
+    // Load configs from storage
+    loadConfigs: async () => {
+        try {
+            const jsonData = await invoke<string>("load_file_configs");
+            const data: FileConfigData = JSON.parse(jsonData);
+            set({ configData: data, isLoaded: true });
+        } catch (error) {
+            // If file doesn't exist or is invalid, start with empty config
+            console.log("No existing config file, starting fresh:", error);
+            set({
+                configData: {
+                    version: 1,
+                    configs: [],
+                },
+                isLoaded: true,
+            });
+        }
+    },
+
+    // Save configs to storage
+    saveConfigs: async () => {
+        const { configData } = get();
+        if (!configData) return;
+
+        try {
+            const jsonData = JSON.stringify(configData, null, 2);
+            await invoke("save_file_configs", { data: jsonData });
+        } catch (error) {
+            console.error("Failed to save file configs:", error);
+        }
+    },
+
+    // Find a config matching the given file identifiers
+    findConfigForFile: (identifiers: FileIdentifiers): FileConfig | null => {
+        const { configData } = get();
+        if (!configData) return null;
+
+        // Priority 1: Exact absolute path match
+        let match = configData.configs.find(
+            (c) => c.identifiers.absolutePath === identifiers.absolutePath
+        );
+        if (match) {
+            console.log("Config found via absolute path match");
+            return match;
+        }
+
+        // Priority 2: OS file ID + filename + size
+        if (identifiers.osFileId) {
+            match = configData.configs.find(
+                (c) =>
+                    c.identifiers.osFileId === identifiers.osFileId &&
+                    c.identifiers.filename === identifiers.filename &&
+                    c.identifiers.fileSize === identifiers.fileSize
+            );
+            if (match) {
+                console.log("Config found via OS file ID match");
+                return match;
+            }
+        }
+
+        // Priority 3: Filename + parent directory + file size
+        match = configData.configs.find(
+            (c) =>
+                c.identifiers.filename === identifiers.filename &&
+                c.identifiers.parentDir === identifiers.parentDir &&
+                c.identifiers.fileSize === identifiers.fileSize
+        );
+        if (match) {
+            console.log("Config found via filename + parent + size match");
+            return match;
+        }
+
+        // Priority 4: Partial content hash
+        if (identifiers.contentHashPartial) {
+            match = configData.configs.find(
+                (c) =>
+                    c.identifiers.contentHashPartial === identifiers.contentHashPartial &&
+                    c.identifiers.filename === identifiers.filename
+            );
+            if (match) {
+                console.log("Config found via content hash match");
+                return match;
+            }
+        }
+
+        console.log("No config found for file");
+        return null;
+    },
+
+    // Save or update a config for a file
+    saveConfigForFile: async (identifiers: FileIdentifiers, config: FileConfig["config"]) => {
+        const { configData, preferences } = get();
+        if (!configData) return;
+
+        // Find existing config or create new one
+        const existingIndex = configData.configs.findIndex(
+            (c) => c.identifiers.absolutePath === identifiers.absolutePath
+        );
+
+        const now = new Date().toISOString();
+
+        if (existingIndex >= 0) {
+            // Update existing config
+            configData.configs[existingIndex] = {
+                ...configData.configs[existingIndex],
+                identifiers,  // Update identifiers in case file moved
+                lastSeen: now,
+                config,
+            };
+        } else {
+            // Create new config
+            const newConfig: FileConfig = {
+                id: crypto.randomUUID(),
+                identifiers,
+                lastSeen: now,
+                config,
+            };
+            configData.configs.push(newConfig);
+        }
+
+        set({ configData: { ...configData } });
+
+        // Auto-save if enabled
+        if (preferences.autoSaveConfigs) {
+            await get().saveConfigs();
+        }
+    },
+
+    // Export configs as JSON string
+    exportConfigs: (): string => {
+        const { configData } = get();
+        if (!configData) return "{}";
+
+        const exportData = {
+            version: configData.version,
+            exported: new Date().toISOString(),
+            configs: configData.configs,
+            exportMode: "absolute",  // Could add "portable" mode later
+        };
+
+        return JSON.stringify(exportData, null, 2);
+    },
+
+    // Import configs from JSON string
+    importConfigs: async (jsonData: string) => {
+        try {
+            const importedData = JSON.parse(jsonData);
+
+            // Validate structure
+            if (!importedData.configs || !Array.isArray(importedData.configs)) {
+                throw new Error("Invalid config format");
+            }
+
+            // Merge with existing configs (prefer imported)
+            const { configData } = get();
+            const existingConfigs = configData?.configs || [];
+
+            // Create a map of existing configs by absolute path
+            const existingMap = new Map(
+                existingConfigs.map((c) => [c.identifiers.absolutePath, c])
+            );
+
+            // Merge imported configs
+            for (const importedConfig of importedData.configs) {
+                existingMap.set(importedConfig.identifiers.absolutePath, importedConfig);
+            }
+
+            const newConfigData: FileConfigData = {
+                version: importedData.version || 1,
+                configs: Array.from(existingMap.values()),
+            };
+
+            set({ configData: newConfigData });
+            await get().saveConfigs();
+        } catch (error) {
+            console.error("Failed to import configs:", error);
+            throw error;
+        }
+    },
+
+    // Clean up configs for files not seen recently
+    cleanupOldConfigs: async (retentionDays?: number) => {
+        const { configData, preferences } = get();
+        if (!configData) return;
+
+        const days = retentionDays ?? preferences.configRetentionDays;
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+
+        const filteredConfigs = configData.configs.filter((config) => {
+            const lastSeen = new Date(config.lastSeen);
+            return lastSeen >= cutoffDate;
+        });
+
+        const removedCount = configData.configs.length - filteredConfigs.length;
+
+        if (removedCount > 0) {
+            console.log(`Cleaned up ${removedCount} old config(s)`);
+            set({
+                configData: {
+                    ...configData,
+                    configs: filteredConfigs,
+                },
+            });
+            await get().saveConfigs();
+        }
+    },
+
+    // Update preferences
+    updatePreferences: (newPreferences: Partial<ConfigPreferences>) => {
+        const { preferences } = get();
+        set({
+            preferences: {
+                ...preferences,
+                ...newPreferences,
+            },
+        });
+    },
+}));
