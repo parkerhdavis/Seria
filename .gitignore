@@ -21,7 +21,6 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
-.directory
 
 # ────────────────────────────────────────────────────────────────────────────────
 # IDE & Editor Files (Universal)
@@ -30,7 +29,6 @@ Thumbs.db
 .idea/
 *.sublime-workspace
 *.sublime-project
-wiki/
 *.swp
 *.swo
 *~
@@ -125,7 +123,15 @@ logs/
 *.temp
 
 # ────────────────────────────────────────────────────────────────────────────────
-# Documentation Build Output
+# OS and Wiki
 # ────────────────────────────────────────────────────────────────────────────────
-docs/_build/
-wiki/_build/
+.directory
+.obsidian
+wiki-internal/
+
+# ────────────────────────────────────────────────────────────────────────────────
+# LLM Tools
+# ────────────────────────────────────────────────────────────────────────────────
+CLAUDE.md
+.claude
+frontend/daisy-llms.txt

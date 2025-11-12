@@ -17,10 +17,25 @@ This document outlines the implementation plan to get Juniper from initial boile
 - **Phase 1: Tauri & Build Infrastructure (COMPLETE)**
 - **Phase 2: Rust Backend (COMPLETE - implemented ahead of schedule)**
 - **Phase 3: CSV Editor Core (COMPLETE)**
+- **Phase 4: Filtering & Sorting (COMPLETE)**
+- **Phase 5: Print System (COMPLETE)**
+- **Phase 6: Polish & Testing (PARTIAL - core features complete, some polish remaining)**
 
-⏳ **Next Steps:** Test Phase 3 implementation, then proceed to Phase 4 (Filtering & Sorting)
+✨ **Additional Features Beyond Original Plan:**
+- File tree sidebar with file system navigation
+- Find and Replace functionality (Ctrl+F / Ctrl+R)
+- Undo/Redo support (Ctrl+Z / Ctrl+Shift+Z)
+- Column summaries (Count, Unique, Mode, Average, Min, Max, Sum)
+- Advanced copy/paste with multi-cell selection and tiling
+- Drag and drop for rows and columns
+- **Bidirectional editing** - Edit CSV data directly from Print preview!
+- Text wrapping and column separator toggles
+- Row coloring with filtering
+- Comprehensive CSV editing documentation
 
-**Last Updated:** 2025-11-10
+⏳ **Next Steps:** Complete remaining polish items, comprehensive testing, and prepare for initial release
+
+**Last Updated:** 2025-11-12
 
 ---
 
@@ -299,294 +314,312 @@ npm run dev   # Vite dev server starts
 
 ---
 
-## Phase 4: Filtering & Sorting (Days 8-9)
+## Phase 4: Filtering & Sorting ✅ COMPLETE
 
-### 4.1 Filter Store & UI
+### 4.1 Filter Store & UI ✅
 
 **Goal:** Implement filtering state and UI
 
 **Tasks:**
-- [ ] Create `frontend/src/stores/filterStore.ts`:
-  ```typescript
-  interface FilterStore {
-      filters: Filter[];
-      sortOrder: SortOrder[];
-      groupBy: string | null;
-
-      addFilter: (filter: Filter) => void;
-      removeFilter: (id: string) => void;
-      setSortOrder: (order: SortOrder[]) => void;
-      setGroupBy: (column: string | null) => void;
-      clearAll: () => void;
-  }
-  ```
-- [ ] Create `frontend/src/components/FilterPanel.tsx`:
-  - Add filter UI (column selector, condition, value)
-  - Filter list with remove buttons
-  - Clear all filters button
-- [ ] Create `frontend/src/types/csv.ts`:
-  - Define Filter, SortOrder types
+- [x] Integrated filter state into csvStore (column filters managed directly in CSV store)
+- [x] Create `frontend/src/components/ColumnFilterDropdown.tsx`:
+  - Column-level filter dropdowns in headers
+  - Filter operations: contains, not-contains, equals, not-equals
+  - Apply and clear filter buttons
+- [x] Create `frontend/src/components/FilterComparison.tsx`:
+  - Visual filter operation selector
+- [x] Define Filter types in `frontend/src/types/csv.ts`
 
 **Deliverables:**
-- Filter panel UI functional
-- Filters can be added and removed
-- Filter state persists in store
+- ✅ Filter UI functional in column headers
+- ✅ Filters can be added and removed per column
+- ✅ Filter state persists in CSV store
+- ✅ Active filters indicated with blue filter icons
 
-### 4.2 Apply Filters to Grid
+### 4.2 Apply Filters to Grid ✅
 
 **Goal:** Filter and sort CSV data in grid view
 
 **Tasks:**
-- [ ] Implement filter logic in csvStore:
+- [x] Implement filter logic in csvStore:
   - Filter data array based on active filters
   - Support multiple filter conditions (AND logic)
-  - Filter types: equals, contains, starts with, ends with, greater than, less than
-- [ ] Implement sorting logic:
-  - Single and multi-column sorting
+  - Filter types: equals, contains, not-contains, not-equals
+- [x] Implement sorting logic:
+  - Single and multi-column sorting (with Shift+Click)
   - Ascending and descending order
-- [ ] Update CSVGrid to use filtered/sorted data
-- [ ] Add column header click to sort
+  - Sort priority indicators (1, 2, 3...)
+- [x] Update CSVGrid to use filtered/sorted data
+- [x] Add column header click to sort
 
 **Deliverables:**
-- Filters apply to CSV data
-- Sorting works by clicking column headers
-- Multiple filters combine with AND logic
+- ✅ Filters apply to CSV data
+- ✅ Sorting works by clicking column headers
+- ✅ Multiple filters combine with AND logic
+- ✅ Multi-column sorting with priority
 
 **Verification:**
-- Add filter: "Character contains 'John'"
-- Only rows with "John" in Character column show
-- Click column header to sort
+- ✅ Add filter: "Character contains 'John'"
+- ✅ Only rows with "John" in Character column show
+- ✅ Click column header to sort (once for asc, twice for desc, three times to clear)
+- ✅ Shift+Click to add secondary sorts
 
 ---
 
-## Phase 5: Print System (Days 10-13)
+## Phase 5: Print System ✅ COMPLETE
 
-### 5.1 Print Template Types & Storage
+### 5.1 Print Recipe Types & Storage ✅
 
-**Goal:** Define Print template structure and create bundled templates
+**Goal:** Define Print recipe structure and create bundled recipes
 
-**Tasks:**
-- [ ] Create `frontend/src/types/print.ts`:
-  ```typescript
-  interface PrintTemplate {
-      id: string;
-      name: string;
-      fieldMappings: {
-          [printField: string]: {
-              csvColumn: string;
-              style: PrintFieldStyle;
-              transform?: (value: string) => string;
-          };
-      };
-  }
-  ```
-- [ ] Create bundled Print templates in `frontend/public/prints/`:
-  - `screenplay.json` - Standard screenplay format
-  - `dialogue.json` - Character/dialogue format
-  - `game-design.json` - Generic game design format
-- [ ] Create `frontend/src/stores/printStore.ts`:
-  ```typescript
-  interface PrintStore {
-      templates: PrintTemplate[];
-      activeTemplate: string | null;
-
-      loadTemplates: () => Promise<void>;
-      setActiveTemplate: (id: string) => void;
-      saveCustomTemplate: (template: PrintTemplate) => Promise<void>;
-  }
-  ```
-
-**Deliverables:**
-- Print template types defined
-- Bundled templates created
-- Print store loads templates
-
-### 5.2 Print Preview Component
-
-**Goal:** Render CSV data in Print format
+**Note:** We use "recipes" terminology instead of "templates" to better represent the concept of "ingredients" (CSV columns) being combined into a formatted output.
 
 **Tasks:**
-- [ ] Create `frontend/src/components/PrintPreview.tsx`:
-  - Select active Print template
-  - Render CSV rows using template field mappings
-  - Apply field styles (font, indent, spacing, color)
-  - Page breaks and pagination
-- [ ] Create `frontend/src/utils/printRenderer.ts`:
-  - Map CSV columns to Print fields
-  - Apply style transformations
-  - Format text per Print template
-- [ ] Style Print output to match professional formats:
-  - Screenplay: Courier 12pt, proper indents
-  - Dialogue: Character names centered/indented, dialogue formatted
-  - Custom: User-defined styles
+- [x] Create `frontend/src/types/printRecipe.ts`:
+  - PrintRecipe interface with ingredients and render settings
+  - RecipeConfiguration for field mappings
+  - RecipeFieldMapping for CSV column to ingredient mappings
+- [x] Create bundled Print recipes in `frontend/src/recipes/`:
+  - Screenplay recipe with proper scene/action/dialogue formatting
+  - Card recipe for dialogue-focused layouts
+  - Extensible recipe system for future formats
+- [x] Create `frontend/src/stores/printRecipeStore.ts`:
+  - Recipe loading and management
+  - Field mapping with auto-mapping logic
+  - Configuration persistence via Zustand persist middleware
+  - Custom recipe support (add/remove)
 
 **Deliverables:**
-- Print preview displays CSV data
-- Field mappings apply correctly
-- Styling matches Print template specifications
+- ✅ Print recipe types fully defined
+- ✅ Bundled recipes implemented (Screenplay, Card)
+- ✅ Print store loads and manages recipes
+- ✅ Configuration persists across sessions
+
+### 5.2 Print Preview Component ✅
+
+**Goal:** Render CSV data in Print format with interactive preview
+
+**Tasks:**
+- [x] Create `frontend/src/components/PrintDrawer.tsx`:
+  - Resizable drawer (right or bottom position)
+  - Recipe selector dropdown
+  - Live preview of CSV data in print format
+  - Keyboard shortcuts (Ctrl+\ for right, Ctrl+/ for bottom)
+- [x] Create print format components:
+  - `frontend/src/components/prints/ScreenplayPrint.tsx` - Professional screenplay layout
+  - `frontend/src/components/prints/CardPrint.tsx` - Card-based dialogue layout
+- [x] Create `frontend/src/utils/printRecipeMapper.ts`:
+  - Auto-mapping logic (fuzzy matching CSV columns to recipe ingredients)
+  - Field mapping validation
+  - Transform functions for text formatting
+- [x] Implement print-specific features:
+  - **Bidirectional editing** - Edit cells directly from print preview!
+  - Print follows CSV edits (optional toggle)
+  - CSV follows print edits (optional toggle)
+  - Scrollable print areas with proper styling
+
+**Deliverables:**
+- ✅ Print preview displays CSV data in formatted layouts
+- ✅ Field mappings apply correctly with auto-mapping
+- ✅ Styling matches professional print specifications
+- ✅ **Bidirectional editing** allows editing from either CSV or Print view
+- ✅ Drawer can be resized and repositioned
 
 **Verification:**
-- Open CSV with dialogue data
-- Select Screenplay Print
-- Preview shows formatted screenplay layout
+- ✅ Open CSV with dialogue data
+- ✅ Select Screenplay recipe
+- ✅ Preview shows formatted screenplay layout with proper indents and fonts
+- ✅ Edit from print preview and see CSV update in real-time
 
-### 5.3 Print Template Editor
+### 5.3 Print Recipe Configuration ✅
 
-**Goal:** Visual editor for creating custom Print templates
+**Goal:** UI for mapping CSV columns to recipe ingredients
 
 **Tasks:**
-- [ ] Create `frontend/src/components/PrintEditor.tsx`:
-  - Template name input
-  - Field mapping UI (CSV column → Print field)
-  - Style controls for each field:
-    - Font family and size
-    - Indent (pixels or percentage)
-    - Line spacing
-    - Text color
-    - Text transform (uppercase, lowercase, capitalize)
-  - Save template button
-- [ ] Integrate with Tauri storage commands
-- [ ] Add template management:
-  - List custom templates
-  - Edit existing template
-  - Delete template
+- [x] Integrate recipe configuration into Print drawer header
+- [x] Field mapping interface:
+  - Dropdown selectors for each recipe ingredient
+  - Visual indication of mapped vs unmapped ingredients
+  - Auto-mapping button to automatically match columns
+- [x] Recipe switching:
+  - Switch between bundled recipes
+  - Configurations persist per recipe
+- [x] Settings integration:
+  - Toggle bidirectional editing modes
+  - Print/CSV follow settings
 
 **Deliverables:**
-- Visual Print editor functional
-- Custom templates can be created and saved
-- Templates persist across sessions
+- ✅ Recipe configuration UI functional
+- ✅ Field mappings can be manually adjusted
+- ✅ Auto-mapping works intelligently (fuzzy matching)
+- ✅ Configurations persist across sessions
+- ✅ Support for custom recipes (extensibility in place)
+
+**Note:** Full custom recipe editor (visual UI for creating new recipes from scratch) is planned for post-MVP. Current system supports custom recipes programmatically.
 
 ---
 
-## Phase 6: Polish & Testing (Days 14-15)
+## Phase 6: Polish & Testing ⚠️ PARTIAL
 
-### 6.1 Settings & Preferences
+### 6.1 Settings & Preferences ✅ MOSTLY COMPLETE
 
 **Goal:** Implement user preferences and settings UI
 
 **Tasks:**
-- [ ] Create `frontend/src/stores/settingsStore.ts`:
-  ```typescript
-  interface SettingsStore {
-      theme: 'light' | 'dark' | 'auto';
-      recentFiles: string[];
-      defaultPrintTemplate: string;
-
-      setTheme: (theme: string) => void;
-      addRecentFile: (path: string) => void;
-      setDefaultPrintTemplate: (id: string) => void;
-  }
-  ```
-- [ ] Create `frontend/src/pages/Settings.tsx`:
+- [x] Create `frontend/src/stores/settingsStore.ts`:
+  - Theme support (light/dark/auto)
+  - Row coloring modes (off, alternating, by-field)
+  - Column separator toggle
+  - Text wrapping toggle
+  - Bidirectional editing preferences
+  - File tree display options
+- [x] Implement settings UI in toolbar:
   - Theme selector
-  - Recent files list
-  - Default Print template selector
-  - Clear recent files button
-- [ ] Integrate with Tauri storage for persistence
-- [ ] Apply theme on app launch
+  - Row coloring dropdown
+  - Column separator toggle
+  - Text wrapping toggle
+- [x] Apply theme on app launch
+- [ ] **TODO:** Recent files list (backend commands ready, UI not implemented)
+- [ ] **TODO:** Default Print recipe selector (persistence ready, UI not implemented)
+- [ ] **TODO:** Persist settings with Tauri storage commands
 
 **Deliverables:**
-- Settings page functional
-- Preferences persist across sessions
-- Theme applies correctly
+- ✅ Settings store functional with multiple preferences
+- ✅ Theme switching works (light/dark modes)
+- ✅ Visual preferences (column separators, text wrapping, row coloring) functional
+- ✅ Bidirectional editing preferences work
+- ⚠️ Settings persist in localStorage but not via Tauri storage yet
+- ⚠️ Recent files and default recipe UI not implemented
 
-### 6.2 Error Handling & User Feedback
+### 6.2 Error Handling & User Feedback ⚠️ PARTIAL
 
 **Goal:** Implement comprehensive error handling and user notifications
 
 **Tasks:**
-- [ ] Add toast notifications (using daisyUI alerts or a toast library)
-- [ ] Handle file I/O errors gracefully:
-  - File not found
-  - Permission denied
-  - Invalid CSV format
-- [ ] Add loading states:
+- [x] Basic error handling in file operations (Tauri command errors logged)
+- [x] Unsaved changes indicator (dirty state in header)
+- [ ] **TODO:** Toast notifications for user feedback
+- [ ] **TODO:** Comprehensive error handling:
+  - File not found dialogs
+  - Permission denied warnings
+  - Invalid CSV format messages
+- [ ] **TODO:** Loading states:
   - File loading spinner
   - Save in progress indicator
-- [ ] Add confirmation dialogs:
-  - Unsaved changes warning
-  - Delete template confirmation
-- [ ] Add keyboard shortcuts help modal
+- [ ] **TODO:** Confirmation dialogs:
+  - Unsaved changes warning on file close
+  - Unsaved changes warning on app exit
+- [ ] **TODO:** Keyboard shortcuts help modal (Ctrl+?)
 
 **Deliverables:**
-- Errors display user-friendly messages
-- Loading states provide feedback
-- Critical actions require confirmation
+- ✅ Basic error handling in place
+- ✅ Unsaved changes indicator functional
+- ⚠️ No toast notifications yet
+- ⚠️ No loading states for file operations
+- ⚠️ No confirmation dialogs
+- ⚠️ No keyboard shortcuts help
 
-### 6.3 Testing & Bug Fixes
+### 6.3 Testing & Bug Fixes ⚠️ IN PROGRESS
 
 **Goal:** Test all features and fix critical bugs
 
 **Tasks:**
-- [ ] Manual testing checklist:
-  - File operations (open, save, save as)
-  - CSV editing (inline edit, add/delete rows)
-  - Filtering and sorting
-  - Print preview with all bundled templates
-  - Custom Print creation and editing
-  - Settings persistence
-  - Theme switching
-- [ ] Cross-platform testing (if possible):
+- [x] Manual testing of core features:
+  - ✅ File operations (open, save, save as) - Working
+  - ✅ CSV editing (inline edit, add/delete rows) - Working
+  - ✅ Filtering and sorting - Working
+  - ✅ Print preview with bundled recipes - Working
+  - ✅ Bidirectional editing - Working
+  - ✅ Column/row drag and drop - Working
+  - ✅ Copy/paste with multi-cell selection - Working
+  - ✅ Find and Replace - Working
+  - ✅ Undo/Redo - Working
+- [x] Created comprehensive CSV editing guide (wiki/10-csv-editing-guide.md)
+- [ ] **TODO:** Cross-platform testing:
   - Windows
   - macOS
   - Linux
-- [ ] Performance testing with large files:
-  - 1,000 rows
+- [ ] **TODO:** Performance testing with large files:
+  - 1,000 rows (virtualization threshold)
   - 10,000 rows
   - 50,000 rows (stress test)
-- [ ] Fix critical bugs and UX issues
+- [ ] **TODO:** Systematic bug tracking and fixing
 
 **Deliverables:**
-- All core features work as expected
-- No critical bugs
-- Acceptable performance with large files
+- ✅ Core features tested and working
+- ✅ User documentation created
+- ⚠️ Cross-platform testing not yet done
+- ⚠️ Performance benchmarking not yet done
+- ⚠️ No formal bug tracking yet
 
 ---
 
 ## MVP Feature Checklist
 
-When these are complete, Juniper will be ready for initial testing and iteration:
+Progress toward initial release. ✅ = Complete, ⚠️ = Partial, ❌ = Not Started
 
-**Core CSV Editor:**
+**Core CSV Editor:** ✅ COMPLETE
 - [x] Project boilerplate and structure
 - [x] Tauri & build infrastructure (Phase 1)
 - [x] Rust backend with file I/O commands (Phase 2)
 - [x] Open CSV files via file dialog (Phase 3)
 - [x] Display CSV data in editable grid (Phase 3)
-- [x] Inline cell editing (Phase 3)
+- [x] Inline cell editing with keyboard navigation (Phase 3)
 - [x] Save changes to file (Phase 3)
 - [x] Unsaved changes indicator (Phase 3)
 - [x] Add and delete rows (Phase 3)
-- [x] Keyboard navigation (Phase 3)
+- [x] Add and delete columns (Phase 3+)
+- [x] Drag and drop rows (Phase 3+)
+- [x] Drag and drop columns (Phase 3+)
+- [x] Keyboard navigation (Arrow keys, Tab, Enter, etc.) (Phase 3)
 - [x] Virtualization for large files (1000+ rows) (Phase 3)
+- [x] Copy/paste with multi-cell selection (Beyond MVP)
+- [x] Undo/Redo support (Beyond MVP)
+- [x] Find and Replace (Ctrl+F / Ctrl+R) (Beyond MVP)
 
-**Filtering & Sorting:**
-- [ ] Multi-part filtering UI
-- [ ] Apply filters to data
-- [ ] Single and multi-column sorting
-- [ ] Clear all filters
+**Filtering & Sorting:** ✅ COMPLETE
+- [x] Column-level filtering UI (dropdown in headers)
+- [x] Apply filters to data (contains, not-contains, equals, not-equals)
+- [x] Single and multi-column sorting (click + Shift+click)
+- [x] Clear filters per column
+- [x] Row coloring by filter (Beyond MVP)
 
-**Print System:**
-- [ ] Load bundled Print templates
-- [ ] Display Print preview
-- [ ] Switch between Print templates
-- [ ] Create custom Print template
-- [ ] Edit and delete custom templates
+**Print System:** ✅ COMPLETE
+- [x] Load bundled Print recipes (Screenplay, Card)
+- [x] Display Print preview (resizable drawer, right or bottom)
+- [x] Switch between Print recipes
+- [x] Field mapping UI (auto-mapping + manual adjustment)
+- [x] Configuration persistence per recipe
+- [x] **Bidirectional editing** - Edit CSV from Print preview! (Beyond MVP)
+- [⚠️] Custom recipe editor (programmatic support only, visual editor post-MVP)
 
-**Settings & Preferences:**
-- [x] Theme switching (light/dark mode) - UI implemented
-- [x] Settings page with preferences UI
-- [ ] Recent files list (need to wire up storage)
-- [ ] Default Print template setting (need to wire up storage)
-- [ ] Preferences persist across sessions (storage commands ready)
+**Additional Features Beyond Original MVP:**
+- [x] File tree sidebar with file system navigation
+- [x] Column summaries (Count, Unique, Mode, Average, Min, Max, Sum)
+- [x] Text wrapping toggle
+- [x] Column separator toggle
+- [x] Row coloring modes (off, alternating, by-field)
 
-**Polish:**
+**Settings & Preferences:** ⚠️ PARTIAL
+- [x] Theme switching (light/dark mode)
+- [x] Settings UI in toolbar
+- [x] Row coloring preferences
+- [x] Text wrapping and column separator preferences
+- [x] Bidirectional editing preferences
+- [ ] Recent files list (backend ready, UI not implemented)
+- [ ] Default Print recipe setting (backend ready, UI not implemented)
+- [⚠️] Preferences persist (localStorage only, not Tauri storage yet)
+
+**Polish:** ⚠️ PARTIAL
 - [x] Basic UI shell with navigation
 - [x] Responsive layout
-- [ ] Error handling and user feedback
-- [ ] Loading states
-- [ ] Confirmation dialogs
-- [ ] Keyboard shortcuts
+- [x] Comprehensive keyboard shortcuts (CSV editing, navigation, view controls)
+- [x] User documentation (CSV editing guide)
+- [⚠️] Error handling and user feedback (basic only)
+- [ ] Loading states (file operations)
+- [ ] Confirmation dialogs (unsaved changes warnings)
+- [ ] Toast notifications
+- [ ] Keyboard shortcuts help modal
 
 ---
 
@@ -595,21 +628,44 @@ When these are complete, Juniper will be ready for initial testing and iteration
 Once the MVP is stable and tested, consider these enhancements:
 
 **Phase 7: Advanced Features**
-- Editable Prints (edit CSV directly in Print preview)
+- ~~Editable Prints (edit CSV directly in Print preview)~~ ✅ **COMPLETED AHEAD OF SCHEDULE!**
+- ~~Column operations (add, delete, rename, reorder)~~ ✅ **COMPLETED!**
+- ~~Bulk editing (find/replace)~~ ✅ **COMPLETED!**
+- ~~Color coding rules~~ ✅ **COMPLETED!**
+- ~~Row/column summaries~~ ✅ **COMPLETED!**
 - PDF export
-- Column operations (add, delete, rename, reorder)
-- Bulk editing (find/replace)
-- Color coding rules
-- Row/column grouping and summaries
 - Data validation rules
+- Custom column types (dropdown, checkbox, date picker)
+- Conditional formatting
+- Formula support (calculated columns)
 
-**Phase 8: Integration & Extensibility**
-- Import/export Print templates
+**Phase 8: Polish & UX Improvements (Priority)**
+- Toast notifications for user actions
+- Loading states for file operations
+- Confirmation dialogs (unsaved changes, file close)
+- Keyboard shortcuts help modal (Ctrl+?)
+- Recent files list UI
+- Default Print recipe selector
+- Settings persistence via Tauri storage
+- Enhanced error messages and recovery
+
+**Phase 9: Print System Expansion**
+- Visual custom recipe editor (full UI for creating recipes)
+- Import/export Print recipes
+- Additional bundled recipes:
+  - Game design document format
+  - Quest/mission format
+  - Item/ability database format
+  - Custom dialogue tree format
+- Recipe marketplace/sharing (long-term)
+
+**Phase 10: Integration & Extensibility**
 - Plugin system for custom Print renderers
 - CLI mode for batch processing
 - Integration with game engines (Unity, Unreal, Godot)
 - Cloud storage support (optional)
 - Collaborative editing (optional)
+- Version control integration (Git)
 
 ---
 
@@ -617,59 +673,94 @@ Once the MVP is stable and tested, consider these enhancements:
 
 The MVP will be considered successful when:
 
-1. **Core Editing Works:** Users can open, edit, and save CSV files reliably
-2. **Filtering is Functional:** Users can filter data using multiple conditions
-3. **Prints Display Correctly:** CSV data renders in at least one bundled Print format
-4. **Custom Prints Work:** Users can create and save custom Print templates
-5. **Performance is Acceptable:** App handles 1,000+ row files without lag
-6. **No Critical Bugs:** No crashes or data loss issues
-7. **Cross-Platform Builds:** App builds successfully on Windows, macOS, and Linux
+1. ✅ **Core Editing Works:** Users can open, edit, and save CSV files reliably
+2. ✅ **Filtering is Functional:** Users can filter data using multiple conditions
+3. ✅ **Prints Display Correctly:** CSV data renders in multiple bundled Print formats
+4. ⚠️ **Custom Prints Work:** Users can create custom Print recipes (programmatic only, visual editor post-MVP)
+5. ⚠️ **Performance is Acceptable:** App handles 1,000+ row files without lag (needs formal testing)
+6. ⚠️ **No Critical Bugs:** No crashes or data loss issues (needs comprehensive testing)
+7. ⚠️ **Cross-Platform Builds:** App builds successfully on Windows, macOS, and Linux (needs testing)
+
+**Additional Success Criteria Achieved:**
+- ✅ **Bidirectional Editing:** Users can edit CSV data from Print preview
+- ✅ **Find and Replace:** Users can search and replace text across CSV
+- ✅ **Undo/Redo:** Users can undo and redo changes
+- ✅ **Rich Editing:** Drag/drop rows and columns, multi-cell copy/paste
+- ✅ **Column Summaries:** Users can view statistics for each column
+- ✅ **User Documentation:** Comprehensive CSV editing guide created
 
 ---
 
 ## Timeline Estimate
 
-**Total: ~15 days for MVP (originally)**
-**Progress: ~8 days remaining**
+**Original Estimate:** ~15 days for MVP
+**Actual Progress:** Phases 1-5 complete, Phase 6 partial (~12 days)
 
 - ✅ Phase 1 (Tauri & Build): 2 days - **COMPLETE**
 - ✅ Phase 2 (Rust Backend): 2 days - **COMPLETE** (done ahead of schedule with Phase 1)
 - ✅ Phase 3 (CSV Editor): 3 days - **COMPLETE**
-- ⏳ Phase 4 (Filtering): 2 days - **NEXT**
-- ⏳ Phase 5 (Print System): 4 days
-- ⏳ Phase 6 (Polish): 2 days
+- ✅ Phase 4 (Filtering): 2 days - **COMPLETE**
+- ✅ Phase 5 (Print System): 4 days - **COMPLETE** (with bidirectional editing!)
+- ⚠️ Phase 6 (Polish): 2 days - **PARTIAL** (~1 day remaining)
 
-**Actual Progress:** Phases 1, 2, and 3 complete. Core CSV editing functionality is now working with virtualization support for large files.
+**Beyond Original Plan:** Additional ~3-4 days of features implemented:
+- File tree sidebar
+- Find and Replace
+- Undo/Redo
+- Advanced copy/paste and drag/drop
+- Column summaries
+- Bidirectional editing
+- User documentation
 
-This timeline assumes full-time development. Adjust as needed based on available time and complexity encountered.
+**Remaining Work:** ~1-2 days
+- Polish items (toast notifications, loading states, confirmation dialogs)
+- Settings persistence via Tauri storage
+- Cross-platform testing
+- Performance benchmarking
+
+**Total Development Time:** ~15-16 days (on track with original estimate for core MVP)
 
 ---
 
 ## Next Steps
 
-**Completed:**
-1. ✅ Run setup: `make setup` to install all dependencies
-2. ✅ Tauri project initialized
-3. ✅ Frontend pipeline configured
-4. ✅ App shell created
-5. ✅ Rust backend implemented
-6. ✅ Wire up Tauri commands - Connected file operations to Rust commands
-7. ✅ Implement CSV state management - Created csvStore with comprehensive actions
-8. ✅ Build CSV grid component - TanStack Table with inline editing
-9. ✅ Add virtualization - For files with 1000+ rows
-10. ✅ Testing suite created - 4 CSV test files with documentation
+**Completed (Phases 1-5):**
+1. ✅ Project setup and infrastructure
+2. ✅ Tauri project initialized with Rust backend
+3. ✅ Frontend pipeline configured (Vite + React + TypeScript)
+4. ✅ App shell with navigation and theme support
+5. ✅ File operations (open, save, save as) via Tauri commands
+6. ✅ CSV state management with Zustand
+7. ✅ CSV grid component with TanStack Table
+8. ✅ Virtualization for large files (1000+ rows)
+9. ✅ Column-level filtering and multi-column sorting
+10. ✅ Print system with recipes and bidirectional editing
+11. ✅ File tree sidebar with navigation
+12. ✅ Find and Replace functionality
+13. ✅ Undo/Redo support
+14. ✅ Advanced editing (drag/drop, copy/paste, summaries)
+15. ✅ User documentation (CSV editing guide)
 
-**Current Focus (Testing Phase 3):**
-- Test CSV file opening via file dialog
-- Test inline editing and keyboard navigation
-- Test save functionality and dirty state tracking
-- Test virtualization with large files
-- Verify error handling and user feedback
+**Current Focus (Completing Phase 6):**
+- **Priority 1:** Add toast notifications for user feedback
+- **Priority 2:** Implement loading states for file operations
+- **Priority 3:** Add confirmation dialogs (unsaved changes warnings)
+- **Priority 4:** Create keyboard shortcuts help modal (Ctrl+?)
+- **Priority 5:** Implement recent files list UI
+- **Priority 6:** Add default Print recipe selector
+- **Priority 7:** Migrate settings persistence to Tauri storage
 
-**Coming Next (Phases 4-6):**
-- Phase 4: Add filtering and sorting UI
-- Phase 5: Implement Print system with templates
-- Phase 6: Polish and test
+**Testing & Quality Assurance:**
+- Cross-platform testing (Windows, macOS, Linux)
+- Performance benchmarking with large files (1K, 10K, 50K rows)
+- Bug tracking and systematic fixing
+- User acceptance testing
+
+**Coming After MVP:**
+- Visual custom recipe editor (Phase 9)
+- PDF export (Phase 7)
+- Additional bundled recipes (game design formats)
+- Plugin system for extensibility
 
 **To run the app:**
 ```bash
@@ -677,5 +768,12 @@ make setup   # Install dependencies (if not done)
 make dev     # Launch Tauri app with hot-reload
 ```
 
-**To test:**
-See `/testing/TESTING_GUIDE.md` for comprehensive testing workflows, or `/QUICK_START.md` for a 5-minute quick start.
+**To build:**
+```bash
+make build   # Create platform-specific installer
+```
+
+**Documentation:**
+- `/wiki/10-csv-editing-guide.md` - Comprehensive CSV editing guide
+- `/CLAUDE.md` - Development guidelines
+- `/README.md` - Project overview

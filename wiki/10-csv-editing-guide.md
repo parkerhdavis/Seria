@@ -1,0 +1,379 @@
+# CSV Editing Guide
+
+Complete guide to editing CSV files in Juniper.
+
+## Table of Contents
+
+1. [Opening Files](#opening-files)
+2. [Basic Cell Editing](#basic-cell-editing)
+3. [Selection](#selection)
+4. [Copy and Paste](#copy-and-paste)
+5. [Adding and Removing Data](#adding-and-removing-data)
+6. [Reordering Rows and Columns](#reordering-rows-and-columns)
+7. [Filtering Data](#filtering-data)
+8. [Sorting](#sorting)
+9. [Keyboard Shortcuts](#keyboard-shortcuts)
+
+---
+
+## Opening Files
+
+### From the File Tree
+
+1. Click the **File Tree** icon in the left sidebar (or press `Ctrl+.` to toggle the sidebar)
+2. Navigate to your CSV file
+3. Click on the file to open it
+
+### From the File Menu
+
+1. Click **Open** in the top toolbar
+2. Browse to your CSV file
+3. Select the file and click **Open**
+
+---
+
+## Basic Cell Editing
+
+### Selecting and Editing Cells
+
+Juniper uses a two-step editing model for safety and precision:
+
+1. **Click a cell** to select it (highlighted with a blue border)
+2. **Press F2 or Enter** to start editing the selected cell
+3. **Type your changes**
+4. **Press Enter** to save and move to the next row
+   - Or **Tab** to save and move to the next column
+   - Or **Escape** to cancel without saving
+
+### Quick Navigation While Editing
+
+When you're editing a cell, you can quickly navigate to adjacent cells:
+
+- **Enter** - Save and move to next row (same column)
+- **Shift+Enter** - Save and move to previous row (same column)
+- **Tab** - Save and move to next column (wraps to next row at end)
+- **Shift+Tab** - Save and move to previous column (wraps to previous row at start)
+- **Escape** - Cancel editing without saving changes
+
+---
+
+## Selection
+
+### Single Cell Selection
+
+**Click any cell** to select it. The selected cell will have a blue highlight.
+
+### Multi-Cell Selection
+
+**Click and drag** across multiple cells to select a range. The selected range will be highlighted in light blue.
+
+### Clearing Selection
+
+Press **Escape** to clear the current selection.
+
+---
+
+## Copy and Paste
+
+### Copying Cells
+
+1. **Select one or more cells** (click for single cell, click and drag for multiple)
+2. **Press Ctrl+C** (or right-click and select **Copy**)
+
+The copied data is now in your clipboard.
+
+### Pasting Cells
+
+Juniper supports several paste modes depending on what you've copied and where you're pasting:
+
+#### Single Cell Paste
+
+1. **Select a destination cell**
+2. **Press Ctrl+V** (or right-click and select **Paste**)
+
+**Behavior:**
+- If you copied a **single cell**, it pastes that value
+- If you copied **multiple cells**, it pastes the entire range starting at the selected cell
+
+#### Multi-Cell Paste
+
+1. **Select a range of cells** (click and drag)
+2. **Press Ctrl+V** (or right-click and select **Paste**)
+
+**Behavior:**
+- If you copied a **single cell**, it fills all selected cells with that value
+- If you copied a **row** and selected a **column**, it pastes the row iteratively down the column
+- If you copied a **column** and selected a **row**, it pastes the column iteratively across the row
+- If you copied a **range**, it tiles the range across the selection
+
+### Copy/Paste Tips
+
+- You can copy from one CSV and paste into another
+- Copy and paste respects column boundaries - no data will overflow into adjacent columns
+- Use **Ctrl+Z** to undo if you paste incorrectly
+
+---
+
+## Adding and Removing Data
+
+### Adding Rows
+
+**Method 1: Toolbar**
+- Click the **Add Row** button in the toolbar to add a row at the end
+
+**Method 2: Keyboard Shortcut**
+- Press **Ctrl+Enter** to add a row below the currently selected cell
+- If no cell is selected, adds a row at the end
+
+**Method 3: Right-Click Menu**
+- Right-click any cell
+- Select **Insert Row Above** or **Insert Row Below**
+
+### Removing Rows
+
+*Coming soon - Delete rows feature will be added in a future update*
+
+### Adding Columns
+
+**Right-click any cell** and select:
+- **Insert Column Left** - Adds a new column to the left of the clicked cell
+- **Insert Column Right** - Adds a new column to the right of the clicked cell
+
+New columns are named "Column N" by default. You can rename them by editing the header cell.
+
+### Removing Columns
+
+*Coming soon - Delete columns feature will be added in a future update*
+
+---
+
+## Reordering Rows and Columns
+
+### Reordering Rows
+
+**Drag and drop rows** to reorder them:
+
+1. **Click and hold** on the row number (on the left side)
+2. **Drag** the row up or down
+3. **Release** to drop it in the new position
+
+A blue line shows where the row will be inserted.
+
+### Reordering Columns
+
+**Drag and drop column headers** to reorder them:
+
+1. **Click and hold** on the column header
+2. **Drag** the column left or right
+3. **Release** to drop it in the new position
+
+A blue line shows where the column will be inserted.
+
+### Tips for Drag and Drop
+
+- The small **grip icon** (≡) on row numbers and column headers indicates they're draggable
+- You can't drag a row or column outside the table boundaries
+- Use **Ctrl+Z** to undo if you drop in the wrong place
+
+---
+
+## Filtering Data
+
+### Column-Level Filtering
+
+Each column has a **filter icon** (funnel) in its header. Click it to open the filter dropdown.
+
+#### Setting Up a Filter
+
+1. **Click the filter icon** in any column header
+2. **Choose a filter operation** by clicking the operation button:
+   - **∋** (contains) - Shows rows where the cell contains the text
+   - **!∋** (not contains) - Shows rows where the cell does NOT contain the text
+   - **=** (equals) - Shows rows where the cell exactly matches the text
+   - **!=** (not equals) - Shows rows where the cell does NOT match the text
+3. **Type your filter text** in the input field
+4. **Click Apply** (or press Enter)
+
+#### Active Filters
+
+- Columns with active filters show the filter icon in **blue**
+- Only rows matching **all** active filters are displayed
+- You can have multiple column filters active at once
+
+#### Clearing Filters
+
+- Click the filter icon and select **Clear** to remove the filter from that column
+- Or delete the filter text and click **Apply**
+
+### Row Coloring by Filter
+
+In addition to column filters, you can color rows based on a filter (this doesn't hide rows, just colors them):
+
+1. Click the **Row Coloring** dropdown in the toolbar
+2. Select **By Field**
+3. Choose a column, operation, filter text, and color
+4. Rows matching the filter will be highlighted in your chosen color
+
+---
+
+## Sorting
+
+### Single Column Sort
+
+**Click any column header** to sort by that column:
+- First click: Sort ascending (A→Z, 0→9)
+- Second click: Sort descending (Z→A, 9→0)
+- Third click: Clear sort
+
+An **up or down arrow** shows the sort direction.
+
+### Multi-Column Sort
+
+Sort by multiple columns in priority order:
+
+1. **Click the first column header** to sort by that column
+2. **Hold Shift and click other headers** to add secondary sorts
+3. Numbers in circles show the sort priority (1, 2, 3...)
+
+**Example:** Sort by "Status" first, then by "Priority" within each status group.
+
+### Clearing Sorts
+
+- Click a sorted column header until the arrow disappears
+- Or refresh the view by filtering or reloading the file
+
+---
+
+## Keyboard Shortcuts
+
+### Essential Shortcuts
+
+| Action | Shortcut |
+|--------|----------|
+| **Edit selected cell** | `F2` or `Enter` |
+| **Move selection** | `↑` `↓` `←` `→` (Arrow keys) |
+| **Copy selection** | `Ctrl+C` |
+| **Paste** | `Ctrl+V` |
+| **Add row below** | `Ctrl+Enter` |
+| **Clear selection** | `Escape` |
+| **Undo** | `Ctrl+Z` |
+| **Redo** | `Ctrl+Shift+Z` or `Ctrl+Y` |
+| **Save file** | `Ctrl+S` |
+| **Find** | `Ctrl+F` |
+| **Find and Replace** | `Ctrl+R` |
+
+### Cell Navigation (while editing)
+
+| Action | Shortcut |
+|--------|----------|
+| **Save & move to next row** | `Enter` |
+| **Save & move to previous row** | `Shift+Enter` |
+| **Save & move to next column** | `Tab` |
+| **Save & move to previous column** | `Shift+Tab` |
+| **Cancel edit** | `Escape` |
+
+### View Controls
+
+| Action | Shortcut |
+|--------|----------|
+| **Toggle sidebar** | `Ctrl+.` |
+| **Toggle print preview (right)** | `Ctrl+\` |
+| **Toggle print preview (bottom)** | `Ctrl+/` |
+| **Zoom in** | `Ctrl+=` |
+| **Zoom out** | `Ctrl+-` |
+| **Reset zoom** | `Ctrl+0` |
+| **Open settings** | `Ctrl+,` |
+
+### Pro Tips
+
+- Use **Arrow keys** to quickly navigate between cells without using the mouse
+- Use **Tab** to quickly fill in a row of data without using the mouse
+- **Shift+Enter** is great for entering data in a single column going upward
+- Combine **multi-cell selection** with **copy/paste** to quickly duplicate patterns
+- Use **column filters** to focus on specific subsets of your data
+- **Drag row numbers** to reorganize your data without cutting and pasting
+- Click anywhere outside a cell while editing to save changes automatically
+
+---
+
+## Additional Features
+
+### Text Wrapping
+
+Toggle **Wrap Text** in the toolbar to wrap long text in cells instead of truncating it.
+
+### Column Separators
+
+Toggle **Column Lines** in the toolbar to show or hide vertical lines between columns.
+
+### Row Coloring
+
+Choose from three row coloring modes in the toolbar:
+- **Off** - No row coloring
+- **Alternating** - Zebra striping (every other row)
+- **By Field** - Color rows matching a filter condition
+
+### Column Summaries
+
+At the bottom of the window, you'll find a **summary row** with a dropdown for each column. Use these to calculate statistics for your data:
+
+**Available Summary Types:**
+- **Count** - Count of non-empty values (default)
+- **Unique** - Count of unique values
+- **Mode** - Most common value (smart: numeric mode for number columns, text mode for text columns)
+- **Average** - Mean of numeric values (ignores text and empty cells)
+- **Min** - Minimum value (numeric if numbers exist, otherwise alphabetical)
+- **Max** - Maximum value (numeric if numbers exist, otherwise alphabetical)
+- **Sum** - Sum of numeric values (ignores text and empty cells)
+
+**Notes:**
+- Summaries update automatically as you edit data
+- Summaries respect active column filters (only calculate on visible rows)
+- Numeric summaries (Average, Min, Max, Sum) automatically filter to only numeric values
+- The summary row is always visible at the bottom of the window and scrolls horizontally with the table
+
+### Find and Replace
+
+Press **Ctrl+F** to search for text in your CSV:
+- Navigate between matches with **Enter** and **Shift+Enter**
+- Use **Ctrl+R** for Find and Replace to update multiple cells at once
+- Enable **Match Case** or **Match Whole Cell** for precise searches
+- Search within a specific column for targeted results
+
+---
+
+## Troubleshooting
+
+### My edits aren't saving
+
+Make sure to press **Enter**, **Tab**, or **Shift+Tab** to save your cell edit. Clicking away from the cell without saving will discard changes.
+
+### I can't drag a row/column
+
+Make sure you're clicking on the **row number** (for rows) or the **drag handle icon** in the column header (for columns). The drag handle looks like ≡.
+
+### Filters aren't working
+
+Check that:
+1. You clicked **Apply** after entering filter text
+2. Your filter text matches the data (filters are case-insensitive)
+3. Multiple filters work together - a row must match **all** active filters
+
+### Performance is slow with large files
+
+Juniper automatically uses virtualization for files with 1000+ rows, but very large files (10,000+ rows) may still experience some lag. Consider:
+- Closing the print preview drawer (Ctrl+\)
+- Disabling row coloring
+- Clearing unnecessary filters
+
+---
+
+## Next Steps
+
+- Learn about [Print Previews](#) to see your CSV data in professional formats
+- Explore [Custom Prints](#) to create your own formatted views
+- Check out [Keyboard Shortcuts](#keyboard-shortcuts) to work faster
+
+---
+
+**Last Updated:** 2025-11-11
