@@ -498,31 +498,26 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         setIsDraggingRow(true);
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", rowIndex.toString());
-
-        // Create transparent ghost image
-        const ghost = document.createElement('div');
-        ghost.style.position = 'absolute';
-        ghost.style.top = '-1000px';
-        ghost.style.opacity = '0';
-        document.body.appendChild(ghost);
-        e.dataTransfer.setDragImage(ghost, 0, 0);
-        setTimeout(() => document.body.removeChild(ghost), 0);
     };
 
     const handleRowDragOver = (e: React.DragEvent, rowIndex: number) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
 
-        if (draggedRow !== null && draggedRow !== rowIndex) {
-            // Live reorder during drag
-            reorderRows(draggedRow, rowIndex);
-            setDraggedRow(rowIndex);
+        // Show visual indicator at target position (including original position)
+        if (draggedRow !== null) {
+            setDropTargetRow(rowIndex);
         }
     };
 
     const handleRowDrop = (e: React.DragEvent, targetIndex: number) => {
         e.preventDefault();
-        // Reordering already happened during drag, just confirm
+
+        // Perform the reorder on drop
+        if (draggedRow !== null && draggedRow !== targetIndex) {
+            reorderRows(draggedRow, targetIndex);
+        }
+
         setDraggedRow(null);
         setDropTargetRow(null);
         setIsDraggingRow(false);
@@ -541,31 +536,26 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         setIsDraggingColumn(true);
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", colIndex.toString());
-
-        // Create transparent ghost image
-        const ghost = document.createElement('div');
-        ghost.style.position = 'absolute';
-        ghost.style.top = '-1000px';
-        ghost.style.opacity = '0';
-        document.body.appendChild(ghost);
-        e.dataTransfer.setDragImage(ghost, 0, 0);
-        setTimeout(() => document.body.removeChild(ghost), 0);
     };
 
     const handleColumnDragOver = (e: React.DragEvent, colIndex: number) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
 
-        if (draggedColumn !== null && draggedColumn !== colIndex) {
-            // Live reorder during drag
-            reorderColumns(draggedColumn, colIndex);
-            setDraggedColumn(colIndex);
+        // Show visual indicator at target position (including original position)
+        if (draggedColumn !== null) {
+            setDropTargetColumn(colIndex);
         }
     };
 
     const handleColumnDrop = (e: React.DragEvent, targetIndex: number) => {
         e.preventDefault();
-        // Reordering already happened during drag, just confirm
+
+        // Perform the reorder on drop
+        if (draggedColumn !== null && draggedColumn !== targetIndex) {
+            reorderColumns(draggedColumn, targetIndex);
+        }
+
         setDraggedColumn(null);
         setDropTargetColumn(null);
         setIsDraggingColumn(false);
@@ -606,12 +596,26 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             }}
             tabIndex={0}
             onClick={(e) => {
+                // Don't interfere with draggable elements
+                const target = e.target as HTMLElement;
+                const draggableElement = target.closest('[draggable="true"]');
+                if (draggableElement) {
+                    return; // Let the drag operation handle it
+                }
+
                 // Keep focus on grid when clicking anywhere inside it
                 if (gridFocusRef.current) {
                     gridFocusRef.current.focus();
                 }
             }}
             onMouseDown={(e) => {
+                // Don't interfere with draggable elements
+                const target = e.target as HTMLElement;
+                const draggableElement = target.closest('[draggable="true"]');
+                if (draggableElement) {
+                    return; // Let the drag operation handle it
+                }
+
                 // Ensure grid gets focus on any mousedown
                 if (gridFocusRef.current) {
                     gridFocusRef.current.focus();
@@ -685,14 +689,14 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                             draggable={true}
                                             onMouseDown={(e) => {
                                                 e.stopPropagation();
-                                                e.preventDefault();
+                                                // Don't preventDefault - it blocks drag start
                                             }}
                                             onDragStart={(e) => handleColumnDragStart(e, colIndex)}
                                             onDragEnd={handleColumnDragEnd}
                                             className="cursor-move text-base-content/30 hover:text-base-content relative z-10"
                                             style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ pointerEvents: 'none' }}>
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                                             </svg>
                                         </div>
@@ -757,13 +761,13 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                     draggable={true}
                                     onMouseDown={(e) => {
                                         e.stopPropagation();
-                                        e.preventDefault();
+                                        // Don't preventDefault - it blocks drag start
                                     }}
                                     onDragStart={(e) => handleRowDragStart(e, rowIndex)}
                                     onDragEnd={handleRowDragEnd}
                                     onContextMenu={(e) => handleContextMenu(e, rowIndex, undefined)}
                                 >
-                                    <div className="flex items-center justify-center gap-1">
+                                    <div className="flex items-center justify-center gap-1" style={{ pointerEvents: 'none' }}>
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-base-content/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                                         </svg>
@@ -804,6 +808,11 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                         cellClass += " bg-warning/60";
                                     } else if (isMatch) {
                                         cellClass += " bg-warning/20";
+                                    }
+
+                                    // Add drop target indicator (full height column line)
+                                    if (dropTargetColumn === colIndex) {
+                                        cellClass += " border-l-4 border-primary";
                                     }
 
                                     if (colIndex < row.length - 1) {
