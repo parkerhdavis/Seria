@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from "react";
 import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 import { getMappedColumn } from "@/utils/printRecipeMapper";
 import { useCSVStore } from "@/stores/csvStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 interface ScreenplayPrintProps {
     data: string[][];
@@ -34,6 +35,22 @@ interface ScreenplayElement {
 }
 
 /**
+ * Determines if an element type should support multi-line editing
+ */
+function isMultiLineElement(type: ElementType): boolean {
+    return type === "action" || type === "dialogue";
+}
+
+/**
+ * Represents a selected Print element for editing
+ */
+interface SelectedPrintElement {
+    rowIndex: number;
+    columnName: string;
+    elementIndex: number;  // Index in the elements array for navigation
+}
+
+/**
  * Converts indent value (in pixels at 96dpi) to inches for rendering
  */
 function pixelsToInches(pixels: number): number {
@@ -48,15 +65,30 @@ function ScreenplayElementView({
     marginLeft,
     showRowNumbers,
     isBeingEdited,
+    isSelected,
+    isEditingFromPrint,
+    editingValue,
+    onEditingValueChange,
+    onClick,
     setRef,
 }: {
     element: ScreenplayElement;
     marginLeft: number;
     showRowNumbers: boolean;
     isBeingEdited: boolean;
+    isSelected: boolean;
+    isEditingFromPrint: boolean;
+    editingValue: string;
+    onEditingValueChange: (value: string) => void;
+    onClick: () => void;
     setRef?: (el: HTMLDivElement | null) => void;
 }) {
     const ingredient = element.type;
+    const inputRef = useRef<HTMLInputElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Check if this element should be multi-line
+    const isMultiLine = isMultiLineElement(element.type);
 
     // Get styling based on element type
     let textAlign: "left" | "right" = "left";
@@ -95,10 +127,39 @@ function ScreenplayElementView({
         maxWidth: textAlign === "left" ? maxWidth : undefined,
     };
 
+    // Auto-focus input/textarea when editing starts from Print view
+    useEffect(() => {
+        if (isEditingFromPrint) {
+            if (isMultiLine && textareaRef.current) {
+                textareaRef.current.focus();
+                // Place cursor at end of text
+                textareaRef.current.setSelectionRange(editingValue.length, editingValue.length);
+                // Auto-resize textarea to fit initial content
+                textareaRef.current.style.height = "auto";
+                textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+            } else if (!isMultiLine && inputRef.current) {
+                inputRef.current.focus();
+                // Place cursor at end of text
+                inputRef.current.setSelectionRange(editingValue.length, editingValue.length);
+            }
+        }
+    }, [isEditingFromPrint, editingValue.length, isMultiLine]);
+
+    // Format content based on element type
+    const formatContent = (content: string) => {
+        if (element.type === "parenthetical") {
+            return content.startsWith("(") ? content : `(${content})`;
+        } else if (element.type === "transition") {
+            return content.endsWith(":") ? content : `${content}:`;
+        }
+        return content;
+    };
+
     return (
         <div
             ref={setRef}
-            className={`screenplay-element mb-3 relative ${isBeingEdited ? "editing-indicator" : ""}`}
+            className={`screenplay-element mb-3 relative cursor-pointer ${isBeingEdited ? "editing-indicator" : ""} ${isSelected ? "selected-indicator" : ""}`}
+            onClick={onClick}
         >
             {/* Optional row number indicator */}
             {showRowNumbers && (
@@ -116,17 +177,66 @@ function ScreenplayElementView({
                 </div>
             )}
 
-            <p
-                className={`font-mono text-base leading-tight ${isBeingEdited ? "ring-2 ring-primary ring-offset-2 ring-offset-white rounded px-1" : ""}`}
-                style={style as React.CSSProperties}
-            >
-                {/* Format content based on element type */}
-                {element.type === "parenthetical"
-                    ? element.content.startsWith("(") ? element.content : `(${element.content})`
-                    : element.type === "transition"
-                        ? element.content.endsWith(":") ? element.content : `${element.content}:`
-                        : element.content}
-            </p>
+            {/* "Editing from CSV" overlay indicator */}
+            {isBeingEdited && !isEditingFromPrint && (
+                <div className="absolute -top-5 left-0 text-xs text-primary/70 italic bg-base-100/90 px-2 py-0.5 rounded shadow-sm border border-primary/20">
+                    (editing from CSV)
+                </div>
+            )}
+
+            {/* Selection indicator */}
+            {isSelected && !isEditingFromPrint && (
+                <div className="absolute -left-6 top-0 text-secondary">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            )}
+
+            {isEditingFromPrint ? (
+                isMultiLine ? (
+                    <textarea
+                        ref={textareaRef}
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary/40 ring-offset-2 ring-offset-white rounded px-2 py-1 resize-none overflow-hidden"
+                        style={{
+                            ...style as React.CSSProperties,
+                            minHeight: "1.5rem",
+                            height: "auto",
+                        }}
+                        value={editingValue}
+                        onChange={(e) => {
+                            onEditingValueChange(e.target.value);
+                            // Auto-resize textarea to fit content
+                            e.target.style.height = "auto";
+                            e.target.style.height = `${e.target.scrollHeight}px`;
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onInput={(e) => {
+                            // Auto-resize on input as well
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = "auto";
+                            target.style.height = `${target.scrollHeight}px`;
+                        }}
+                    />
+                ) : (
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary/40 ring-offset-2 ring-offset-white rounded px-2 py-1"
+                        style={style as React.CSSProperties}
+                        value={editingValue}
+                        onChange={(e) => onEditingValueChange(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                )
+            ) : (
+                <p
+                    className={`font-mono text-base leading-tight ${isBeingEdited ? "ring-2 ring-primary/40 ring-offset-2 ring-offset-white rounded px-2 py-1" : ""} ${isSelected ? "ring-2 ring-secondary ring-offset-2 ring-offset-white rounded px-2 py-1" : ""}`}
+                    style={style as React.CSSProperties}
+                >
+                    {formatContent(element.content)}
+                </p>
+            )}
         </div>
     );
 }
@@ -144,8 +254,14 @@ function ScreenplayPrint({
     containerHeight,
 }: ScreenplayPrintProps) {
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
-    const { editingCell, editingValue } = useCSVStore();
+    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell, clearSelection } = useCSVStore();
+    const { printFollowsCsvEdit } = useSettingsStore();
     const elementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+    // State for Print view selection and editing
+    const [selectedPrintElement, setSelectedPrintElement] = useState<SelectedPrintElement | null>(null);
+    const [isEditingFromPrint, setIsEditingFromPrint] = useState(false);
+    const printContainerRef = useRef<HTMLDivElement>(null);
 
     // Get field mappings
     const sceneHeadingColumn = getMappedColumn(configuration.fieldMappings, "scene_heading");
@@ -185,7 +301,7 @@ function ScreenplayPrint({
 
     // Scroll to element when editing cell changes
     useEffect(() => {
-        if (editingCell && containerRef) {
+        if (editingCell && containerRef && printFollowsCsvEdit) {
             // Create a unique key for the editing cell
             const editingKey = `${editingCell.row}-${headers[editingCell.col]}`;
             const element = elementRefs.current.get(editingKey);
@@ -199,7 +315,136 @@ function ScreenplayPrint({
                 });
             }
         }
-    }, [editingCell, headers, containerRef]);
+    }, [editingCell, headers, containerRef, printFollowsCsvEdit]);
+
+    // Clear Print selection when editing cell from CSV grid changes
+    useEffect(() => {
+        if (editingCell && !isEditingFromPrint) {
+            // Clear Print selection since user is editing from CSV grid
+            setSelectedPrintElement(null);
+        }
+    }, [editingCell, isEditingFromPrint]);
+
+    // Clear Print selection when CSV cell is selected
+    const { selectedCell, selectedRange } = useCSVStore();
+    useEffect(() => {
+        if ((selectedCell || selectedRange) && selectedPrintElement && !isEditingFromPrint) {
+            // User clicked in CSV grid, clear Print selection
+            setSelectedPrintElement(null);
+        }
+    }, [selectedCell, selectedRange]);
+
+    // Clear Print selection when clicking anywhere in CSV grid area (including background)
+    useEffect(() => {
+        const handleDocumentClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            // Check if click is within CSV grid container
+            const csvGrid = document.querySelector('.csv-grid-container');
+            if (csvGrid && csvGrid.contains(target) && selectedPrintElement && !isEditingFromPrint) {
+                setSelectedPrintElement(null);
+            }
+        };
+
+        document.addEventListener('click', handleDocumentClick);
+        return () => document.removeEventListener('click', handleDocumentClick);
+    }, [selectedPrintElement, isEditingFromPrint]);
+
+    // Handle clicking outside editing element to save changes
+    useEffect(() => {
+        if (!isEditingFromPrint || !editingCell) return;
+
+        const handleMouseDown = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            // Check if click is outside the editing input/textarea
+            if (!target.closest("input[type='text']") && !target.closest("textarea")) {
+                // Save the edit
+                updateCell(editingCell.row, editingCell.col, editingValue);
+                clearEditingCell();
+                setIsEditingFromPrint(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleMouseDown);
+        return () => document.removeEventListener("mousedown", handleMouseDown);
+    }, [isEditingFromPrint, editingCell, editingValue, updateCell, clearEditingCell]);
+
+    // Keyboard handlers for Print view
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Only handle if the Print container is focused or if we're not in any input/textarea
+            const target = e.target as HTMLElement;
+            const isInInput = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+
+            // Handle F2 or Enter to start editing from Print view
+            if ((e.key === "F2" || e.key === "Enter") && selectedPrintElement && !isEditingFromPrint && !isInInput) {
+                e.preventDefault();
+                // Start editing from Print view
+                const colIndex = headers.indexOf(selectedPrintElement.columnName);
+                if (colIndex === -1) return;
+
+                const value = data[selectedPrintElement.rowIndex]?.[colIndex] || "";
+                setEditingCell(selectedPrintElement.rowIndex, colIndex, value, "print");
+                setIsEditingFromPrint(true);
+            }
+
+            // Handle Enter or F2 to save editing from Print view
+            // For multi-line elements, Ctrl+Enter creates newlines; Enter or F2 saves
+            if (isEditingFromPrint && editingCell) {
+                const isMultiLine = selectedPrintElement &&
+                    isMultiLineElement(
+                        elements.find(el =>
+                            el.rowIndex === selectedPrintElement.rowIndex &&
+                            el.columnName === selectedPrintElement.columnName
+                        )?.type || "action"
+                    );
+
+                // Allow Ctrl+Enter to create newlines in multi-line elements
+                if (e.key === "Enter" && isMultiLine && e.ctrlKey) {
+                    return;
+                }
+
+                if ((e.key === "F2") || (e.key === "Enter")) {
+                    e.preventDefault();
+                    // Save editing from Print view
+                    updateCell(editingCell.row, editingCell.col, editingValue);
+                    clearEditingCell();
+                    setIsEditingFromPrint(false);
+                }
+            }
+
+            // Handle Escape to cancel editing
+            if (e.key === "Escape") {
+                if (isEditingFromPrint) {
+                    e.preventDefault();
+                    clearEditingCell();
+                    setIsEditingFromPrint(false);
+                } else if (selectedPrintElement) {
+                    e.preventDefault();
+                    setSelectedPrintElement(null);
+                }
+            }
+        };
+
+        document.addEventListener("keydown", handleKeyDown);
+        return () => document.removeEventListener("keydown", handleKeyDown);
+    }, [selectedPrintElement, isEditingFromPrint, headers, data, editingCell, editingValue, setEditingCell, updateCell, clearEditingCell]);
+
+    // Handle clicking on a Print element
+    const handleElementClick = (element: ScreenplayElement, elementIndex: number) => {
+        setSelectedPrintElement({
+            rowIndex: element.rowIndex,
+            columnName: element.columnName,
+            elementIndex,
+        });
+
+        // Clear CSV selection so CSV grid doesn't compete for keyboard input
+        clearSelection();
+
+        // Focus the Print container so keyboard events work
+        if (printContainerRef.current) {
+            printContainerRef.current.focus();
+        }
+    };
 
     // Transform CSV data into screenplay elements
     // Use editingValue for real-time preview if a cell is being edited
@@ -333,9 +578,67 @@ function ScreenplayPrint({
 
     return (
         <div
-            ref={setContainerRef}
-            className="w-full h-full overflow-auto p-2 bg-black/20"
+            ref={(el) => {
+                setContainerRef(el);
+                if (printContainerRef.current !== el) {
+                    (printContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                }
+            }}
+            className="screenplay-print-container w-full h-full overflow-scroll p-2 bg-black/20 outline-none"
+            tabIndex={0}
+            onClick={(e) => {
+                // Clear CSV selection when clicking anywhere in Print view
+                // Only if we didn't click on an element (which handles its own selection)
+                if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.screenplay-page')) {
+                    clearSelection();
+                    // Focus the Print container
+                    if (printContainerRef.current) {
+                        printContainerRef.current.focus();
+                    }
+                }
+            }}
         >
+            {/* Force scrollbars to always be visible */}
+            <style>{`
+                .screenplay-print-container {
+                    overflow: scroll !important;
+                    scrollbar-width: thin; /* Firefox - always show */
+                    -webkit-overflow-scrolling: touch;
+                }
+
+                /* Force scrollbar to always be visible in Webkit browsers */
+                .screenplay-print-container::-webkit-scrollbar {
+                    -webkit-appearance: none;
+                    width: 14px;
+                    height: 14px;
+                }
+
+                .screenplay-print-container::-webkit-scrollbar-track {
+                    background: oklch(var(--b3));
+                    border: 1px solid oklch(var(--bc) / 0.1);
+                }
+
+                .screenplay-print-container::-webkit-scrollbar-thumb {
+                    background: oklch(var(--bc) / 0.4);
+                    border-radius: 7px;
+                    border: 2px solid oklch(var(--b3));
+                    min-height: 30px;
+                    min-width: 30px;
+                }
+
+                .screenplay-print-container::-webkit-scrollbar-thumb:hover {
+                    background: oklch(var(--bc) / 0.6);
+                }
+
+                .screenplay-print-container::-webkit-scrollbar-thumb:active {
+                    background: oklch(var(--bc) / 0.7);
+                }
+
+                .screenplay-print-container::-webkit-scrollbar-corner {
+                    background: oklch(var(--b3));
+                }
+            `}</style>
+
             {/* Screenplay page */}
             <div
                 className={`screenplay-page text-grey-50 mb-8 relative ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
@@ -353,6 +656,17 @@ function ScreenplayPrint({
                     {elements.map((element, index) => {
                         // Check if this element corresponds to the cell being edited
                         const isBeingEdited = editingCell !== null &&
+                            editingCell.row === element.rowIndex &&
+                            headers[editingCell.col] === element.columnName;
+
+                        // Check if this element is selected
+                        const isSelected = selectedPrintElement !== null &&
+                            selectedPrintElement.rowIndex === element.rowIndex &&
+                            selectedPrintElement.columnName === element.columnName;
+
+                        // Check if this element is being edited from Print view
+                        const isEditingThisFromPrint = isEditingFromPrint &&
+                            editingCell !== null &&
                             editingCell.row === element.rowIndex &&
                             headers[editingCell.col] === element.columnName;
 
@@ -375,6 +689,11 @@ function ScreenplayPrint({
                                 marginLeft={marginLeft}
                                 showRowNumbers={false}
                                 isBeingEdited={isBeingEdited}
+                                isSelected={isSelected}
+                                isEditingFromPrint={isEditingThisFromPrint}
+                                editingValue={editingValue}
+                                onEditingValueChange={updateEditingValue}
+                                onClick={() => handleElementClick(element, index)}
                                 setRef={setRef}
                             />
                         );

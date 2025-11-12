@@ -21,6 +21,10 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setShowNonCsvFiles,
         theme,
         setTheme,
+        printFollowsCsvEdit,
+        setPrintFollowsCsvEdit,
+        csvFollowsPrintEdit,
+        setCsvFollowsPrintEdit,
     } = useSettingsStore();
 
     if (!isOpen) {
@@ -127,6 +131,42 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                         <span className="label-text font-semibold block">Show non-CSV files</span>
                                         <span className="label-text-alt block text-base-content/60">
                                             Display non-CSV files in the file tree (greyed out and non-clickable)
+                                        </span>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div className="divider mt-6 mb-2">Bidirectional Editing</div>
+
+                            <div className="form-control">
+                                <label className="label cursor-pointer justify-start gap-4">
+                                    <input
+                                        type="checkbox"
+                                        className="checkbox checkbox-primary"
+                                        checked={printFollowsCsvEdit}
+                                        onChange={(e) => setPrintFollowsCsvEdit(e.target.checked)}
+                                    />
+                                    <div>
+                                        <span className="label-text font-semibold block">Print follows CSV edit</span>
+                                        <span className="label-text-alt block text-base-content/60">
+                                            Automatically scroll Print view to show the element being edited from CSV
+                                        </span>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div className="form-control mt-4">
+                                <label className="label cursor-pointer justify-start gap-4">
+                                    <input
+                                        type="checkbox"
+                                        className="checkbox checkbox-primary"
+                                        checked={csvFollowsPrintEdit}
+                                        onChange={(e) => setCsvFollowsPrintEdit(e.target.checked)}
+                                    />
+                                    <div>
+                                        <span className="label-text font-semibold block">CSV follows Print edit</span>
+                                        <span className="label-text-alt block text-base-content/60">
+                                            Automatically scroll CSV view to show the row being edited from Print
                                         </span>
                                     </div>
                                 </label>

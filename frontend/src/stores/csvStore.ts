@@ -65,6 +65,7 @@ interface CSVStore {
     // Cell editing state (shared between CSV grid and Print preview)
     editingCell: EditingCell | null;
     editingValue: string;
+    editingSource: "csv" | "print" | null;  // Track where the editing originated
 
     // Selection state
     selectedCell: CellSelection | null;
@@ -98,7 +99,7 @@ interface CSVStore {
     canRedo: () => boolean;
 
     // Cell editing actions
-    setEditingCell: (row: number, col: number, initialValue: string) => void;
+    setEditingCell: (row: number, col: number, initialValue: string, source?: "csv" | "print") => void;
     updateEditingValue: (value: string) => void;
     clearEditingCell: () => void;
 
@@ -147,6 +148,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     error: null,
     editingCell: null,
     editingValue: "",
+    editingSource: null,
     selectedCell: null,
     selectedRange: null,
     clipboard: null,
@@ -496,10 +498,11 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     },
 
     // Set cell being edited (for coordinating between CSV grid and Print preview)
-    setEditingCell: (row: number, col: number, initialValue: string) => {
+    setEditingCell: (row: number, col: number, initialValue: string, source: "csv" | "print" = "csv") => {
         set({
             editingCell: { row, col },
             editingValue: initialValue,
+            editingSource: source,
         });
     },
 
@@ -513,6 +516,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
         set({
             editingCell: null,
             editingValue: "",
+            editingSource: null,
         });
     },
 
