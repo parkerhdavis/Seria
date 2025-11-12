@@ -298,7 +298,7 @@ function CardPrint({
     return (
         <div
             ref={setContainerRef}
-            className="w-full h-full overflow-auto bg-black/50"
+            className="w-full h-full overflow-auto bg-black/30"
         >
             <div style={gridStyle}>
                 {cards.map((card) => {

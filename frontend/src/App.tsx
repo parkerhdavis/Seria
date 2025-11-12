@@ -15,9 +15,9 @@ import { DragProvider } from "./contexts/DragContext";
  * and global keyboard shortcuts.
  */
 function App() {
-    const [printPreviewPosition, setPrintPreviewPosition] = useState<"right" | "bottom" | null>(null);
+    const [printPreviewPosition, setPrintPreviewPosition] = useState<"right" | "bottom" | null>("right");
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(100);
     const { saveCSV, undo, redo, canUndo, canRedo } = useCSVStore();
     const { openFind, openReplace } = useFindReplaceStore();

@@ -22,6 +22,36 @@ interface EditingCell {
     col: number;
 }
 
+// Cell selection state
+interface CellSelection {
+    row: number;
+    col: number;
+}
+
+// Range selection state
+interface RangeSelection {
+    startRow: number;
+    startCol: number;
+    endRow: number;
+    endCol: number;
+}
+
+// Clipboard data
+interface ClipboardData {
+    data: string[][];
+    isSingleCell: boolean;
+}
+
+// Column filter
+interface ColumnFilter {
+    column: string;
+    operation: "contains" | "not-contains" | "equals" | "not-equals";
+    value: string;
+}
+
+// Summary types
+type SummaryType = "count" | "unique" | "mode" | "average" | "min" | "max" | "sum";
+
 interface CSVStore {
     // State
     data: string[][];
@@ -35,6 +65,15 @@ interface CSVStore {
     // Cell editing state (shared between CSV grid and Print preview)
     editingCell: EditingCell | null;
     editingValue: string;
+
+    // Selection state
+    selectedCell: CellSelection | null;
+    selectedRange: RangeSelection | null;
+    clipboard: ClipboardData | null;
+
+    // Filtering and summaries
+    columnFilters: ColumnFilter[];
+    columnSummaries: Record<string, SummaryType>;
 
     // Undo/Redo history
     undoStack: DataSnapshot[];
@@ -62,6 +101,22 @@ interface CSVStore {
     setEditingCell: (row: number, col: number, initialValue: string) => void;
     updateEditingValue: (value: string) => void;
     clearEditingCell: () => void;
+
+    // Selection actions
+    setSelectedCell: (row: number, col: number) => void;
+    setSelectedRange: (startRow: number, startCol: number, endRow: number, endCol: number) => void;
+    clearSelection: () => void;
+    copySelection: () => void;
+    pasteClipboard: () => void;
+
+    // Filtering and summary actions
+    setColumnFilter: (column: string, operation: "contains" | "not-contains" | "equals" | "not-equals", value: string) => void;
+    clearColumnFilter: (column: string) => void;
+    setColumnSummary: (column: string, summaryType: SummaryType) => void;
+
+    // Row and column reordering
+    reorderRows: (fromIndex: number, toIndex: number) => void;
+    reorderColumns: (fromIndex: number, toIndex: number) => void;
 }
 
 // Helper function to create a snapshot of current data
@@ -92,6 +147,11 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     error: null,
     editingCell: null,
     editingValue: "",
+    selectedCell: null,
+    selectedRange: null,
+    clipboard: null,
+    columnFilters: [],
+    columnSummaries: {},
     undoStack: [],
     redoStack: [],
 
@@ -116,6 +176,12 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                 return;
             }
 
+            // Initialize column summaries with "count" for all columns
+            const initialSummaries: Record<string, SummaryType> = {};
+            csvData.headers.forEach((header) => {
+                initialSummaries[header] = "count";
+            });
+
             // Update state
             set({
                 headers: csvData.headers,
@@ -129,6 +195,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                     rowCount: csvData.data.length,
                     columnCount: csvData.headers.length,
                 },
+                columnSummaries: initialSummaries,
                 isDirty: false,
                 isLoading: false,
                 error: null,
@@ -447,5 +514,222 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
             editingCell: null,
             editingValue: "",
         });
+    },
+
+    // Selection actions
+    setSelectedCell: (row: number, col: number) => {
+        set({
+            selectedCell: { row, col },
+            selectedRange: null,
+        });
+    },
+
+    setSelectedRange: (startRow: number, startCol: number, endRow: number, endCol: number) => {
+        set({
+            selectedRange: { startRow, startCol, endRow, endCol },
+            selectedCell: null,
+        });
+    },
+
+    clearSelection: () => {
+        set({
+            selectedCell: null,
+            selectedRange: null,
+        });
+    },
+
+    copySelection: () => {
+        const { selectedCell, selectedRange, data } = get();
+
+        if (selectedRange) {
+            // Copy range
+            const { startRow, startCol, endRow, endCol } = selectedRange;
+            const minRow = Math.min(startRow, endRow);
+            const maxRow = Math.max(startRow, endRow);
+            const minCol = Math.min(startCol, endCol);
+            const maxCol = Math.max(startCol, endCol);
+
+            const copiedData: string[][] = [];
+            for (let r = minRow; r <= maxRow; r++) {
+                const row: string[] = [];
+                for (let c = minCol; c <= maxCol; c++) {
+                    row.push(data[r]?.[c] || "");
+                }
+                copiedData.push(row);
+            }
+
+            set({
+                clipboard: {
+                    data: copiedData,
+                    isSingleCell: false,
+                },
+            });
+        } else if (selectedCell) {
+            // Copy single cell
+            const value = data[selectedCell.row]?.[selectedCell.col] || "";
+            set({
+                clipboard: {
+                    data: [[value]],
+                    isSingleCell: true,
+                },
+            });
+        }
+    },
+
+    pasteClipboard: () => {
+        const { selectedCell, selectedRange, clipboard, data, headers } = get();
+
+        if (!clipboard) return;
+
+        // Push current state to undo stack
+        pushToUndoStack(get, set);
+
+        const newData = data.map((row) => [...row]);
+
+        if (selectedRange) {
+            // Paste into range
+            const { startRow, startCol, endRow, endCol } = selectedRange;
+            const minRow = Math.min(startRow, endRow);
+            const maxRow = Math.max(startRow, endRow);
+            const minCol = Math.min(startCol, endCol);
+            const maxCol = Math.max(startCol, endCol);
+
+            if (clipboard.isSingleCell) {
+                // Fill all selected cells with single value
+                const value = clipboard.data[0][0];
+                for (let r = minRow; r <= maxRow; r++) {
+                    for (let c = minCol; c <= maxCol; c++) {
+                        if (r < newData.length && c < newData[r].length) {
+                            newData[r][c] = value;
+                        }
+                    }
+                }
+            } else {
+                // Paste with tiling/iterative logic
+                const clipRows = clipboard.data.length;
+                const clipCols = clipboard.data[0]?.length || 0;
+                const selRows = maxRow - minRow + 1;
+                const selCols = maxCol - minCol + 1;
+
+                // Check if we're pasting a row into a column or vice versa (iterative paste)
+                if (clipRows === 1 && selCols === 1 && selRows > 1) {
+                    // Pasting a row into a column - paste iteratively down
+                    for (let r = minRow; r <= maxRow; r++) {
+                        for (let c = 0; c < clipCols && minCol + c <= maxCol; c++) {
+                            if (r < newData.length && minCol + c < newData[r].length) {
+                                newData[r][minCol + c] = clipboard.data[0][c];
+                            }
+                        }
+                    }
+                } else if (clipCols === 1 && selRows === 1 && selCols > 1) {
+                    // Pasting a column into a row - paste iteratively across
+                    for (let c = minCol; c <= maxCol; c++) {
+                        for (let r = 0; r < clipRows && minRow + r <= maxRow; r++) {
+                            if (minRow + r < newData.length && c < newData[minRow + r].length) {
+                                newData[minRow + r][c] = clipboard.data[r][0];
+                            }
+                        }
+                    }
+                } else {
+                    // Tile the clipboard data across the selection
+                    for (let r = minRow; r <= maxRow; r++) {
+                        for (let c = minCol; c <= maxCol; c++) {
+                            const clipR = (r - minRow) % clipRows;
+                            const clipC = (c - minCol) % clipCols;
+                            if (r < newData.length && c < newData[r].length) {
+                                newData[r][c] = clipboard.data[clipR][clipC] || "";
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (selectedCell) {
+            // Paste starting at selected cell
+            const { row, col } = selectedCell;
+
+            for (let r = 0; r < clipboard.data.length; r++) {
+                for (let c = 0; c < clipboard.data[r].length; c++) {
+                    const targetRow = row + r;
+                    const targetCol = col + c;
+                    if (targetRow < newData.length && targetCol < newData[targetRow].length) {
+                        newData[targetRow][targetCol] = clipboard.data[r][c];
+                    }
+                }
+            }
+        }
+
+        set({ data: newData, isDirty: true });
+    },
+
+    // Filtering actions
+    setColumnFilter: (column: string, operation: "contains" | "not-contains" | "equals" | "not-equals", value: string) => {
+        const { columnFilters } = get();
+
+        // Remove existing filter for this column
+        const newFilters = columnFilters.filter((f) => f.column !== column);
+
+        // Add new filter
+        newFilters.push({ column, operation, value });
+
+        set({ columnFilters: newFilters });
+    },
+
+    clearColumnFilter: (column: string) => {
+        const { columnFilters } = get();
+        set({ columnFilters: columnFilters.filter((f) => f.column !== column) });
+    },
+
+    setColumnSummary: (column: string, summaryType: SummaryType) => {
+        const { columnSummaries } = get();
+        set({
+            columnSummaries: {
+                ...columnSummaries,
+                [column]: summaryType,
+            },
+        });
+    },
+
+    // Row and column reordering
+    reorderRows: (fromIndex: number, toIndex: number) => {
+        const { data } = get();
+
+        if (fromIndex === toIndex) return;
+        if (fromIndex < 0 || fromIndex >= data.length) return;
+        if (toIndex < 0 || toIndex >= data.length) return;
+
+        // Push current state to undo stack
+        pushToUndoStack(get, set);
+
+        const newData = [...data];
+        const [movedRow] = newData.splice(fromIndex, 1);
+        newData.splice(toIndex, 0, movedRow);
+
+        set({ data: newData, isDirty: true });
+    },
+
+    reorderColumns: (fromIndex: number, toIndex: number) => {
+        const { headers, data } = get();
+
+        if (fromIndex === toIndex) return;
+        if (fromIndex < 0 || fromIndex >= headers.length) return;
+        if (toIndex < 0 || toIndex >= headers.length) return;
+
+        // Push current state to undo stack
+        pushToUndoStack(get, set);
+
+        // Reorder headers
+        const newHeaders = [...headers];
+        const [movedHeader] = newHeaders.splice(fromIndex, 1);
+        newHeaders.splice(toIndex, 0, movedHeader);
+
+        // Reorder data columns
+        const newData = data.map((row) => {
+            const newRow = [...row];
+            const [movedCell] = newRow.splice(fromIndex, 1);
+            newRow.splice(toIndex, 0, movedCell);
+            return newRow;
+        });
+
+        set({ headers: newHeaders, data: newData, isDirty: true });
     },
 }));
