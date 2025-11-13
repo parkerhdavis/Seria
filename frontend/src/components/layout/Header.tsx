@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCSVStore } from "@stores/csvStore";
 import { useFileTreeStore } from "@stores/fileTreeStore";
@@ -17,8 +18,12 @@ interface HeaderProps {
  * and includes theme toggle, print preview toggle, sidebar toggle, and mobile menu toggle.
  */
 function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: HeaderProps) {
+    // Local state for visual feedback
+    const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+    const [showReloadConfirm, setShowReloadConfirm] = useState(false);
+
     // Get CSV store state and actions
-    const { headers, fileInfo, isDirty, isLoading, loadCSV, saveCSV, clearData, addRow } = useCSVStore();
+    const { headers, fileInfo, isDirty, isLoading, lastSavedAt, loadCSV, reloadCSV, saveCSV, clearData, addRow } = useCSVStore();
 
     // Get settings store state and actions
     const { wrapText, setWrapText, showColumnSeparators, setShowColumnSeparators, autoFitColumns, setAutoFitColumns } = useSettingsStore();
@@ -31,6 +36,15 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
 
     // Check if we have data loaded
     const hasData = headers.length > 0;
+
+    // Trigger save success animation when lastSavedAt changes
+    useEffect(() => {
+        if (lastSavedAt) {
+            setShowSaveSuccess(true);
+            const timer = setTimeout(() => setShowSaveSuccess(false), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [lastSavedAt]);
 
     // Open file dialog and load selected CSV
     const handleOpen = async () => {
@@ -61,6 +75,16 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
             await saveCSV();
         } catch (error) {
             console.error("Failed to save file:", error);
+        }
+    };
+
+    // Reload current file from disk
+    const handleReload = async () => {
+        setShowReloadConfirm(false);
+        try {
+            await reloadCSV();
+        } catch (error) {
+            console.error("Failed to reload file:", error);
         }
     };
 
@@ -171,7 +195,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                     </button>
 
                     <button
-                        className="btn btn-sm btn-primary"
+                        className={`btn btn-sm btn-primary transition-all ${showSaveSuccess ? "btn-success scale-105" : ""}`}
                         onClick={handleSave}
                         title="Save current file (Ctrl+S)"
                         disabled={!fileInfo || isLoading}
@@ -180,6 +204,18 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                         </svg>
                     Save
+                    </button>
+
+                    <button
+                        className="btn btn-sm btn-ghost"
+                        onClick={() => setShowReloadConfirm(true)}
+                        title="Reload file from disk"
+                        disabled={!fileInfo || isLoading}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    Reload
                     </button>
 
                     <div className="dropdown dropdown-end">
@@ -313,6 +349,37 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
             </button>
+
+            {/* Reload Confirmation Modal */}
+            {showReloadConfirm && (
+                <div className="modal modal-open">
+                    <div className="modal-box">
+                        <h3 className="font-bold text-lg">Reload File from Disk?</h3>
+                        <p className="py-4">
+                            This will discard any unsaved changes and reload the file from disk.
+                            {isDirty && (
+                                <span className="block mt-2 text-warning font-semibold">
+                                    Warning: You have unsaved changes that will be lost!
+                                </span>
+                            )}
+                        </p>
+                        <div className="modal-action">
+                            <button
+                                className="btn btn-ghost"
+                                onClick={() => setShowReloadConfirm(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className={`btn ${isDirty ? "btn-warning" : "btn-primary"}`}
+                                onClick={handleReload}
+                            >
+                                Reload
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </header>
     );
 }

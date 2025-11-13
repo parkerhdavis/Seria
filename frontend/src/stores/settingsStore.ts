@@ -29,6 +29,8 @@ interface SettingsStore {
     printFollowsCsvEdit: boolean;
     csvFollowsPrintEdit: boolean;
     hoverHighlightMode: HoverHighlightMode;
+    autosaveEnabled: boolean;
+    autosaveIntervalSeconds: number;
 
     // Actions
     setShowNonCsvFiles: (show: boolean) => void;
@@ -41,6 +43,8 @@ interface SettingsStore {
     setPrintFollowsCsvEdit: (follow: boolean) => void;
     setCsvFollowsPrintEdit: (follow: boolean) => void;
     setHoverHighlightMode: (mode: HoverHighlightMode) => void;
+    setAutosaveEnabled: (enabled: boolean) => void;
+    setAutosaveIntervalSeconds: (seconds: number) => void;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -55,6 +59,8 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     printFollowsCsvEdit: true,
     csvFollowsPrintEdit: true,
     hoverHighlightMode: "row-and-column",
+    autosaveEnabled: true,
+    autosaveIntervalSeconds: 30,
 
     // Toggle showing non-CSV files in file tree
     setShowNonCsvFiles: (show: boolean) => {
@@ -104,5 +110,15 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     // Set hover highlight mode
     setHoverHighlightMode: (mode: HoverHighlightMode) => {
         set({ hoverHighlightMode: mode });
+    },
+
+    // Set autosave enabled
+    setAutosaveEnabled: (enabled: boolean) => {
+        set({ autosaveEnabled: enabled });
+    },
+
+    // Set autosave interval in seconds
+    setAutosaveIntervalSeconds: (seconds: number) => {
+        set({ autosaveIntervalSeconds: seconds });
     },
 }));
