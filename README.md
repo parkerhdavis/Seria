@@ -18,11 +18,11 @@ Game writers need primitive data sources, but the tools available force painful 
 - ✅ Makes you feel like a power user and keeps you tethered to developer-space
 
 **What's hard for writers:**
-- ❌ Working in cells (or worse, struct rows) doesn't always feel natural
-- ❌ Difficult to feel pacing and flow, especially for cinematics and long conversations
-- ❌ The medium is the message: cellular editing shapes your writing (sometimes in a bad way)
-- ❌ Constant context-switching between "data mode" and "writer mode" can burn you out
-- ❌ I mean, you know, it just feels sad sometimes
+- 🚫 Working in cells (or worse, struct rows) doesn't always feel natural
+- 🚫 Difficult to feel pacing and flow, especially for cinematics and long conversations
+- 🚫 The medium is the message: cellular editing shapes your writing (sometimes in a bad way)
+- 🚫 Constant context-switching between "data mode" and "writer mode" can burn you out
+- 🚫 I mean, you know, it just feels sad sometimes
 
 ### Writing Tools (Final Draft, FadeIn, Scrivener)
 
@@ -34,11 +34,11 @@ Game writers need primitive data sources, but the tools available force painful 
 - ✅ Like a warm, cozy blanket to curl up and write in
 
 **What's hard for games:**
-- ❌ Proprietary or complex data sources that lock you into specific tools
-- ❌ Not friendly to integration or version control
-- ❌ Even tools that exporting to CSV/JSON open the door to errors and multiple points of authority
-- ❌ Difficult-to-impossible to integrate directly into game engine pipelines
-- ❌ You'll be happy; everyone else will be sad
+- 🚫 Proprietary or complex data sources that lock you into specific tools
+- 🚫 Not friendly to integration or version control
+- 🚫 Even tools that exporting to CSV/JSON open the door to errors and multiple points of authority
+- 🚫 Difficult-to-impossible to integrate directly into game engine pipelines
+- 🚫 You'll be happy; everyone else will be sad
 
 ---
 
@@ -50,16 +50,16 @@ Juniper sits directly on top of your data files. no import/export step, no conve
 
 | Feature                               | Excel/Sheets | Final Draft/Scrivener | **Juniper**      |
 | ------------------------------------- | ------------ | --------------------- | ---------------- |
-| Primitive data format (CSV/TSV, JSON) | ✅            | ❌                     | ✅                |
-| Git-friendly / version control        | ✅            | ❌                     | ✅                |
-| Screenplay formatting                 | ❌            | ✅                     | ✅                |
-| Card/corkboard view                   | ❌            | ✅                     | ✅                |
-| Edit directly in formatted view       | ❌            | ✅                     | ✅                |
-| Bidirectional sync                    | ❌            | ❌                     | ✅                |
-| Game engine integration               | ✅            | ❌                     | ✅                |
-| Formulas, calculations, validations   | ✅            | ❌                     | 💡 (coming soon) |
-| Real-time collaboration / cloud sync  | ✅            | Limited               | ❌ (not yet)      |
-| Custom print templates                | ❌            | Limited               | ✅                |
+| Primitive data format (CSV/TSV, JSON) | ✅            | 🚫                     | ✅                |
+| Git-friendly / version control        | ✅            | 🚫                     | ✅                |
+| Screenplay formatting                 | 🚫            | ✅                     | ✅                |
+| Card/corkboard view                   | 🚫            | ✅                     | ✅                |
+| Edit directly in formatted view       | 🚫            | ✅                     | ✅                |
+| Bidirectional sync                    | 🚫            | 🚫                     | ✅                |
+| Game engine integration               | ✅            | 🚫                     | ✅                |
+| Formulas, calculations, validations   | ✅            | 🚫                     | 💡 (coming soon) |
+| Real-time collaboration / cloud sync  | ✅            | Limited               | 🚫 (not yet)      |
+| Custom print templates                | 🚫            | Limited               | ✅                |
 
 **Juniper gives you the data discipline and flexibility of sheets with the fluid experience of dedicated writing tools.**
 
