@@ -144,14 +144,19 @@ function ScreenplayElementView({
                 inputRef.current.setSelectionRange(editingValue.length, editingValue.length);
             }
         }
-    }, [isEditingFromPrint, editingValue.length, isMultiLine]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Disabled: editingValue.length dependency removed
+    // Reason: Including editingValue.length causes cursor to reset on every keystroke
+    // Alternative: Only run when editing starts (isEditingFromPrint changes) or field type changes (isMultiLine)
+    }, [isEditingFromPrint, isMultiLine]);
 
     // Format content based on element type
     const formatContent = (content: string) => {
         if (element.type === "parenthetical") {
             return content.startsWith("(") ? content : `(${content})`;
         } else if (element.type === "transition") {
-            return content.endsWith(":") ? content : `${content}:`;
+            // return content.endsWith(":") ? content : `${content}:`;  // alt below; don't add ":"
+            return content;
         }
         return content;
     };

@@ -120,6 +120,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     const summaryRowRef = useRef<HTMLDivElement>(null);
     const summaryRowContentRef = useRef<HTMLDivElement>(null);
     const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
+    const editingCellRef = useRef<HTMLTableCellElement | null>(null);
 
     // Filter data based on column filters
     const filteredData = useMemo(() => {
@@ -227,7 +228,14 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
     // Handle global mouseup for selection
     useEffect(() => {
-        const handleMouseUp = () => {
+        const handleMouseUp = (e: MouseEvent) => {
+            // Don't clear selection state if mouseup is inside the editing cell
+            // This prevents re-renders that could clear text selection
+            const target = e.target as Node;
+            if (editingCellRef.current && editingCellRef.current.contains(target)) {
+                return;
+            }
+
             setIsSelecting(false);
             setSelectionStart(null);
         };
@@ -248,10 +256,13 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     // Handle clicking outside editing cell to save
     useEffect(() => {
         const handleMouseDown = (e: MouseEvent) => {
-            if (editingCell && editingSource === "csv") {
-                const target = e.target as HTMLElement;
-                // Check if click is outside the editing input/textarea
-                if (!target.closest("input[type='text']") && !target.closest("textarea")) {
+            if (editingCell && editingSource === "csv" && editingCellRef.current) {
+                const target = e.target as Node;
+                // Check if click is inside the editing cell element (including padding and input)
+                const isClickInsideEditingCell = editingCellRef.current.contains(target);
+
+                // Only save and close if clicking outside the editing cell
+                if (!isClickInsideEditingCell) {
                     const value = editingValue;
                     updateCell(editingCell.row, editingCell.col, value);
                     clearEditingCell();
@@ -816,6 +827,19 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         // Only handle left-click for selection (button 0)
         if (e.button !== 0) return;
 
+        // Don't interfere with text selection inside editing cell
+        // Check if we're clicking inside an input or textarea
+        const target = e.target as HTMLElement;
+        const isClickInsideEditor = target instanceof HTMLInputElement ||
+            target instanceof HTMLTextAreaElement ||
+            target.closest("input[type='text']") !== null ||
+            target.closest("textarea") !== null;
+
+        if (isClickInsideEditor) {
+            // Allow normal text selection behavior inside the editor
+            return;
+        }
+
         if (gridFocusRef.current) {
             gridFocusRef.current.focus();
         }
@@ -964,20 +988,22 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     // Summary row is 60px tall and fixed at the bottom
     // Container height is reduced so scrollbar appears above summary row
     const summaryRowHeight = 60;
+    // Only disable text selection when doing cell selection, not when editing
+    const isEditingCSV = editingCell && editingSource === "csv";
     const containerStyle: React.CSSProperties = {
         width: drawerPosition === "right" ? `calc(100% - ${rightDrawerSize}px)` : "100%",
         height: drawerPosition === "bottom"
             ? `calc(100% - ${bottomDrawerSize}px - ${summaryRowHeight}px)`
             : `calc(100% - ${summaryRowHeight}px)`,
         paddingBottom: "20px", // Small padding for content breathing room
-        userSelect: (isSelecting || isDraggingRow || isDraggingColumn) ? "none" : "auto",
-        WebkitUserSelect: (isSelecting || isDraggingRow || isDraggingColumn) ? "none" : "auto",
+        userSelect: (!isEditingCSV && (isSelecting || isDraggingRow || isDraggingColumn)) ? "none" : "auto",
+        WebkitUserSelect: (!isEditingCSV && (isSelecting || isDraggingRow || isDraggingColumn)) ? "none" : "auto",
         position: "relative",
     };
 
     return (
         <div
-            className="csv-grid-container overflow-scroll relative outline-none"
+            className={`csv-grid-container relative outline-none ${autoFitColumns ? "overflow-y-scroll overflow-x-hidden" : "overflow-scroll"}`}
             ref={(el) => {
                 if (tableContainerRef.current !== el) {
                     (tableContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
@@ -1001,11 +1027,23 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 }
             }}
             onMouseDown={(e) => {
-                // Don't interfere with draggable elements
                 const target = e.target as HTMLElement;
+
+                // Don't interfere with draggable elements
                 const draggableElement = target.closest('[draggable="true"]');
                 if (draggableElement) {
                     return; // Let the drag operation handle it
+                }
+
+                // Don't interfere with text selection inside editing cell
+                const isClickInsideEditor = target instanceof HTMLInputElement ||
+                    target instanceof HTMLTextAreaElement ||
+                    target.closest("input[type='text']") !== null ||
+                    target.closest("textarea") !== null;
+
+                if (isClickInsideEditor) {
+                    // Allow normal text selection behavior inside the editor
+                    return;
                 }
 
                 // Ensure grid gets focus on any mousedown
@@ -1014,8 +1052,8 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 }
             }}
             onWheel={(e) => {
-                // Shift + scroll for horizontal scrolling
-                if (e.shiftKey && tableContainerRef.current) {
+                // Shift + scroll for horizontal scrolling (only when Auto-Fit is disabled)
+                if (e.shiftKey && !autoFitColumns && tableContainerRef.current) {
                     e.preventDefault();
                     tableContainerRef.current.scrollLeft += e.deltaY;
                 }
@@ -1025,7 +1063,6 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             {/* Force scrollbars to always be visible and hide scrollbar for summary row */}
             <style>{`
                 .csv-grid-container {
-                    overflow: scroll !important;
                     scrollbar-width: thin; /* Firefox - always show */
                     scrollbar-gutter: stable both-edges; /* Reserve space for scrollbar */
                     -webkit-overflow-scrolling: touch;
@@ -1066,9 +1103,20 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 .summary-row-scroll::-webkit-scrollbar {
                     display: none;
                 }
+
+                /* Ensure text selection works in editing cells */
+                .editing-cell,
+                .editing-cell *,
+                .editing-cell input,
+                .editing-cell textarea {
+                    user-select: text !important;
+                    -webkit-user-select: text !important;
+                    -moz-user-select: text !important;
+                    -ms-user-select: text !important;
+                }
             `}</style>
-            {/* Left scroll indicator */}
-            {showLeftScrollIndicator && (
+            {/* Left scroll indicator (only show when Auto-Fit is disabled) */}
+            {!autoFitColumns && showLeftScrollIndicator && (
                 <div
                     className="absolute left-0 top-0 bottom-0 w-8 pointer-events-none z-30"
                     style={{
@@ -1077,8 +1125,8 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 />
             )}
 
-            {/* Right scroll indicator */}
-            {showRightScrollIndicator && (
+            {/* Right scroll indicator (only show when Auto-Fit is disabled) */}
+            {!autoFitColumns && showRightScrollIndicator && (
                 <div
                     className="absolute right-0 top-0 bottom-0 w-8 pointer-events-none z-30"
                     style={{
@@ -1283,10 +1331,23 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                     return (
                                         <td
                                             key={colIndex}
-                                            className={`${cellClass} relative`}
-                                            style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
+                                            className={`${cellClass} relative ${isEditing && editingSource === "csv" ? "editing-cell" : ""}`}
+                                            style={{
+                                                width: `${columnWidth}px`,
+                                                minWidth: `${columnWidth}px`,
+                                                maxWidth: `${columnWidth}px`,
+                                                ...(isEditing && editingSource === "csv" ? { userSelect: "text", WebkitUserSelect: "text" } : {})
+                                            }}
                                             data-row={rowIndex}
                                             data-col={colIndex}
+                                            ref={(el) => {
+                                                // Set ref to the currently editing cell
+                                                if (isEditing && editingSource === "csv") {
+                                                    editingCellRef.current = el;
+                                                } else if (editingCellRef.current === el) {
+                                                    editingCellRef.current = null;
+                                                }
+                                            }}
                                             onMouseDown={(e) => handleCellMouseDown(e, rowIndex, colIndex)}
                                             onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                                             onMouseLeave={handleCellMouseLeave}
@@ -1307,6 +1368,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                 shouldUseTextarea ? (
                                                     <textarea
                                                         className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight resize-none overflow-hidden"
+                                                        style={{ userSelect: "text", WebkitUserSelect: "text" }}
                                                         value={editingValue}
                                                         onChange={(e) => {
                                                             updateEditingValue(e.target.value);
@@ -1314,7 +1376,10 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                             e.target.style.height = "auto";
                                                             e.target.style.height = `${e.target.scrollHeight}px`;
                                                         }}
-                                                        onBlur={() => handleSaveEdit(rowIndex, colIndex)}
+                                                        onMouseDown={(e) => {
+                                                            // Stop propagation to prevent cell selection handlers from interfering
+                                                            e.stopPropagation();
+                                                        }}
                                                         onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
                                                         onInput={(e) => {
                                                             // Auto-resize on input as well
@@ -1323,23 +1388,18 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                             target.style.height = `${target.scrollHeight}px`;
                                                         }}
                                                         autoFocus
-                                                        ref={(el) => {
-                                                            if (el) {
-                                                                // Initial resize
-                                                                el.style.height = "auto";
-                                                                el.style.height = `${el.scrollHeight}px`;
-                                                                // Place cursor at end
-                                                                el.setSelectionRange(el.value.length, el.value.length);
-                                                            }
-                                                        }}
                                                     />
                                                 ) : (
                                                     <input
                                                         type="text"
                                                         className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight"
+                                                        style={{ userSelect: "text", WebkitUserSelect: "text" }}
                                                         value={editingValue}
                                                         onChange={(e) => updateEditingValue(e.target.value)}
-                                                        onBlur={() => handleSaveEdit(rowIndex, colIndex)}
+                                                        onMouseDown={(e) => {
+                                                            // Stop propagation to prevent cell selection handlers from interfering
+                                                            e.stopPropagation();
+                                                        }}
                                                         onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
                                                         autoFocus
                                                     />
@@ -1379,7 +1439,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                     ref={summaryRowContentRef}
                     className="h-full summary-row-scroll"
                     style={{
-                        overflowX: "scroll",
+                        overflowX: autoFitColumns ? "hidden" : "scroll",
                         overflowY: "hidden",
                         scrollbarWidth: "none", /* Firefox */
                         msOverflowStyle: "none", /* IE and Edge */

@@ -135,14 +135,22 @@ function Card({
             titleInputRef.current.focus();
             titleInputRef.current.setSelectionRange(editingValue.length, editingValue.length);
         }
-    }, [isTitleEditingFromPrint, editingValue.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Disabled: editingValue.length dependency removed
+    // Reason: Including editingValue.length causes cursor to reset on every keystroke
+    // Alternative: Only run when editing starts (isTitleEditingFromPrint changes)
+    }, [isTitleEditingFromPrint]);
 
     useEffect(() => {
         if (isSubtitleEditingFromPrint && subtitleInputRef.current) {
             subtitleInputRef.current.focus();
             subtitleInputRef.current.setSelectionRange(editingValue.length, editingValue.length);
         }
-    }, [isSubtitleEditingFromPrint, editingValue.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Disabled: editingValue.length dependency removed
+    // Reason: Including editingValue.length causes cursor to reset on every keystroke
+    // Alternative: Only run when editing starts (isSubtitleEditingFromPrint changes)
+    }, [isSubtitleEditingFromPrint]);
 
     // Auto-resize content textareas when editing
     useEffect(() => {
@@ -156,7 +164,11 @@ function Card({
                 textarea.style.height = `${textarea.scrollHeight}px`;
             }
         }
-    }, [isEditingFromPrint, selectedField, editingValue.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Disabled: editingValue.length dependency removed
+    // Reason: Including editingValue.length causes cursor to reset on every keystroke
+    // Alternative: Only run when editing starts (isEditingFromPrint/selectedField changes)
+    }, [isEditingFromPrint, selectedField]);
 
     const hasAnySelection = isTitleSelected || isSubtitleSelected ||
         (selectedField?.cardIndex === card.index && selectedField?.fieldType === "content");
