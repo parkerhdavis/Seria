@@ -308,26 +308,43 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             }
 
             // Arrow key navigation
-            if (selectedCell && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+            if (selectedCell && !e.ctrlKey && !e.altKey) {
                 let newRow = selectedCell.row;
                 let newCol = selectedCell.col;
+                let isArrowKey = false;
 
                 if (e.key === "ArrowUp") {
                     newRow = Math.max(0, selectedCell.row - 1);
                     e.preventDefault();
+                    isArrowKey = true;
                 } else if (e.key === "ArrowDown") {
                     newRow = Math.min(filteredData.length - 1, selectedCell.row + 1);
                     e.preventDefault();
+                    isArrowKey = true;
                 } else if (e.key === "ArrowLeft") {
                     newCol = Math.max(0, selectedCell.col - 1);
                     e.preventDefault();
+                    isArrowKey = true;
                 } else if (e.key === "ArrowRight") {
                     newCol = Math.min(headers.length - 1, selectedCell.col + 1);
                     e.preventDefault();
+                    isArrowKey = true;
                 }
 
-                if (newRow !== selectedCell.row || newCol !== selectedCell.col) {
-                    setSelectedCell(newRow, newCol);
+                if (isArrowKey && (newRow !== selectedCell.row || newCol !== selectedCell.col)) {
+                    if (e.shiftKey) {
+                        // Shift+arrow: extend selection range
+                        if (selectedRange) {
+                            // Extend existing range
+                            setSelectedRange(selectedRange.startRow, selectedRange.startCol, newRow, newCol);
+                        } else {
+                            // Create new range from current cell to new cell
+                            setSelectedRange(selectedCell.row, selectedCell.col, newRow, newCol);
+                        }
+                    } else {
+                        // Normal arrow: move selection
+                        setSelectedCell(newRow, newCol);
+                    }
                 }
             }
 
