@@ -75,6 +75,9 @@ install: setup
 
 build:
 	@echo "🔨 Building production app bundle..."
+	@echo "  → Building frontend..."
+	@cd frontend && npm run build
+	@echo "  → Building Tauri app..."
 	@cd backend && ../frontend/node_modules/.bin/tauri build
 	@echo "✅ Build complete - installer created in backend/target/release/bundle/"
 

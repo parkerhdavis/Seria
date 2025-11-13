@@ -40,16 +40,15 @@ Thumbs.db
 # ────────────────────────────────────────────────────────────────────────────────
 # Rust - Build Artifacts
 # ────────────────────────────────────────────────────────────────────────────────
-backend/target/
+# Build artifacts now in top-level target/ (configured via backend/.cargo/config.toml)
+target/
 **/*.rs.bk
 *.pdb
-target/debug/
 
 # ────────────────────────────────────────────────────────────────────────────────
 # Tauri - Build & Distribution
 # ────────────────────────────────────────────────────────────────────────────────
 backend/WixTools/
-backend/target/
 gen/
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -109,7 +108,7 @@ coverage/
 .nyc_output/
 frontend/coverage/
 frontend/.nyc_output/
-testing/
+samples/
 
 # ════════════════════════════════════════════════════════════════════════════════
 # PROJECT-LEVEL

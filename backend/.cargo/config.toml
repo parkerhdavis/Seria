@@ -1,0 +1,7 @@
+# Cargo configuration for Juniper backend
+# This configures the build output directory
+
+[build]
+# Place build artifacts in the top-level target/ directory
+# instead of backend/target/ for cleaner project organization
+target-dir = "../target"

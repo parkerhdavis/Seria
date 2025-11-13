@@ -2,11 +2,10 @@
     "$schema": "https://schema.tauri.app/config/2",
     "productName": "Juniper",
     "version": "0.1.0",
-    "identifier": "com.juniper.app",
+    "identifier": "com.juniper.csveditor",
     "build": {
         "devUrl": "http://localhost:5173",
-        "frontendDist": "../frontend/dist",
-        "beforeBuildCommand": "cd ../frontend && npm run build"
+        "frontendDist": "../frontend/dist"
     },
     "bundle": {
         "active": true,
