@@ -16,6 +16,7 @@ import MultiCellEditDialog from "./MultiCellEditDialog";
 import { calculateSummary } from "@utils/summaryCalculations";
 import { debouncedSaveCurrentFileConfig } from "@utils/configPersistence";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
+import { useAutosave } from "@utils/useAutosave";
 
 interface CSVGridProps {
     onCellEdit?: (row: number, col: number, value: string) => void;
@@ -69,6 +70,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     const { matches, currentMatchIndex } = useFindReplaceStore();
 
     const { position: drawerPosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
+
+    // Autosave hook
+    const { triggerAutosave } = useAutosave();
 
     // Selection state for drag selection
     const [isSelecting, setIsSelecting] = useState(false);
@@ -739,6 +743,8 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             if (onCellEdit) {
                 onCellEdit(row, col, editingValue);
             }
+            // Trigger autosave after cell edit
+            triggerAutosave();
         }
         clearEditingCell();
 
@@ -863,6 +869,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 updateCells(clearUpdates);
                 setCutCells(null);
             }
+
+            // Trigger autosave after paste operation
+            triggerAutosave();
         } catch (err) {
             console.error("Failed to paste from system clipboard:", err);
         }
@@ -918,6 +927,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
         // Update all cells in a single operation (creates single undo snapshot)
         updateCells(cellsToUpdate);
+
+        // Trigger autosave after multi-cell edit
+        triggerAutosave();
 
         setMultiCellEditDialog(null);
 

@@ -30,6 +30,10 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setCsvFollowsPrintEdit,
         hoverHighlightMode,
         setHoverHighlightMode,
+        autosaveEnabled,
+        setAutosaveEnabled,
+        autosaveIntervalSeconds,
+        setAutosaveIntervalSeconds,
     } = useSettingsStore();
 
     const { exportConfigs, importConfigs, cleanupOldConfigs } = useFileConfigStore();
@@ -244,6 +248,97 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                         </span>
                                     </div>
                                 </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* File Saving Settings */}
+                    <div className="card bg-base-200 shadow-md">
+                        <div className="card-body">
+                            <h3 className="card-title text-xl mb-4">File Saving</h3>
+
+                            <div className="form-control">
+                                <label className="label cursor-pointer justify-start gap-4">
+                                    <input
+                                        type="checkbox"
+                                        className="checkbox checkbox-primary"
+                                        checked={autosaveEnabled}
+                                        onChange={(e) => setAutosaveEnabled(e.target.checked)}
+                                    />
+                                    <div>
+                                        <span className="label-text font-semibold block">Enable autosave</span>
+                                        <span className="label-text-alt block text-base-content/60">
+                                            Automatically save changes after edits
+                                        </span>
+                                    </div>
+                                </label>
+                            </div>
+
+                            {autosaveEnabled && (
+                                <div className="form-control mt-4">
+                                    <label className="label">
+                                        <span className="label-text font-semibold">Autosave interval</span>
+                                    </label>
+                                    <div className="flex items-center gap-4">
+                                        <input
+                                            type="range"
+                                            min="5"
+                                            max="300"
+                                            step="5"
+                                            value={autosaveIntervalSeconds}
+                                            onChange={(e) => setAutosaveIntervalSeconds(Number(e.target.value))}
+                                            className="range range-primary flex-1"
+                                        />
+                                        <div className="badge badge-primary badge-lg min-w-[80px]">
+                                            {autosaveIntervalSeconds}s
+                                        </div>
+                                    </div>
+                                    <label className="label">
+                                        <span className="label-text-alt">Time to wait after last edit before autosaving (5-300 seconds)</span>
+                                    </label>
+                                    <div className="flex gap-2 mt-2">
+                                        <button
+                                            className="btn btn-xs btn-ghost"
+                                            onClick={() => setAutosaveIntervalSeconds(10)}
+                                        >
+                                            10s
+                                        </button>
+                                        <button
+                                            className="btn btn-xs btn-ghost"
+                                            onClick={() => setAutosaveIntervalSeconds(30)}
+                                        >
+                                            30s
+                                        </button>
+                                        <button
+                                            className="btn btn-xs btn-ghost"
+                                            onClick={() => setAutosaveIntervalSeconds(60)}
+                                        >
+                                            1m
+                                        </button>
+                                        <button
+                                            className="btn btn-xs btn-ghost"
+                                            onClick={() => setAutosaveIntervalSeconds(120)}
+                                        >
+                                            2m
+                                        </button>
+                                        <button
+                                            className="btn btn-xs btn-ghost"
+                                            onClick={() => setAutosaveIntervalSeconds(300)}
+                                        >
+                                            5m
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="alert alert-info mt-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-5 h-5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <div className="text-sm">
+                                    <p className="font-semibold">How Autosave Works</p>
+                                    <p>After you confirm a cell edit, the autosave timer starts. If you make another edit before the timer expires, it resets. When the timer reaches zero, your changes are automatically saved.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
