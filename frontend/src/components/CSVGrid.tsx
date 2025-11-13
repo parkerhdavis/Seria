@@ -232,7 +232,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             // Don't clear selection state if mouseup is inside the editing cell
             // This prevents re-renders that could clear text selection
             const target = e.target as Node;
-            if (editingCellRef.current && editingCellRef.current.contains(target)) {
+            const isInsideEditingCell = editingCellRef.current && editingCellRef.current.contains(target);
+
+            if (isInsideEditingCell) {
                 return;
             }
 
@@ -663,6 +665,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
     // Start editing a cell
     const handleStartEdit = (row: number, col: number, value: string) => {
+        // Clear selection state to prevent interference with text selection inside the editor
+        setIsSelecting(false);
+        setSelectionStart(null);
         setEditingCell(row, col, value);
     };
 
@@ -864,6 +869,12 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             setHoveredColumn(col);
         }
 
+        // Don't handle drag selection if we're currently editing a cell
+        // This prevents interference with text selection inside the editor
+        if (editingCell && editingSource === "csv") {
+            return;
+        }
+
         // Handle drag selection
         if (isSelecting && selectionStart) {
             // Only create range if moved to different cell
@@ -1019,6 +1030,12 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 const draggableElement = target.closest('[draggable="true"]');
                 if (draggableElement) {
                     return; // Let the drag operation handle it
+                }
+
+                // Don't steal focus if clicking inside the editing cell
+                // This allows text selection to work properly
+                if (editingCellRef.current && editingCellRef.current.contains(target)) {
+                    return;
                 }
 
                 // Keep focus on grid when clicking anywhere inside it
@@ -1376,9 +1393,15 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                             e.target.style.height = "auto";
                                                             e.target.style.height = `${e.target.scrollHeight}px`;
                                                         }}
-                                                        onMouseDown={(e) => {
-                                                            // Stop propagation to prevent cell selection handlers from interfering
+                                                        onClick={(e) => {
+                                                            // Stop click propagation to prevent grid container from stealing focus
                                                             e.stopPropagation();
+                                                        }}
+                                                        onMouseDown={(e) => {
+                                                            // Stop both React synthetic event and native event propagation
+                                                            // This prevents the document-level mousedown listener from closing the editor
+                                                            e.stopPropagation();
+                                                            e.nativeEvent.stopImmediatePropagation();
                                                         }}
                                                         onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
                                                         onInput={(e) => {
@@ -1396,9 +1419,15 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                         style={{ userSelect: "text", WebkitUserSelect: "text" }}
                                                         value={editingValue}
                                                         onChange={(e) => updateEditingValue(e.target.value)}
-                                                        onMouseDown={(e) => {
-                                                            // Stop propagation to prevent cell selection handlers from interfering
+                                                        onClick={(e) => {
+                                                            // Stop click propagation to prevent grid container from stealing focus
                                                             e.stopPropagation();
+                                                        }}
+                                                        onMouseDown={(e) => {
+                                                            // Stop both React synthetic event and native event propagation
+                                                            // This prevents the document-level mousedown listener from closing the editor
+                                                            e.stopPropagation();
+                                                            e.nativeEvent.stopImmediatePropagation();
                                                         }}
                                                         onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
                                                         autoFocus
