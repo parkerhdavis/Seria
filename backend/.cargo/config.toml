@@ -1,4 +1,4 @@
-# Cargo configuration for Juniper backend
+# Cargo configuration for Seria backend
 # This configures the build output directory
 
 [build]

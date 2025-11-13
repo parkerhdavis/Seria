@@ -6,7 +6,7 @@ Comment=Multimodal Data Editing for Game Writers
 Exec=seria %F
 Icon=seria
 Terminal=false
-Categories=Office;TextEditor;Utility;
+Categories=TextEditor;Utility;
 MimeType=text/csv;text/comma-separated-values;
 Keywords=csv;editor;spreadsheet;data;
 

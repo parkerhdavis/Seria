@@ -48,18 +48,18 @@ Seria sits directly on top of your data files. no import/export step, no convers
 
 ### Feature Comparison
 
-| Feature                               | Excel/Sheets | Final Draft/Scrivener | **Seria**      |
-| ------------------------------------- | ------------ | --------------------- | ---------------- |
+| Feature                               | Excel/Sheets | Final Draft/Scrivener | **Seria**     |
+| ------------------------------------- | ------------ | --------------------- | ------------- |
 | Primitive data format (CSV/TSV, JSON) | ✅            | 🚫                    | ✅ (JSON soon) |
-| Git-friendly / version control        | ✅            | 🚫                    | ✅            |
-| Screenplay formatting                 | 🚫           | ✅                     | ✅            |
-| Card/corkboard view                   | 🚫           | ✅                     | ✅            |
-| Edit directly in formatted view       | 🚫           | ✅                     | ✅            |
-| Bidirectional sync                    | 🚫           | 🚫                    | ✅            |
-| Game engine integration               | ✅            | 🚫                    | ✅            |
-| Formulas, calculations, validations   | ✅            | 🚫                    | 💡 (soon)    |
-| Real-time collaboration / cloud sync  | ✅            | Limited               | 🚫 (not yet) |
-| Custom print templates                | 🚫           | Limited               | ✅            |
+| Git-friendly / version control        | ✅            | 🚫                    | ✅             |
+| Screenplay formatting                 | 🚫           | ✅                     | ✅             |
+| Card/corkboard view                   | 🚫           | ✅                     | ✅             |
+| Edit directly in formatted view       | 🚫           | ✅                     | ✅             |
+| Bidirectional sync                    | 🚫           | 🚫                    | ✅             |
+| Game engine integration               | ✅            | 🚫                    | ✅             |
+| Formulas, calculations, validations   | ✅            | 🚫                    | 💡 (soon)     |
+| Real-time collaboration / cloud sync  | ✅            | Limited               | 🚫 (not yet)  |
+| Custom print templates                | 🚫           | Limited               | ✅             |
 
 **Seria gives you the data discipline and flexibility of sheets with the fluid experience of dedicated writing tools.**
 
@@ -181,13 +181,6 @@ Beyond that, I only have one rule: **First, do no harm. Then, help where you can
 
 If you have some cash to spare and want to help out, that's very kind. I'm doing alright, so rather than sharing that kindness with me, I encourage you to share it with your charity of choice. Mine is the [GiveWell top charities fund](https://www.givewell.org/top-charities-fund) , which does excellent research to figure out which causes can save the most human lives for the money, and put their funds there.
 
-For example: their grant to the Against Malaria Foundation was shown to save lives at a rate of just $1,700 per life saved.
+For example: their grant to the [Against Malaria Foundation](https://www.againstmalaria.com) was shown to deliver outcomes at a cost of just $1,700 per life saved.
 
-```embed
-title: "Top Charities Fund"
-image: "https://in.getclicky.com/78566ns.gif"
-description: "Published: June 2021; Last updated: November 2025 (April 2021 version)"
-url: "https://www.givewell.org/top-charities-fund"
-favicon: ""
-aspectRatio: "100"
-```
+![GiveWell Logo](https://blog.givewell.org/wp-content/themes/givewell2015/images/logo.png)

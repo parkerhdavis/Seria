@@ -5,11 +5,11 @@ import PrintDrawer from "@components/prints/PrintDrawer";
 import SettingsModal from "@components/modals/SettingsModal";
 import FindReplaceModal from "@components/modals/FindReplaceModal";
 import { useCellStore } from "@stores/cellStore";
-import { useFindReplaceStore } from "./stores/findReplaceStore";
-import { useDrawerStore } from "./stores/drawerStore";
-import { useFileConfigStore } from "./stores/fileConfigStore";
-import { useSettingsStore } from "./stores/settingsStore";
-import { debouncedSaveCurrentFileConfig } from "./utils/configPersistence";
+import { useFindReplaceStore } from "@/stores/findReplaceStore";
+import { useDrawerStore } from "@/stores/drawerStore";
+import { useFileConfigStore } from "@/stores/fileConfigStore";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { debouncedSaveCurrentFileConfig } from "@/utils/configPersistence";
 import { DragProvider } from "./contexts/DragContext";
 import { open } from "@tauri-apps/plugin-dialog";
 
