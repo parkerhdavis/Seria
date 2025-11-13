@@ -32,6 +32,7 @@ export interface FileConfig {
     config: {
         // Column display settings
         columnWidths?: Record<number, number>;
+        columnOrder?: number[];  // Persistent column ordering (array of column indices)
 
         // Column summaries
         columnSummaries?: Record<string, string>;

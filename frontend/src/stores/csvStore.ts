@@ -79,6 +79,9 @@ interface CSVStore {
     // Column widths stored as proportions (0-1 range) of available width
     // e.g., {0: 0.3, 1: 0.5, 2: 0.2} means col 0 gets 30%, col 1 gets 50%, col 2 gets 20%
     columnWidths: Record<number, number>;
+    // Column order - array of column indices indicating display order
+    // e.g., [2, 0, 1] means display column 2 first, then column 0, then column 1
+    columnOrder: number[];
 
     // Filtering and summaries
     columnFilters: ColumnFilter[];
@@ -164,6 +167,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     selectedRange: null,
     clipboard: null,
     columnWidths: {},
+    columnOrder: [],
     columnFilters: [],
     columnSummaries: {},
     undoStack: [],
@@ -196,6 +200,9 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                 initialSummaries[header] = "count";
             });
 
+            // Initialize default column order [0, 1, 2, ...]
+            const defaultColumnOrder = csvData.headers.map((_, index) => index);
+
             // Update state (initial load before applying config)
             set({
                 headers: csvData.headers,
@@ -210,6 +217,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                     columnCount: csvData.headers.length,
                 },
                 columnSummaries: initialSummaries,
+                columnOrder: defaultColumnOrder,
                 isDirty: false,
                 isLoading: false,
                 error: null,
@@ -227,6 +235,15 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                     // Apply config to CSV store
                     if (fileConfig.config.columnWidths) {
                         set({ columnWidths: fileConfig.config.columnWidths });
+                    }
+
+                    // Apply saved column order if it exists and is valid
+                    if (fileConfig.config.columnOrder && Array.isArray(fileConfig.config.columnOrder)) {
+                        const savedOrder = fileConfig.config.columnOrder;
+                        // Validate that column order matches current CSV structure
+                        if (savedOrder.length === csvData.headers.length) {
+                            set({ columnOrder: savedOrder });
+                        }
                     }
 
                     if (fileConfig.config.filters) {
@@ -883,7 +900,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     },
 
     reorderColumns: (fromIndex: number, toIndex: number) => {
-        const { headers, data } = get();
+        const { headers, data, columnOrder } = get();
 
         if (fromIndex === toIndex) return;
         if (fromIndex < 0 || fromIndex >= headers.length) return;
@@ -905,6 +922,14 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
             return newRow;
         });
 
-        set({ headers: newHeaders, data: newData, isDirty: true });
+        // Reorder columnOrder array
+        const newColumnOrder = [...columnOrder];
+        const [movedOrderIndex] = newColumnOrder.splice(fromIndex, 1);
+        newColumnOrder.splice(toIndex, 0, movedOrderIndex);
+
+        set({ headers: newHeaders, data: newData, columnOrder: newColumnOrder, isDirty: true });
+
+        // Trigger debounced save of column order to file config
+        // This is handled by configPersistence utility which watches for changes
     },
 }));

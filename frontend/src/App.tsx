@@ -23,7 +23,7 @@ function App() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(100);
-    const { saveCSV, loadCSV, undo, redo, canUndo, canRedo, columnFilters, currentFile } = useCSVStore();
+    const { saveCSV, loadCSV, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile } = useCSVStore();
     const { openFind, openReplace } = useFindReplaceStore();
     const { position: printPreviewPosition, togglePosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
     const { loadConfigs } = useFileConfigStore();
@@ -57,6 +57,7 @@ function App() {
         autoFitColumns,
         hoverHighlightMode,
         columnFilters,
+        columnOrder,
         printPreviewPosition,
         rightDrawerSize,
         bottomDrawerSize,
