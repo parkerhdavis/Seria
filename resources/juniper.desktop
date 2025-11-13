@@ -1,0 +1,18 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Juniper
+Comment=Specialized CSV editor for writers and designers
+Exec=juniper %F
+Icon=juniper
+Terminal=false
+Categories=Office;TextEditor;Utility;
+MimeType=text/csv;text/comma-separated-values;
+Keywords=csv;editor;spreadsheet;data;
+
+# Actions for right-click menu
+Actions=NewWindow;
+
+[Desktop Action NewWindow]
+Name=Open New Window
+Exec=juniper
