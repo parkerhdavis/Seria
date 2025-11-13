@@ -2,9 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 /**
- * Juniper - Main Tauri Application
+ * Seria - Main Tauri Application
  *
- * This is the minimal Rust backend for the Juniper desktop application.
+ * This is the minimal Rust backend for the Seria desktop application.
  * It provides file I/O and storage commands to the React frontend.
  *
  * Most business logic lives in the frontend (React + TypeScript).

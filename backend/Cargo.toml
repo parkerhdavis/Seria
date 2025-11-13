@@ -1,7 +1,7 @@
 [package]
-name = "juniper"
+name = "seria"
 version = "0.1.0"
-description = "A specialized desktop Cell file editor (CSV, TSV, JSON) for writers and designers"
+description = "Multimodal serialized data editor for game writers and narrative designers"
 authors = ["Parker H. Davis"]
 license = ""
 repository = ""

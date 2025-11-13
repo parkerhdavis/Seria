@@ -7,9 +7,9 @@
  * - Per-file configuration storage
  *
  * Storage location is platform-specific:
- * - Windows: %APPDATA%\juniper
- * - macOS: ~/Library/Application Support/juniper
- * - Linux: ~/.config/juniper
+ * - Windows: %APPDATA%\seria
+ * - macOS: ~/Library/Application Support/seria
+ * - Linux: ~/.config/seria
  */
 
 use std::fs;

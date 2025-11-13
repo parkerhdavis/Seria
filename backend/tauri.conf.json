@@ -1,8 +1,8 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
-    "productName": "Juniper",
+    "productName": "Seria",
     "version": "0.1.0",
-    "identifier": "com.juniper.celleditor",
+    "identifier": "com.seria.celleditor",
     "build": {
         "devUrl": "http://localhost:5173",
         "frontendDist": "../frontend/dist"
@@ -39,7 +39,7 @@
     "app": {
         "windows": [
             {
-                "title": "Juniper - Cell Editor",
+                "title": "Seria - Data Editing for Writers",
                 "width": 1400,
                 "height": 900,
                 "minWidth": 800,

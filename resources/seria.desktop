@@ -1,10 +1,10 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Juniper
-Comment=Specialized CSV editor for writers and designers
-Exec=juniper %F
-Icon=juniper
+Name=Seria
+Comment=Multimodal Data Editing for Game Writers
+Exec=seria %F
+Icon=seria
 Terminal=false
 Categories=Office;TextEditor;Utility;
 MimeType=text/csv;text/comma-separated-values;
@@ -15,4 +15,4 @@ Actions=NewWindow;
 
 [Desktop Action NewWindow]
 Name=Open New Window
-Exec=juniper
+Exec=seria

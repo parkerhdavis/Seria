@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Setup script for Juniper Desktop App
+# Setup script for Seria Desktop App
 # Installs Rust toolchain and Node.js dependencies
 
 set -euo pipefail
@@ -10,7 +10,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$script_dir"
 
 echo "════════════════════════════════════════════════════════════════════════════════"
-echo "  Juniper Setup - Installing Dependencies"
+echo "  Seria Setup - Installing Dependencies"
 echo "════════════════════════════════════════════════════════════════════════════════"
 echo ""
 

@@ -2,7 +2,7 @@
 
 help:
 	@echo "════════════════════════════════════════════════════════════════════════════════"
-	@echo "  Juniper Project - Development Commands"
+	@echo "  Seria Project - Development Commands"
 	@echo "════════════════════════════════════════════════════════════════════════════════"
 	@echo ""
 	@echo "Usage: make [target]"

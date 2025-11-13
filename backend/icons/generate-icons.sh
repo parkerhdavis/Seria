@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Icon generation script for Juniper Tauri app
-# Takes juniper_icon_fullres.png and generates all required icon sizes
+# Icon generation script for Seria Tauri app
+# Takes seria_icon_fullres.png and generates all required icon sizes
 # Requires ImageMagick (convert command)
 
 set -e  # Exit on error
 
-SOURCE="juniper_icon_fullres.png"
+SOURCE="seria_icon_fullres.png"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 cd "$SCRIPT_DIR"

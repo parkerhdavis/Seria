@@ -1,6 +1,6 @@
 # Seria
 
-**A cellular editor for game writers and narrative designers.** Seria lets you work directly with primitive data files (**CSV and TSV**, with **JSON coming soon**) while viewing and editing your content in writer-friendly formats like Screenplay and Corkboard, or data-friendly views like Charts and Record editors. Changes made in any view sync instantly across all views - no export step, no duplication, just your data in the format that works for what you're doing.
+**Multimodal serialized data editor for game writers and narrative designers.** Seria lets you work directly with primitive data files (**CSV and TSV**, with **JSON coming soon**) while viewing and editing your content in writer-friendly formats like Screenplay and Corkboard views, as well as data-friendly views like Graph and Record editors. Changes made in any view sync instantly across all views - no import/export step, no duplication, just your raw data in whatever format feels best for what you're doing.
 
 ---
 
@@ -44,7 +44,7 @@ Game writers need primitive data sources, but the tools available force painful 
 
 ## The Seria Solution
 
-Seria sits directly on top of your data files. no import/export step, no conversion, no duplication. Your data file stays the single source of truth while you view and edit it through a rich cellular editor and multi-modal rendered views (what I call Prints) that accommodate far more ways writers actually think.
+Seria sits directly on top of your data files. no import/export step, no conversion, no duplication. Your data file stays the single source of truth while you view and edit it through a rich cellular editor and multimodal rendered views (what I call Prints) that accommodate far more ways writers actually think.
 
 ### Feature Comparison
 
