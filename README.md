@@ -48,18 +48,18 @@ Juniper sits directly on top of your data files. no import/export step, no conve
 
 ### Feature Comparison
 
-| Feature                               | Excel/Sheets | Final Draft/Scrivener | **Juniper**      |
-| ------------------------------------- | ------------ | --------------------- | ---------------- |
-| Primitive data format (CSV/TSV, JSON) | ✅            | 🚫                     | ✅                |
-| Git-friendly / version control        | ✅            | 🚫                     | ✅                |
-| Screenplay formatting                 | 🚫            | ✅                     | ✅                |
-| Card/corkboard view                   | 🚫            | ✅                     | ✅                |
-| Edit directly in formatted view       | 🚫            | ✅                     | ✅                |
-| Bidirectional sync                    | 🚫            | 🚫                     | ✅                |
-| Game engine integration               | ✅            | 🚫                     | ✅                |
-| Formulas, calculations, validations   | ✅            | 🚫                     | 💡 (coming soon) |
-| Real-time collaboration / cloud sync  | ✅            | Limited               | 🚫 (not yet)      |
-| Custom print templates                | 🚫            | Limited               | ✅                |
+| Feature                               | Excel/Sheets | Final Draft/Scrivener | **Juniper**  |
+| ------------------------------------- | ------------ | --------------------- | ------------ |
+| Primitive data format (CSV/TSV, JSON) | ✅            | 🚫                    | ✅            |
+| Git-friendly / version control        | ✅            | 🚫                    | ✅            |
+| Screenplay formatting                 | 🚫           | ✅                     | ✅            |
+| Card/corkboard view                   | 🚫           | ✅                     | ✅            |
+| Edit directly in formatted view       | 🚫           | ✅                     | ✅            |
+| Bidirectional sync                    | 🚫           | 🚫                    | ✅            |
+| Game engine integration               | ✅            | 🚫                    | ✅            |
+| Formulas, calculations, validations   | ✅            | 🚫                    | 💡 (soon)    |
+| Real-time collaboration / cloud sync  | ✅            | Limited               | 🚫 (not yet) |
+| Custom print templates                | 🚫           | Limited               | ✅            |
 
 **Juniper gives you the data discipline and flexibility of sheets with the fluid experience of dedicated writing tools.**
 
