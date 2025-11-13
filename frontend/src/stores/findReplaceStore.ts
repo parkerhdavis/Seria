@@ -16,6 +16,7 @@ export interface SearchOptions {
     matchCase: boolean;
     matchWholeCell: boolean;
     searchInColumn: string | null; // null means search all columns
+    useWildcards: boolean; // Enable wildcard/regex pattern matching
 }
 
 interface FindReplaceStore {
@@ -54,6 +55,7 @@ export const useFindReplaceStore = create<FindReplaceStore>((set, get) => ({
         matchCase: false,
         matchWholeCell: false,
         searchInColumn: null,
+        useWildcards: true,
     },
 
     // Open in find mode

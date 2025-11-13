@@ -11,6 +11,7 @@ import { useFileConfigStore } from "./stores/fileConfigStore";
 import { useSettingsStore } from "./stores/settingsStore";
 import { debouncedSaveCurrentFileConfig } from "./utils/configPersistence";
 import { DragProvider } from "./contexts/DragContext";
+import { open } from "@tauri-apps/plugin-dialog";
 
 /**
  * Main application component
@@ -22,7 +23,7 @@ function App() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(100);
-    const { saveCSV, undo, redo, canUndo, canRedo, columnFilters, currentFile } = useCSVStore();
+    const { saveCSV, loadCSV, undo, redo, canUndo, canRedo, columnFilters, currentFile } = useCSVStore();
     const { openFind, openReplace } = useFindReplaceStore();
     const { position: printPreviewPosition, togglePosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
     const { loadConfigs } = useFileConfigStore();
@@ -70,8 +71,31 @@ function App() {
     // Global keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = async (e: KeyboardEvent) => {
+            // Ctrl+O - Open file
+            if (e.ctrlKey && e.key === "o") {
+                e.preventDefault();
+                try {
+                    const filePath = await open({
+                        multiple: false,
+                        filters: [
+                            { name: "CSV Files", extensions: ["csv"] },
+                            { name: "All Files", extensions: ["*"] },
+                        ],
+                        title: "Open CSV File",
+                    });
+                    if (filePath) {
+                        await loadCSV(filePath);
+                        // Blur the active element so keyboard shortcuts continue to work
+                        if (document.activeElement instanceof HTMLElement) {
+                            document.activeElement.blur();
+                        }
+                    }
+                } catch (error) {
+                    console.error("Open file failed:", error);
+                }
+            }
             // Ctrl+S - Save file
-            if (e.ctrlKey && e.key === "s") {
+            else if (e.ctrlKey && e.key === "s") {
                 e.preventDefault();
                 try {
                     await saveCSV();
@@ -142,7 +166,7 @@ function App() {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [saveCSV, openFind, openReplace, undo, redo, canUndo, canRedo, togglePosition]);
+    }, [saveCSV, loadCSV, openFind, openReplace, undo, redo, canUndo, canRedo, togglePosition]);
 
     return (
         <DragProvider>
