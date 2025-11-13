@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
+import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
 import { getMappedColumn } from "@/utils/printRecipeMapper";
 import { useCSVStore } from "@/stores/csvStore";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -51,10 +51,18 @@ interface SelectedPrintElement {
 }
 
 /**
- * Converts indent value (in pixels at 96dpi) to inches for rendering
+ * Gets the style configuration for a screenplay element type from the recipe
  */
-function pixelsToInches(pixels: number): number {
-    return pixels / 96; // 96dpi is standard screen resolution
+function getElementStyle(recipe: PrintRecipe, elementType: ElementType): RecipeIngredient["style"] {
+    // Get ingredient from recipe, or return default style if not found
+    const ingredient = recipe.ingredients?.[elementType];
+    return ingredient?.style || {
+        fontFamily: "Courier",
+        fontSize: 12,
+        textAlign: "left",
+        indent: 0,
+        lineSpacing: 1,
+    };
 }
 
 /**
@@ -62,6 +70,7 @@ function pixelsToInches(pixels: number): number {
  */
 function ScreenplayElementView({
     element,
+    recipe,
     showRowNumbers,
     isBeingEdited,
     isSelected,
@@ -74,6 +83,7 @@ function ScreenplayElementView({
     setRef,
 }: {
     element: ScreenplayElement;
+    recipe: PrintRecipe;
     showRowNumbers: boolean;
     isBeingEdited: boolean;
     isSelected: boolean;
@@ -91,41 +101,20 @@ function ScreenplayElementView({
     // Check if this element should be multi-line
     const isMultiLine = isMultiLineElement(element.type);
 
-    // Get styling based on element type
-    let textAlign: "left" | "right" = "left";
-    let indent = 0;
-    let textTransform: "uppercase" | "none" = "none";
-    let maxWidth = "100%";
+    // Get styling from recipe configuration
+    const elementConfig = getElementStyle(recipe, element.type);
 
-    switch (element.type) {
-        case "scene_heading":
-            textTransform = "uppercase";
-            break;
-        case "action":
-            // Standard left-aligned text
-            break;
-        case "character":
-            textTransform = "uppercase";
-            indent = pixelsToInches(148); // 3.7" from left edge = 2.2" from margin
-            break;
-        case "dialogue":
-            indent = pixelsToInches(67); // 2.5" from left edge = 1" from margin
-            maxWidth = "3.5in"; // Dialogue max width
-            break;
-        case "parenthetical":
-            indent = pixelsToInches(107); // 3.1" from left edge = 1.6" from margin
-            break;
-        case "transition":
-            textAlign = "right";
-            textTransform = "uppercase";
-            break;
-    }
-
+    // Build style object from recipe configuration with sensible defaults
     const style = {
-        marginLeft: indent > 0 ? `${indent}in` : undefined,
-        textAlign,
-        textTransform,
-        maxWidth: textAlign === "left" ? maxWidth : undefined,
+        marginLeft: elementConfig.indent ? `${elementConfig.indent}in` : undefined,
+        textAlign: elementConfig.textAlign || "left",
+        textTransform: elementConfig.textTransform || "none",
+        fontWeight: elementConfig.bold ? "bold" : "normal",
+        fontSize: elementConfig.fontSize ? `${elementConfig.fontSize}pt` : undefined,
+        maxWidth: elementConfig.textAlign !== "right" ?
+            (('maxWidth' in elementConfig ? (elementConfig as {maxWidth?: string}).maxWidth : undefined) || "100%") :
+            undefined,
+        lineHeight: elementConfig.lineSpacing || 1,
     };
 
     // Auto-focus input/textarea when editing starts from Print view
@@ -144,8 +133,7 @@ function ScreenplayElementView({
                 inputRef.current.setSelectionRange(editingValue.length, editingValue.length);
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // Disabled: editingValue.length dependency removed
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing editingValue.length dependency
     // Reason: Including editingValue.length causes cursor to reset on every keystroke
     // Alternative: Only run when editing starts (isEditingFromPrint changes) or field type changes (isMultiLine)
     }, [isEditingFromPrint, isMultiLine]);
@@ -289,13 +277,13 @@ function ScreenplayPrint({
     const transitionColumn = getMappedColumn(configuration.fieldMappings, "transition");
 
     // Get render settings
-    const pageWidth = configuration.renderSettings.pageWidth ?? recipe.renderSettings.pageWidth ?? 8.5;
-    const pageHeight = configuration.renderSettings.pageHeight ?? recipe.renderSettings.pageHeight ?? 11;
-    const marginTop = configuration.renderSettings.marginTop ?? recipe.renderSettings.marginTop ?? 1;
-    const marginBottom = configuration.renderSettings.marginBottom ?? recipe.renderSettings.marginBottom ?? 1;
-    const marginLeft = configuration.renderSettings.marginLeft ?? recipe.renderSettings.marginLeft ?? 1.5;
-    const marginRight = configuration.renderSettings.marginRight ?? recipe.renderSettings.marginRight ?? 1;
-    const showPageNumbers = configuration.renderSettings.showPageNumbers ?? recipe.renderSettings.showPageNumbers ?? true;
+    const pageWidth = configuration.renderSettings.pageWidth ?? recipe.documentSettings.pageWidth ?? 8.5;
+    const pageHeight = configuration.renderSettings.pageHeight ?? recipe.documentSettings.pageHeight ?? 11;
+    const marginTop = configuration.renderSettings.marginTop ?? recipe.documentSettings.marginTop ?? 1;
+    const marginBottom = configuration.renderSettings.marginBottom ?? recipe.documentSettings.marginBottom ?? 1;
+    const marginLeft = configuration.renderSettings.marginLeft ?? recipe.documentSettings.marginLeft ?? 1.5;
+    const marginRight = configuration.renderSettings.marginRight ?? recipe.documentSettings.marginRight ?? 1;
+    const showPageNumbers = configuration.renderSettings.showPageNumbers ?? recipe.documentSettings.showPageNumbers ?? true;
 
     // Calculate available space
     const availableWidth = containerWidth ?? containerRef?.clientWidth ?? 800;
@@ -713,7 +701,7 @@ function ScreenplayPrint({
             >
                 {/* Page number (top right, only if enabled) */}
                 {showPageNumbers && (
-                    <div className="absolute top-2 right-8 text-sm font-mono">
+                    <div className="absolute top-2 right-10 text-sm font-mono">
                         1.
                     </div>
                 )}
@@ -753,6 +741,7 @@ function ScreenplayPrint({
                             <ScreenplayElementView
                                 key={index}
                                 element={element}
+                                recipe={recipe}
                                 showRowNumbers={false}
                                 isBeingEdited={isBeingEdited}
                                 isSelected={isSelected}

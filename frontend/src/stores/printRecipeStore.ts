@@ -11,7 +11,7 @@ import { persist } from "zustand/middleware";
 import type {
     PrintRecipe,
     RecipeConfiguration,
-    RecipeRenderSettings,
+    RecipeDocumentSettings,
 } from "@/types/printRecipe";
 import { getBundledRecipes } from "@/utils/bundledRecipes";
 import { autoMapRecipe, updateFieldMapping, validateRecipeConfiguration } from "@/utils/printRecipeMapper";
@@ -35,7 +35,7 @@ interface PrintRecipeState {
     selectRecipe: (recipeId: string) => void;
     autoMapFields: (recipeId: string) => void;
     updateMapping: (recipeId: string, ingredientId: string, csvColumn: string | null) => void;
-    updateRenderSettings: (recipeId: string, settings: RecipeRenderSettings) => void;
+    updateRenderSettings: (recipeId: string, settings: RecipeDocumentSettings) => void;
     getConfiguration: (recipeId: string) => RecipeConfiguration | undefined;
     getRecipe: (recipeId: string) => PrintRecipe | undefined;
     validateConfiguration: (recipeId: string) => { isValid: boolean; errors: string[] };
@@ -71,7 +71,7 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
                         newConfigurations[recipe.id] = {
                             recipeId: recipe.id,
                             fieldMappings: [],
-                            renderSettings: { ...recipe.renderSettings },
+                            renderSettings: { ...recipe.documentSettings },
                             lastModified: new Date(),
                         };
                     }
@@ -124,7 +124,7 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
                 newConfigurations[recipeId] = {
                     recipeId,
                     fieldMappings: result.mappings,
-                    renderSettings: configurations[recipeId]?.renderSettings ?? { ...recipe.renderSettings },
+                    renderSettings: configurations[recipeId]?.renderSettings ?? { ...recipe.documentSettings },
                     lastModified: new Date(),
                 };
 
@@ -173,7 +173,7 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
             /**
              * Updates render settings for a recipe
              */
-            updateRenderSettings: (recipeId: string, settings: RecipeRenderSettings) => {
+            updateRenderSettings: (recipeId: string, settings: RecipeDocumentSettings) => {
                 const { configurations } = get();
                 const currentConfig = configurations[recipeId];
 
@@ -238,7 +238,7 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
                 newConfigurations[recipeId] = {
                     recipeId,
                     fieldMappings: [],
-                    renderSettings: { ...recipe.renderSettings },
+                    renderSettings: { ...recipe.documentSettings },
                     lastModified: new Date(),
                 };
 
@@ -262,7 +262,7 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
                 newConfigurations[recipe.id] = {
                     recipeId: recipe.id,
                     fieldMappings: [],
-                    renderSettings: { ...recipe.renderSettings },
+                    renderSettings: { ...recipe.documentSettings },
                     lastModified: new Date(),
                 };
 

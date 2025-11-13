@@ -2,7 +2,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCSVStore } from "@stores/csvStore";
 import { useFileTreeStore } from "@stores/fileTreeStore";
 import { useSettingsStore } from "@stores/settingsStore";
-import RowColoringDropdown from "./RowColoringDropdown";
+import RowColoringDropdown from "../csv/RowColoringDropdown";
 
 interface HeaderProps {
     onTogglePrintPreview?: () => void;

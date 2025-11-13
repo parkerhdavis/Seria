@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import Layout from "./components/Layout";
+import Layout from "@components/layout/Layout";
 import Editor from "./pages/Editor";
-import PrintDrawer from "@components/PrintDrawer";
+import PrintDrawer from "@components/prints/PrintDrawer";
 import SettingsModal from "./components/SettingsModal";
-import FindReplaceModal from "./components/FindReplaceModal";
+import FindReplaceModal from "@components/layout/FindReplaceModal";
 import { useCSVStore } from "./stores/csvStore";
 import { useFindReplaceStore } from "./stores/findReplaceStore";
 import { useDrawerStore } from "./stores/drawerStore";

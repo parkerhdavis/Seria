@@ -10,10 +10,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useCSVStore } from "@stores/csvStore";
 import { useDrag } from "@/contexts/DragContext";
-import { useDrawerStore } from "@/stores/drawerStore";
-import { usePrintRecipeStore } from "@/stores/printRecipeStore";
-import CardPrint from "@/components/prints/CardPrint";
-import ScreenplayPrint from "@/components/prints/ScreenplayPrint";
+import { useDrawerStore } from "@stores/drawerStore";
+import { usePrintRecipeStore } from "@stores/printRecipeStore";
+import CardPrint from "@components/prints/CardPrint";
+import ScreenplayPrint from "@components/prints/ScreenplayPrint";
 
 interface PrintPreviewDrawerProps {
     isOpen: boolean;

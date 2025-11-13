@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useCSVStore } from "@stores/csvStore";
-import CSVGrid from "@components/CSVGrid";
-import CSVGridVirtualized from "@components/CSVGridVirtualized";
+import CSVGrid from "@components/csv/CSVGrid";
+import CSVGridVirtualized from "@components/csv/CSVGridVirtualized";
 
 // Threshold for enabling virtualization (rows)
 const VIRTUALIZATION_THRESHOLD = 1000;

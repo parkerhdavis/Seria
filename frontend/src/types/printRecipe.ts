@@ -6,36 +6,43 @@
  * that map to CSV columns, along with rendering rules.
  */
 
-import { PrintFieldStyle } from "./print";
+/** Text transformation functions */
+export type TextTransform = "none" | "uppercase" | "lowercase" | "capitalize";
+
+/** Font family options */
+export type FontFamily = "Courier" | "Times New Roman" | "Arial" | "Helvetica" | "Georgia" | "Verdana";
+
 
 /**
  * Recipe ingredient definition
  * Represents a field that needs to be mapped from the CSV
  */
 export interface RecipeIngredient {
-    id: string;                     // Unique identifier (e.g., "title", "character", "dialogue")
-    name: string;                   // Display name (e.g., "Title", "Character Name")
-    description: string;            // Description of what this field represents
-    required: boolean;              // Whether this ingredient is required for the recipe
-    autoMapKeywords: string[];      // Keywords to use for automatic field matching (case-insensitive)
-    defaultStyle: PrintFieldStyle;  // Default styling for this ingredient
-    multipleAllowed?: boolean;      // Whether multiple CSV columns can map to this ingredient (e.g., for "Content")
-}
-
-/**
- * Field mapping from CSV column to recipe ingredient
- */
-export interface RecipeFieldMapping {
-    ingredientId: string;           // Which ingredient this maps to
-    csvColumn: string | null;       // Which CSV column to use (null if unmapped)
-    isAutoMapped: boolean;          // Whether this was automatically mapped or manually set
-    order?: number;                 // For ingredients that allow multiple mappings, the display order
+    setup: {
+        name: string;                   // Display name (e.g., "Title", "Character Name")
+        description: string;            // Description of what this field represents
+        required: boolean;              // Whether this ingredient is required for the recipe
+        autoMapKeywords: string[];      // Keywords to use for automatic field matching (case-insensitive)
+        multipleAllowed?: boolean;      // Whether multiple CSV columns can map to this ingredient (e.g., for "Content")
+    };
+    style: {
+        fontFamily: FontFamily;
+        fontSize: number;               // Font size in points
+        fontColor?: string;             // Optional text color (hex or CSS color name)
+        bold?: boolean;
+        italic?: boolean;
+        underline?: boolean;
+        textTransform?: TextTransform;  // Optional text transformation
+        textAlign: string;
+        indent: number;                 // Left indent in pixels or percentage
+        lineSpacing: number;            // Line spacing multiplier (1.0 = single, 2.0 = double)
+    };
 }
 
 /**
  * Recipe-specific rendering settings
  */
-export interface RecipeRenderSettings {
+export interface RecipeDocumentSettings {
     // Common settings
     pageWidth?: number;             // Page width in inches (default 8.5)
     pageHeight?: number;            // Page height in inches (default 11)
@@ -50,11 +57,6 @@ export interface RecipeRenderSettings {
     cardsPerRow?: number;           // Number of cards per row (for Card Print)
     cardSpacing?: number;           // Spacing between cards in pixels
 
-    // Screenplay-specific settings
-    showPageNumbers?: boolean;      // Show page numbers (for Screenplay Print)
-    startPageNumber?: number;       // Starting page number (default 1)
-    sceneNumbering?: boolean;       // Show scene numbers (for Screenplay Print)
-
     // Custom settings (extensible)
     [key: string]: unknown;
 }
@@ -68,12 +70,12 @@ export interface PrintRecipe {
     name: string;                   // Display name (e.g., "Card Print", "Screenplay Print")
     description: string;            // Description of what this recipe does
     type: RecipeType;               // Type of recipe
-    ingredients: RecipeIngredient[]; // All possible ingredients for this recipe
-    renderSettings: RecipeRenderSettings; // Recipe-specific rendering settings
+    ingredients: Record<string, RecipeIngredient>; // Ingredients keyed by ID
+    documentSettings: RecipeDocumentSettings; // Recipe-specific rendering settings
     version: string;                // Recipe version (for future compatibility)
     isCustom: boolean;              // Whether this is a user-created custom recipe
     createdAt?: Date;               // When this recipe was created (for custom recipes)
-    modifiedAt?: Date;              // When this recipe was last modified
+    modifiedAt?: Date;              // When this recipe was last modified (for custom recipes)
 }
 
 /**
@@ -81,13 +83,24 @@ export interface PrintRecipe {
  */
 export type RecipeType = "card" | "screenplay" | "dialogue" | "custom";
 
+
+
+/**
+ * Field mapping from CSV column to recipe ingredient
+ */
+export interface RecipeFieldMapping {
+    ingredientId: string;           // Which ingredient this maps to
+    csvColumn: string | null;       // Which CSV column to use (null if unmapped)
+    isAutoMapped: boolean;          // Whether this was automatically mapped or manually set
+    order?: number;                 // For ingredients that allow multiple mappings, the display order
+}
 /**
  * Recipe configuration (links a recipe to specific CSV field mappings)
  */
 export interface RecipeConfiguration {
     recipeId: string;               // Which recipe this configuration is for
     fieldMappings: RecipeFieldMapping[]; // Field mappings for this configuration
-    renderSettings: RecipeRenderSettings; // Override render settings (optional)
+    renderSettings: RecipeDocumentSettings; // Override render settings (optional)
     lastModified: Date;             // When this configuration was last modified
 }
 
@@ -109,7 +122,7 @@ export interface AutoMapResult {
 export interface RenderedElement {
     ingredientId: string;           // Which ingredient this element represents
     content: string;                // The actual text content
-    style: PrintFieldStyle;         // Applied styling
+    style: RecipeIngredient["style"]; // Applied styling
     metadata?: Record<string, unknown>; // Optional metadata (e.g., page breaks, scene numbers)
 }
 
