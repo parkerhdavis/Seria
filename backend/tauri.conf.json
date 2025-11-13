@@ -43,7 +43,9 @@
                         "fs:allow-write-text-file",
                         "fs:allow-read-file",
                         "fs:allow-write-file",
-                        "fs:allow-read-dir"
+                        "fs:allow-read-dir",
+                        "clipboard-manager:allow-read-text",
+                        "clipboard-manager:allow-write-text"
                     ]
                 }
             ]

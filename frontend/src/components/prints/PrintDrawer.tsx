@@ -10,10 +10,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useCSVStore } from "@stores/csvStore";
 import { useDrag } from "@/contexts/DragContext";
-import { useDrawerStore } from "@/stores/drawerStore";
-import { usePrintRecipeStore } from "@/stores/printRecipeStore";
-import CardPrint from "@/components/prints/CardPrint";
-import ScreenplayPrint from "@/components/prints/ScreenplayPrint";
+import { useDrawerStore } from "@stores/drawerStore";
+import { usePrintRecipeStore } from "@stores/printRecipeStore";
+import CardPrint from "@components/prints/CardPrint";
+import ScreenplayPrint from "@components/prints/ScreenplayPrint";
 
 interface PrintPreviewDrawerProps {
     isOpen: boolean;
@@ -33,6 +33,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
         setPosition,
     } = useDrawerStore();
     const [isResizing, setIsResizing] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
     const drawerRef = useRef<HTMLDivElement>(null);
     const { startDrag, endDrag } = useDrag();
 
@@ -94,6 +95,21 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
         };
     }, [isResizing, position, endDrag, setRightDrawerSize, setBottomDrawerSize]);
 
+    // Handle F11 to toggle fullscreen
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "F11") {
+                e.preventDefault();
+                setIsFullscreen(prev => !prev);
+            }
+        };
+
+        if (isOpen) {
+            window.addEventListener("keydown", handleKeyDown);
+            return () => window.removeEventListener("keydown", handleKeyDown);
+        }
+    }, [isOpen]);
+
     if (!isOpen) {
         return null;
     }
@@ -105,6 +121,93 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
     const resizeHandleClasses = position === "right"
         ? "absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-primary/50 select-none"
         : "absolute left-0 right-0 top-0 h-1 cursor-ns-resize hover:bg-primary/50 select-none";
+
+    // Render fullscreen mode
+    if (isFullscreen) {
+        return (
+            <div className="fixed inset-0 bg-base-200 z-[9999] flex flex-col">
+                {/* Fullscreen exit button */}
+                <div className="absolute top-4 right-4 z-10">
+                    <button
+                        className="btn btn-sm btn-ghost btn-circle bg-base-100/80 hover:bg-base-100"
+                        onClick={() => setIsFullscreen(false)}
+                        title="Exit Fullscreen (F11)"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Fullscreen content */}
+                <div className="flex-1 overflow-auto">
+                    {!fileInfo ? (
+                        <div className="flex flex-col items-center justify-center h-full text-base-content/50">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            <p className="text-center">
+                                Open a CSV file in the Editor to preview it here
+                            </p>
+                        </div>
+                    ) : (
+                        <>
+                            {selectedRecipeId && (() => {
+                                const recipe = recipes.find(r => r.id === selectedRecipeId);
+                                const config = configurations[selectedRecipeId];
+
+                                if (!recipe || !config) {
+                                    return (
+                                        <div className="text-center py-8 text-base-content/50">
+                                            <p>Recipe not found</p>
+                                        </div>
+                                    );
+                                }
+
+                                // Fullscreen uses entire viewport
+                                const containerWidth = window.innerWidth;
+                                const containerHeight = window.innerHeight;
+
+                                // Render based on recipe type
+                                switch (recipe.type) {
+                                    case "corkboard":
+                                        return (
+                                            <CardPrint
+                                                data={data}
+                                                headers={headers}
+                                                recipe={recipe}
+                                                configuration={config}
+                                                drawerPosition="bottom"
+                                                containerWidth={containerWidth}
+                                                containerHeight={containerHeight}
+                                            />
+                                        );
+                                    case "screenplay":
+                                        return (
+                                            <ScreenplayPrint
+                                                data={data}
+                                                headers={headers}
+                                                recipe={recipe}
+                                                configuration={config}
+                                                drawerPosition="bottom"
+                                                containerWidth={containerWidth}
+                                                containerHeight={containerHeight}
+                                            />
+                                        );
+                                    default:
+                                        return (
+                                            <div className="text-center py-8 text-base-content/50">
+                                                <p>Recipe type "{recipe.type}" not yet implemented</p>
+                                            </div>
+                                        );
+                                }
+                            })()}
+                        </>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div
@@ -122,23 +225,8 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                 }}
             />
             {/* Header */}
-            <div className={`flex items-center justify-between p-4 ${position === "right" ? "border-b" : "border-r"} border-base-300 ${position === "bottom" ? "min-w-[200px]" : ""}`}>
-                <h2 className="text-lg font-bold">Print Recipe</h2>
-                {/* Recipe selector */}
-                {/*<div className="mb-6">*/}
-                {/*<h3 className="text-sm font-semibold text-base-content/70 mb-2">Print Recipe</h3>*/}
-                <select
-                    className="select select-bordered select-sm max-w-200"
-                    value={selectedRecipeId ?? ""}
-                    onChange={(e) => selectRecipe(e.target.value)}
-                >
-                    {recipes.map((recipe) => (
-                        <option key={recipe.id} value={recipe.id}>
-                            {recipe.name}
-                        </option>
-                    ))}
-                </select>
-                {/*</div>*/}
+            <div className={`flex items-center gap-4 p-4 ${position === "right" ? "border-b" : "border-r"} border-base-300 ${position === "bottom" ? "min-w-[200px]" : ""}`}>
+                {/* Close button (left) */}
                 <button
                     className="btn btn-sm btn-ghost btn-circle"
                     onClick={() => setPosition(null)}
@@ -146,6 +234,33 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+
+                {/* Title and recipe selector (center) */}
+                <div className="flex items-center gap-3 flex-1">
+                    <h2 className="text-lg font-bold">Print Recipe</h2>
+                    <select
+                        className="select select-bordered select-sm max-w-200"
+                        value={selectedRecipeId ?? ""}
+                        onChange={(e) => selectRecipe(e.target.value)}
+                    >
+                        {recipes.map((recipe) => (
+                            <option key={recipe.id} value={recipe.id}>
+                                {recipe.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Fullscreen button (right) */}
+                <button
+                    className="btn btn-sm btn-ghost btn-circle"
+                    onClick={() => setIsFullscreen(true)}
+                    title="Fullscreen (F11)"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                     </svg>
                 </button>
             </div>
@@ -196,7 +311,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
 
                                 // Render based on recipe type
                                 switch (recipe.type) {
-                                    case "card":
+                                    case "corkboard":
                                         return (
                                             <CardPrint
                                                 data={data}

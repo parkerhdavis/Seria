@@ -8,7 +8,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useCSVStore } from "@stores/csvStore";
 import { useSettingsStore, RowColoringMode, FilterOperation } from "@stores/settingsStore";
-import FilterComparison from "./FilterComparison";
+import FilterComparison from "../csv/FilterComparison";
 
 /**
  * RowColoringDropdown - Dropdown for row coloring configuration

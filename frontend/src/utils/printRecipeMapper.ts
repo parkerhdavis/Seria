@@ -1,15 +1,15 @@
 /**
  * Print Recipe Auto-Mapping Utility
  *
- * Intelligently maps CSV columns to recipe ingredients based on column names
+ * Intelligently maps CSV columns to recipe elements based on column names
  * and keyword matching. Provides a confidence score for each mapping.
  */
 
 import type {
     PrintRecipe,
-    RecipeIngredient,
     RecipeFieldMapping,
     AutoMapResult,
+    RecipeIngredient,
 } from "@/types/printRecipe";
 
 /**
@@ -56,15 +56,21 @@ function calculateSimilarity(str1: string, str2: string): number {
  * Returns the column name and confidence score
  */
 function findBestMatch(
+    ingredientId: string,
     ingredient: RecipeIngredient,
     availableColumns: string[]
 ): { column: string | null; confidence: number } {
     let bestMatch: string | null = null;
     let bestScore = 0;
 
+    // If no auto-map keywords, return no match
+    if (!ingredient.setup.autoMapKeywords || ingredient.setup.autoMapKeywords.length === 0) {
+        return { column: null, confidence: 0 };
+    }
+
     for (const column of availableColumns) {
         // Check against all auto-map keywords for this ingredient
-        for (const keyword of ingredient.autoMapKeywords) {
+        for (const keyword of ingredient.setup.autoMapKeywords) {
             const score = calculateSimilarity(column, keyword);
             if (score > bestScore) {
                 bestScore = score;
@@ -93,10 +99,18 @@ export function autoMapRecipe(
     const unmappedIngredients: string[] = [];
     const usedColumns = new Set<string>();
 
-    // Sort ingredients by required status (required first)
-    const sortedIngredients = [...recipe.ingredients].sort((a, b) => {
-        if (a.required && !b.required) return -1;
-        if (!a.required && b.required) return 1;
+    // Get ingredients from recipe
+    const ingredients = recipe.ingredients || {};
+
+    // Convert ingredients object to array with IDs, then sort by required status (required first)
+    const ingredientEntries = Object.entries(ingredients).map(([id, ingredient]) => ({
+        id,
+        ingredient,
+    })).sort((a, b) => {
+        const aRequired = a.ingredient.setup.required ?? false;
+        const bRequired = b.ingredient.setup.required ?? false;
+        if (aRequired && !bRequired) return -1;
+        if (!aRequired && bRequired) return 1;
         return 0;
     });
 
@@ -104,36 +118,34 @@ export function autoMapRecipe(
     let mappingCount = 0;
 
     // Try to map each ingredient
-    for (const ingredient of sortedIngredients) {
-        // Get available columns (excluding already used ones, unless multipleAllowed)
-        const availableColumns = csvHeaders.filter(
-            col => !usedColumns.has(col) || ingredient.multipleAllowed
-        );
+    for (const { id, ingredient } of ingredientEntries) {
+        // Get available columns (exclude already used, unless multipleAllowed is true)
+        const multipleAllowed = ingredient.setup.multipleAllowed ?? false;
+        const availableColumns = csvHeaders.filter(col => !usedColumns.has(col) || multipleAllowed);
 
-        const { column, confidence } = findBestMatch(ingredient, availableColumns);
+        const { column, confidence } = findBestMatch(id, ingredient, availableColumns);
 
         if (column) {
             mappings.push({
-                ingredientId: ingredient.id,
+                ingredientId: id,
                 csvColumn: column,
                 isAutoMapped: true,
                 order: 0,
             });
 
-            if (!ingredient.multipleAllowed) {
+            if (!multipleAllowed) {
                 usedColumns.add(column);
             }
-
             totalConfidence += confidence;
             mappingCount++;
         } else {
             // Couldn't find a match for this ingredient
-            unmappedIngredients.push(ingredient.id);
+            unmappedIngredients.push(id);
 
             // For required ingredients that couldn't be mapped, create an empty mapping
-            if (ingredient.required) {
+            if (ingredient.setup.required) {
                 mappings.push({
-                    ingredientId: ingredient.id,
+                    ingredientId: id,
                     csvColumn: null,
                     isAutoMapped: false,
                     order: 0,
@@ -173,11 +185,14 @@ export function validateRecipeConfiguration(
             .map(m => m.ingredientId)
     );
 
+    // Get ingredients from recipe
+    const ingredients = recipe.ingredients || {};
+
     // Check that all required ingredients are mapped
-    for (const ingredient of recipe.ingredients) {
-        if (ingredient.required && !mappedIngredients.has(ingredient.id)) {
+    for (const [id, ingredient] of Object.entries(ingredients)) {
+        if (ingredient.setup.required && !mappedIngredients.has(id)) {
             errors.push(
-                `Required ingredient "${ingredient.name}" is not mapped to a CSV column`
+                `Required ingredient "${ingredient.setup.name || id}" is not mapped to a CSV column`
             );
         }
     }
@@ -198,7 +213,10 @@ export function updateFieldMapping(
     ingredientId: string,
     newColumn: string | null
 ): { mappings: RecipeFieldMapping[]; error?: string } {
-    const ingredient = recipe.ingredients.find(i => i.id === ingredientId);
+    // Get ingredients from recipe
+    const ingredients = recipe.ingredients || {};
+    const ingredient = ingredients[ingredientId];
+
     if (!ingredient) {
         return {
             mappings: currentMappings,
@@ -233,25 +251,25 @@ export function updateFieldMapping(
 }
 
 /**
- * Gets the mapped CSV column for a specific ingredient
+ * Gets the mapped CSV column for a specific element
  */
 export function getMappedColumn(
     mappings: RecipeFieldMapping[],
-    ingredientId: string
+    elementId: string
 ): string | null {
-    const mapping = mappings.find(m => m.ingredientId === ingredientId);
+    const mapping = mappings.find(m => m.ingredientId === elementId);
     return mapping?.csvColumn ?? null;
 }
 
 /**
- * Gets all mappings for an ingredient (for ingredients that allow multiple)
+ * Gets all mappings for an element (for elements that allow multiple)
  */
 export function getMappedColumns(
     mappings: RecipeFieldMapping[],
-    ingredientId: string
+    elementId: string
 ): string[] {
     return mappings
-        .filter(m => m.ingredientId === ingredientId && m.csvColumn !== null)
+        .filter(m => m.ingredientId === elementId && m.csvColumn !== null)
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
         .map(m => m.csvColumn!);
 }

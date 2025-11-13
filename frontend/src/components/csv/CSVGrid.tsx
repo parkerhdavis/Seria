@@ -11,10 +11,11 @@ import { useCSVStore } from "@stores/csvStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { useDrawerStore } from "@stores/drawerStore";
-import ColumnFilterDropdown from "./ColumnFilterDropdown";
+import ColumnFilterDropdown from "../toolbar/ColumnFilterDropdown";
 import MultiCellEditDialog from "./MultiCellEditDialog";
 import { calculateSummary } from "@utils/summaryCalculations";
 import { debouncedSaveCurrentFileConfig } from "@utils/configPersistence";
+import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 
 interface CSVGridProps {
     onCellEdit?: (row: number, col: number, value: string) => void;
@@ -41,7 +42,6 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         setSelectedRange,
         clearSelection,
         copySelection,
-        pasteClipboard,
         clearCells,
         columnWidths,
         setColumnWidths,
@@ -73,6 +73,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     // Selection state for drag selection
     const [isSelecting, setIsSelecting] = useState(false);
     const [selectionStart, setSelectionStart] = useState<{ row: number; col: number } | null>(null);
+
+    // Cut cells state - tracks cells that have been cut but not yet pasted
+    const [cutCells, setCutCells] = useState<{ row: number; col: number }[] | null>(null);
 
     // Drag and drop state
     const [draggedRow, setDraggedRow] = useState<number | null>(null);
@@ -121,6 +124,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     const summaryRowContentRef = useRef<HTMLDivElement>(null);
     const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
     const editingCellRef = useRef<HTMLTableCellElement | null>(null);
+    const editingInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
     // Filter data based on column filters
     const filteredData = useMemo(() => {
@@ -280,10 +284,14 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             // Ignore if event came from an input or textarea element (cell being edited)
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return;
+            }
 
             // Ignore if editing cell from Print view
-            if (editingCell && editingSource === "print") return;
+            if (editingCell && editingSource === "print") {
+                return;
+            }
 
             // Ignore if the grid doesn't have focus (e.g., Print view is focused)
             if (gridFocusRef.current && document.activeElement !== gridFocusRef.current) {
@@ -295,29 +303,48 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             }
 
             // Ignore if editing cell
-            if (editingCell) return;
+            if (editingCell) {
+                return;
+            }
 
             // Arrow key navigation
-            if (selectedCell && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+            if (selectedCell && !e.ctrlKey && !e.altKey) {
                 let newRow = selectedCell.row;
                 let newCol = selectedCell.col;
+                let isArrowKey = false;
 
                 if (e.key === "ArrowUp") {
                     newRow = Math.max(0, selectedCell.row - 1);
                     e.preventDefault();
+                    isArrowKey = true;
                 } else if (e.key === "ArrowDown") {
                     newRow = Math.min(filteredData.length - 1, selectedCell.row + 1);
                     e.preventDefault();
+                    isArrowKey = true;
                 } else if (e.key === "ArrowLeft") {
                     newCol = Math.max(0, selectedCell.col - 1);
                     e.preventDefault();
+                    isArrowKey = true;
                 } else if (e.key === "ArrowRight") {
                     newCol = Math.min(headers.length - 1, selectedCell.col + 1);
                     e.preventDefault();
+                    isArrowKey = true;
                 }
 
-                if (newRow !== selectedCell.row || newCol !== selectedCell.col) {
-                    setSelectedCell(newRow, newCol);
+                if (isArrowKey && (newRow !== selectedCell.row || newCol !== selectedCell.col)) {
+                    if (e.shiftKey) {
+                        // Shift+arrow: extend selection range
+                        if (selectedRange) {
+                            // Extend existing range
+                            setSelectedRange(selectedRange.startRow, selectedRange.startCol, newRow, newCol);
+                        } else {
+                            // Create new range from current cell to new cell
+                            setSelectedRange(selectedCell.row, selectedCell.col, newRow, newCol);
+                        }
+                    } else {
+                        // Normal arrow: move selection
+                        setSelectedCell(newRow, newCol);
+                    }
                 }
             }
 
@@ -337,23 +364,31 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             // Delete or Backspace to clear cells
             if ((e.key === "Delete" || e.key === "Backspace") && (selectedCell || selectedRange)) {
                 clearCells();
+                setCutCells(null); // Cancel any cut operation
                 e.preventDefault();
             }
 
-            // Escape to clear selection
+            // Escape to clear selection and cancel cut operation
             if (e.key === "Escape") {
                 clearSelection();
+                setCutCells(null);
             }
 
-            // Ctrl+C to copy
+            // Ctrl+C to copy to both internal and system clipboard
             if (e.ctrlKey && e.key === "c") {
-                copySelection();
+                handleCopyToClipboard();
                 e.preventDefault();
             }
 
-            // Ctrl+V to paste
+            // Ctrl+X to cut to clipboard and clear cells
+            if (e.ctrlKey && e.key === "x") {
+                handleCutToClipboard();
+                e.preventDefault();
+            }
+
+            // Ctrl+V to paste from system clipboard
             if (e.ctrlKey && e.key === "v") {
-                pasteClipboard();
+                handlePasteFromSystemClipboard();
                 e.preventDefault();
             }
 
@@ -366,12 +401,27 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 }
                 e.preventDefault();
             }
+
+            // Type to overwrite: if a printable character is typed, clear cell and start editing
+            // This allows users to start typing to immediately replace cell contents
+            if (selectedCell && !selectedRange) {
+                // Check if this is a printable character (single character, no ctrl/alt modifiers)
+                // Shift is allowed (for uppercase/symbols)
+                const isPrintableChar = e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey;
+
+                if (isPrintableChar) {
+                    // Start editing with the typed character as the initial value
+                    // This clears the previous cell content and begins editing with the new character
+                    handleStartEdit(selectedCell.row, selectedCell.col, e.key);
+                    e.preventDefault(); // Prevent the character from being typed twice
+                }
+            }
         };
 
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing handleStartEdit dependency. handleStartEdit is a stable function defined in component scope. Adding it would cause the effect to re-run on every render, constantly detaching/reattaching event listeners. Alternative: Wrap handleStartEdit in useCallback to memoize it, then add to dependencies.
-    }, [editingCell, editingSource, selectedCell, selectedRange, filteredData, headers, copySelection, pasteClipboard, clearCells, clearSelection, setSelectedCell, addRow]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing handleStartEdit, handleCopyToClipboard, handleCutToClipboard, and handlePasteFromSystemClipboard dependencies. These are stable functions defined in component scope. Adding them would cause the effect to re-run on every render, constantly detaching/reattaching event listeners. Alternative: Wrap in useCallback to memoize them, then add to dependencies.
+    }, [editingCell, editingSource, selectedCell, selectedRange, filteredData, headers, copySelection, clearCells, clearSelection, setSelectedCell, addRow]);
 
     // Scroll to row when editing from Print view
     useEffect(() => {
@@ -387,6 +437,17 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             }
         }
     }, [editingCell, editingSource, csvFollowsPrintEdit]);
+
+    // Position cursor at end when editing starts (for type-to-overwrite feature)
+    useEffect(() => {
+        if (editingCell && editingInputRef.current) {
+            const length = editingInputRef.current.value.length;
+            editingInputRef.current.setSelectionRange(length, length);
+        } else if (!editingCell) {
+            // Clear the ref when editing ends
+            editingInputRef.current = null;
+        }
+    }, [editingCell]);
 
     // Auto-focus grid when data loads
     useEffect(() => {
@@ -684,6 +745,126 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         // Restore focus to grid
         if (gridFocusRef.current) {
             gridFocusRef.current.focus();
+        }
+    };
+
+    // Copy selection to both internal and system clipboard
+    const handleCopyToClipboard = async () => {
+        // Cancel any pending cut operation
+        setCutCells(null);
+
+        // Copy to internal clipboard (for advanced paste operations like tiling)
+        copySelection();
+
+        // Also copy to system clipboard in tab-delimited format using Tauri's clipboard API
+        try {
+            if (selectedRange) {
+                const { startRow, startCol, endRow, endCol } = selectedRange;
+                const minRow = Math.min(startRow, endRow);
+                const maxRow = Math.max(startRow, endRow);
+                const minCol = Math.min(startCol, endCol);
+                const maxCol = Math.max(startCol, endCol);
+
+                const copiedRows: string[] = [];
+                for (let r = minRow; r <= maxRow; r++) {
+                    const rowCells: string[] = [];
+                    for (let c = minCol; c <= maxCol; c++) {
+                        rowCells.push(filteredData[r]?.[c] || "");
+                    }
+                    copiedRows.push(rowCells.join("\t"));
+                }
+
+                await writeText(copiedRows.join("\n"));
+            } else if (selectedCell) {
+                const value = filteredData[selectedCell.row]?.[selectedCell.col] || "";
+                await writeText(value);
+            }
+        } catch (err) {
+            console.error("Failed to copy to system clipboard:", err);
+        }
+    };
+
+    // Cut selection to clipboard and mark cells for later clearing
+    const handleCutToClipboard = async () => {
+        // First copy to clipboard
+        await handleCopyToClipboard();
+
+        // Mark the cells as cut (to show dotted outline) instead of clearing immediately
+        // They will be cleared when pasted
+        const cellsToCut: { row: number; col: number }[] = [];
+
+        if (selectedRange) {
+            const { startRow, startCol, endRow, endCol } = selectedRange;
+            const minRow = Math.min(startRow, endRow);
+            const maxRow = Math.max(startRow, endRow);
+            const minCol = Math.min(startCol, endCol);
+            const maxCol = Math.max(startCol, endCol);
+
+            for (let r = minRow; r <= maxRow; r++) {
+                for (let c = minCol; c <= maxCol; c++) {
+                    cellsToCut.push({ row: r, col: c });
+                }
+            }
+        } else if (selectedCell) {
+            cellsToCut.push({ row: selectedCell.row, col: selectedCell.col });
+        }
+
+        setCutCells(cellsToCut);
+    };
+
+    // Paste from system clipboard
+    const handlePasteFromSystemClipboard = async () => {
+        try {
+            // Read text from system clipboard using Tauri's clipboard API
+            const text = await readText();
+
+            if (!text || !selectedCell) {
+                return;
+            }
+
+            // Parse clipboard text - treat tabs as column separators, newlines as row separators
+            const rows = text.split("\n").map(row => row.split("\t"));
+
+            // Remove trailing empty row if the clipboard text ended with a newline
+            if (rows.length > 0 && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") {
+                rows.pop();
+            }
+
+            // Build array of cell updates
+            const { row: startRow, col: startCol } = selectedCell;
+            const cellUpdates: Array<{ row: number; col: number; value: string }> = [];
+
+            for (let r = 0; r < rows.length; r++) {
+                for (let c = 0; c < rows[r].length; c++) {
+                    const targetRow = startRow + r;
+                    const targetCol = startCol + c;
+                    if (targetRow < filteredData.length && targetCol < headers.length) {
+                        cellUpdates.push({
+                            row: targetRow,
+                            col: targetCol,
+                            value: rows[r][c]
+                        });
+                    }
+                }
+            }
+
+            // Update all cells at once (single undo entry)
+            if (cellUpdates.length > 0) {
+                updateCells(cellUpdates);
+            }
+
+            // If there were cut cells, clear them now that paste is complete
+            if (cutCells && cutCells.length > 0) {
+                const clearUpdates = cutCells.map(cell => ({
+                    row: cell.row,
+                    col: cell.col,
+                    value: ""
+                }));
+                updateCells(clearUpdates);
+                setCutCells(null);
+            }
+        } catch (err) {
+            console.error("Failed to paste from system clipboard:", err);
         }
     };
 
@@ -1310,6 +1491,11 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                         matches[currentMatchIndex]?.row === rowIndex &&
                                         matches[currentMatchIndex]?.col === colIndex;
 
+                                    // Check if this cell is cut
+                                    const isCut = cutCells?.some(
+                                        (cutCell) => cutCell.row === rowIndex && cutCell.col === colIndex
+                                    );
+
                                     // Determine cell class
                                     let cellClass = "p-0";
 
@@ -1328,6 +1514,11 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                         cellClass += " bg-warning/60";
                                     } else if (isMatch) {
                                         cellClass += " bg-warning/20";
+                                    }
+
+                                    // Add class for cut cells (dotted outline will be added via inline style)
+                                    if (isCut) {
+                                        cellClass += " cut-cell";
                                     }
 
                                     // Add drop target indicator (full height column line)
@@ -1353,7 +1544,12 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                 width: `${columnWidth}px`,
                                                 minWidth: `${columnWidth}px`,
                                                 maxWidth: `${columnWidth}px`,
-                                                ...(isEditing && editingSource === "csv" ? { userSelect: "text", WebkitUserSelect: "text" } : {})
+                                                ...(isEditing && editingSource === "csv" ? { userSelect: "text", WebkitUserSelect: "text" } : {}),
+                                                ...(isCut ? {
+                                                    outline: "2px dashed oklch(var(--p))",
+                                                    outlineOffset: "-2px",
+                                                    opacity: 0.7
+                                                } : {})
                                             }}
                                             data-row={rowIndex}
                                             data-col={colIndex}
@@ -1384,6 +1580,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                             {isEditing && editingSource === "csv" ? (
                                                 shouldUseTextarea ? (
                                                     <textarea
+                                                        ref={(el) => {
+                                                            editingInputRef.current = el;
+                                                        }}
                                                         className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight resize-none overflow-hidden"
                                                         style={{ userSelect: "text", WebkitUserSelect: "text" }}
                                                         value={editingValue}
@@ -1414,6 +1613,9 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                     />
                                                 ) : (
                                                     <input
+                                                        ref={(el) => {
+                                                            editingInputRef.current = el;
+                                                        }}
                                                         type="text"
                                                         className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight"
                                                         style={{ userSelect: "text", WebkitUserSelect: "text" }}
@@ -1567,7 +1769,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                         <li>
                             <a
                                 onClick={() => {
-                                    copySelection();
+                                    handleCopyToClipboard();
                                     setContextMenu(null);
                                 }}
                             >
@@ -1580,7 +1782,20 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                         <li>
                             <a
                                 onClick={() => {
-                                    pasteClipboard();
+                                    handleCutToClipboard();
+                                    setContextMenu(null);
+                                }}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+                                </svg>
+                                Cut
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                onClick={() => {
+                                    handlePasteFromSystemClipboard();
                                     setContextMenu(null);
                                 }}
                             >

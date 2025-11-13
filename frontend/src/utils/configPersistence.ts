@@ -34,6 +34,7 @@ export async function saveCurrentFileConfig(): Promise<void> {
         const config: FileConfig["config"] = {
             // Column display
             columnWidths: csvStore.columnWidths,
+            columnOrder: csvStore.columnOrder,
 
             // Column summaries
             columnSummaries: csvStore.columnSummaries as Record<string, string>,

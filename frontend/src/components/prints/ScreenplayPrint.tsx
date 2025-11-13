@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
+import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
 import { getMappedColumn } from "@/utils/printRecipeMapper";
 import { useCSVStore } from "@/stores/csvStore";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -32,6 +32,7 @@ interface ScreenplayElement {
     content: string;
     rowIndex: number;
     columnName: string;  // Which CSV column this element came from
+    sceneNumber?: number; // Scene number (only for scene_heading elements)
 }
 
 /**
@@ -51,10 +52,30 @@ interface SelectedPrintElement {
 }
 
 /**
- * Converts indent value (in pixels at 96dpi) to inches for rendering
+ * Represents multiple selected Print elements
+ * Supports both contiguous ranges and non-contiguous multi-selection
  */
-function pixelsToInches(pixels: number): number {
-    return pixels / 96; // 96dpi is standard screen resolution
+interface PrintSelection {
+    // Primary selection (for keyboard navigation and editing)
+    primary: SelectedPrintElement | null;
+    // Additional selected elements (for multi-select with Ctrl+click)
+    additional: SelectedPrintElement[];
+}
+
+/**
+ * Gets the style configuration for a screenplay element type from the recipe
+ */
+function getElementStyle(recipe: PrintRecipe, elementType: ElementType): RecipeIngredient["style"] {
+    // Get ingredient from recipe, or return default style if not found
+    const ingredient = recipe.ingredients?.[elementType];
+    return ingredient?.style || {
+        fontFamily: "Courier",
+        fontSize: 12,
+        textAlign: "left",
+        leftMargin: 0,
+        lineSpaceBefore: 0,
+        lineSpaceAfter: 0,
+    };
 }
 
 /**
@@ -62,9 +83,12 @@ function pixelsToInches(pixels: number): number {
  */
 function ScreenplayElementView({
     element,
+    recipe,
     showRowNumbers,
+    showSceneNumbers,
     isBeingEdited,
     isSelected,
+    isCut,
     isEditingFromPrint,
     editingValue,
     onEditingValueChange,
@@ -74,13 +98,16 @@ function ScreenplayElementView({
     setRef,
 }: {
     element: ScreenplayElement;
+    recipe: PrintRecipe;
     showRowNumbers: boolean;
+    showSceneNumbers: boolean;
     isBeingEdited: boolean;
     isSelected: boolean;
+    isCut: boolean;
     isEditingFromPrint: boolean;
     editingValue: string;
     onEditingValueChange: (value: string) => void;
-    onClick: () => void;
+    onClick: (e: React.MouseEvent) => void;
     onDoubleClick: () => void;
     onContextMenu: (e: React.MouseEvent) => void;
     setRef?: (el: HTMLDivElement | null) => void;
@@ -91,41 +118,22 @@ function ScreenplayElementView({
     // Check if this element should be multi-line
     const isMultiLine = isMultiLineElement(element.type);
 
-    // Get styling based on element type
-    let textAlign: "left" | "right" = "left";
-    let indent = 0;
-    let textTransform: "uppercase" | "none" = "none";
-    let maxWidth = "100%";
+    // Get styling from recipe configuration
+    const elementConfig = getElementStyle(recipe, element.type);
 
-    switch (element.type) {
-        case "scene_heading":
-            textTransform = "uppercase";
-            break;
-        case "action":
-            // Standard left-aligned text
-            break;
-        case "character":
-            textTransform = "uppercase";
-            indent = pixelsToInches(148); // 3.7" from left edge = 2.2" from margin
-            break;
-        case "dialogue":
-            indent = pixelsToInches(67); // 2.5" from left edge = 1" from margin
-            maxWidth = "3.5in"; // Dialogue max width
-            break;
-        case "parenthetical":
-            indent = pixelsToInches(107); // 3.1" from left edge = 1.6" from margin
-            break;
-        case "transition":
-            textAlign = "right";
-            textTransform = "uppercase";
-            break;
-    }
-
+    // Build style object from recipe configuration with sensible defaults
     const style = {
-        marginLeft: indent > 0 ? `${indent}in` : undefined,
-        textAlign,
-        textTransform,
-        maxWidth: textAlign === "left" ? maxWidth : undefined,
+        marginLeft: elementConfig.leftMargin ? `${elementConfig.leftMargin}in` : undefined,
+        marginRight: elementConfig.rightMargin ? `${elementConfig.rightMargin}in` : undefined,
+        textAlign: elementConfig.textAlign || "left",
+        textTransform: elementConfig.textTransform || "none",
+        fontWeight: elementConfig.fontWeight || 400,
+        fontSize: elementConfig.fontSize ? `${elementConfig.fontSize}pt` : undefined,
+        maxWidth: elementConfig.textAlign !== "right" ?
+            (("maxWidth" in elementConfig ? (elementConfig as {maxWidth?: string}).maxWidth : undefined) || "100%") :
+            undefined,
+        marginTop: elementConfig.lineSpaceBefore ? `${elementConfig.lineSpaceBefore}em` : undefined,
+        marginBottom: elementConfig.lineSpaceAfter ? `${elementConfig.lineSpaceAfter}em` : undefined,
     };
 
     // Auto-focus input/textarea when editing starts from Print view
@@ -144,10 +152,9 @@ function ScreenplayElementView({
                 inputRef.current.setSelectionRange(editingValue.length, editingValue.length);
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // Disabled: editingValue.length dependency removed
     // Reason: Including editingValue.length causes cursor to reset on every keystroke
     // Alternative: Only run when editing starts (isEditingFromPrint changes) or field type changes (isMultiLine)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing editingValue.length dependency
     }, [isEditingFromPrint, isMultiLine]);
 
     // Format content based on element type
@@ -164,7 +171,7 @@ function ScreenplayElementView({
     return (
         <div
             ref={setRef}
-            className={`screenplay-element mb-3 relative cursor-pointer ${isBeingEdited ? "editing-indicator" : ""} ${isSelected ? "selected-indicator" : ""}`}
+            className={`screenplay-element mb-3 relative cursor-pointer ${isBeingEdited ? "editing-indicator" : ""} ${isSelected ? "selected-indicator" : ""} ${isCut ? "cut-indicator" : ""}`}
             onClick={onClick}
             onDoubleClick={onDoubleClick}
             onContextMenu={onContextMenu}
@@ -199,6 +206,20 @@ function ScreenplayElementView({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                 </div>
+            )}
+
+            {/* Scene numbers (left and right margins for scene headings) */}
+            {showSceneNumbers && element.type === "scene_heading" && element.sceneNumber && (
+                <>
+                    {/* Left scene number */}
+                    <div className="absolute top-0 text-sm font-mono text-base-content font-bold" style={{ left: "-0.7in" }}>
+                        {element.sceneNumber}.
+                    </div>
+                    {/* Right scene number */}
+                    <div className="absolute top-0 text-sm font-mono text-base-content font-bold" style={{ right: "-0.7in" }}>
+                        {element.sceneNumber}.
+                    </div>
+                </>
             )}
 
             {isEditingFromPrint ? (
@@ -239,7 +260,7 @@ function ScreenplayElementView({
                 )
             ) : (
                 <p
-                    className={`font-mono text-base leading-tight ${isBeingEdited ? "ring-2 ring-primary/40 ring-offset-2 ring-offset-white rounded px-2 py-1" : ""} ${isSelected ? "ring-2 ring-secondary ring-offset-2 ring-offset-white rounded px-2 py-1" : ""}`}
+                    className={`font-mono text-base leading-tight ${isBeingEdited ? "ring-2 ring-primary/40 ring-offset-2 ring-offset-white rounded px-2 py-1" : ""} ${isSelected ? "ring-2 ring-secondary ring-offset-2 ring-offset-white rounded px-2 py-1" : ""} ${isCut ? "ring-2 ring-dashed ring-warning/50 ring-offset-2 ring-offset-white rounded px-2 py-1 opacity-60" : ""}`}
                     style={style as React.CSSProperties}
                 >
                     {formatContent(element.content)}
@@ -267,8 +288,12 @@ function ScreenplayPrint({
     const elementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     // State for Print view selection and editing
-    const [selectedPrintElement, setSelectedPrintElement] = useState<SelectedPrintElement | null>(null);
+    const [printSelection, setPrintSelection] = useState<PrintSelection>({
+        primary: null,
+        additional: [],
+    });
     const [isEditingFromPrint, setIsEditingFromPrint] = useState(false);
+    const [cutElements, setCutElements] = useState<SelectedPrintElement[]>([]);
     const printContainerRef = useRef<HTMLDivElement>(null);
 
     // Context menu state
@@ -289,17 +314,30 @@ function ScreenplayPrint({
     const transitionColumn = getMappedColumn(configuration.fieldMappings, "transition");
 
     // Get render settings
-    const pageWidth = configuration.renderSettings.pageWidth ?? recipe.renderSettings.pageWidth ?? 8.5;
-    const pageHeight = configuration.renderSettings.pageHeight ?? recipe.renderSettings.pageHeight ?? 11;
-    const marginTop = configuration.renderSettings.marginTop ?? recipe.renderSettings.marginTop ?? 1;
-    const marginBottom = configuration.renderSettings.marginBottom ?? recipe.renderSettings.marginBottom ?? 1;
-    const marginLeft = configuration.renderSettings.marginLeft ?? recipe.renderSettings.marginLeft ?? 1.5;
-    const marginRight = configuration.renderSettings.marginRight ?? recipe.renderSettings.marginRight ?? 1;
-    const showPageNumbers = configuration.renderSettings.showPageNumbers ?? recipe.renderSettings.showPageNumbers ?? true;
+    // Note: pageWidth and pageHeight are used as intended aspect ratio for drawer scaling
+    // (absolute values will be used for PDF export in the future)
+    const pageWidth = recipe.documentSettings.pageWidth ?? 8.5;
+    const pageHeight = recipe.documentSettings.pageHeight ?? 11;
+    const marginTop = recipe.documentSettings.marginTop ?? 1;
+    const marginBottom = recipe.documentSettings.marginBottom ?? 1;
+    const marginLeft = recipe.documentSettings.marginLeft ?? 1.5;
+    const marginRight = recipe.documentSettings.marginRight ?? 1;
+    const backgroundColor = recipe.documentSettings.backgroundColor ?? "bg-white";
+
+    // Screenplay-specific settings
+    // Type assertions needed due to index signature in RecipeDocumentSettings
+    const showPageNumbers = (recipe.documentSettings.showPageNumbers ?? true) as boolean;
+    const startPageNumber = (recipe.documentSettings.startPageNumber ?? 1) as number;
+    const pageNumberMarginTop = (recipe.documentSettings.pageNumberMarginTop ?? 0.5) as number;
+    const firstPageNumbered = (recipe.documentSettings.firstPageNumbered ?? true) as boolean;
+    const sceneNumbering = (recipe.documentSettings.sceneNumbering ?? false) as boolean;
 
     // Calculate available space
-    const availableWidth = containerWidth ?? containerRef?.clientWidth ?? 800;
-    const availableHeight = containerHeight ?? containerRef?.clientHeight ?? 600;
+    // Account for p-2 padding (0.5rem = 8px per side = 16px total horizontal padding)
+    const paddingX = 16;
+    const paddingY = 16;
+    const availableWidth = (containerWidth ?? containerRef?.clientWidth ?? 800) - paddingX;
+    const availableHeight = (containerHeight ?? containerRef?.clientHeight ?? 600) - paddingY;
 
     // Calculate zoom scale to fit page width in available space
     // Page width is in inches, convert to pixels at 96dpi
@@ -338,18 +376,18 @@ function ScreenplayPrint({
     useEffect(() => {
         if (editingCell && !isEditingFromPrint) {
             // Clear Print selection since user is editing from CSV grid
-            setSelectedPrintElement(null);
+            setPrintSelection({ primary: null, additional: [] });
         }
     }, [editingCell, isEditingFromPrint]);
 
     // Clear Print selection when CSV cell is selected
     const { selectedCell, selectedRange } = useCSVStore();
     useEffect(() => {
-        if ((selectedCell || selectedRange) && selectedPrintElement && !isEditingFromPrint) {
+        if ((selectedCell || selectedRange) && printSelection.primary && !isEditingFromPrint) {
             // User clicked in CSV grid, clear Print selection
-            setSelectedPrintElement(null);
+            setPrintSelection({ primary: null, additional: [] });
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing isEditingFromPrint, selectedPrintElement dependencies. Adding these would create an infinite loop - the effect clears selectedPrintElement, which would trigger the effect again, clearing it again, etc. Alternative: Restructure logic to use a ref for tracking state or separate the concerns.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing isEditingFromPrint, printSelection dependencies. Adding these would create an infinite loop - the effect clears printSelection, which would trigger the effect again, clearing it again, etc. Alternative: Restructure logic to use a ref for tracking state or separate the concerns.
     }, [selectedCell, selectedRange]);
 
     // Clear Print selection when clicking anywhere in CSV grid area (including background)
@@ -358,14 +396,14 @@ function ScreenplayPrint({
             const target = e.target as HTMLElement;
             // Check if click is within CSV grid container
             const csvGrid = document.querySelector(".csv-grid-container");
-            if (csvGrid && csvGrid.contains(target) && selectedPrintElement && !isEditingFromPrint) {
-                setSelectedPrintElement(null);
+            if (csvGrid && csvGrid.contains(target) && printSelection.primary && !isEditingFromPrint) {
+                setPrintSelection({ primary: null, additional: [] });
             }
         };
 
         document.addEventListener("click", handleDocumentClick);
         return () => document.removeEventListener("click", handleDocumentClick);
-    }, [selectedPrintElement, isEditingFromPrint]);
+    }, [printSelection, isEditingFromPrint]);
 
     // Handle global click to close context menu
     useEffect(() => {
@@ -397,31 +435,231 @@ function ScreenplayPrint({
 
     // Keyboard handlers for Print view
     useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
+        const handleKeyDown = async (e: KeyboardEvent) => {
             // Only handle if the Print container is focused or if we're not in any input/textarea
             const target = e.target as HTMLElement;
             const isInInput = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
 
+            // Import clipboard utilities (dynamically to avoid top-level await issues)
+            const { writeText, readText } = await import("@tauri-apps/plugin-clipboard-manager");
+
+            // Get all selected elements (primary + additional)
+            const allSelectedElements = printSelection.primary
+                ? [printSelection.primary, ...printSelection.additional]
+                : [];
+            const hasSelection = allSelectedElements.length > 0;
+
+            // Handle Copy (Ctrl+C)
+            if (e.key === "c" && e.ctrlKey && !e.shiftKey && !e.altKey && hasSelection && !isInInput) {
+                e.preventDefault();
+                // Cancel any pending cut operation
+                setCutElements([]);
+
+                // Copy selected elements to clipboard
+                const copiedValues = allSelectedElements.map(sel => {
+                    const colIndex = headers.indexOf(sel.columnName);
+                    if (colIndex === -1) return "";
+                    return data[sel.rowIndex]?.[colIndex] || "";
+                });
+
+                try {
+                    await writeText(copiedValues.join("\n"));
+                } catch (err) {
+                    console.error("Failed to copy to system clipboard:", err);
+                }
+                return;
+            }
+
+            // Handle Cut (Ctrl+X)
+            if (e.key === "x" && e.ctrlKey && !e.shiftKey && !e.altKey && hasSelection && !isInInput) {
+                e.preventDefault();
+
+                // First copy to clipboard
+                const copiedValues = allSelectedElements.map(sel => {
+                    const colIndex = headers.indexOf(sel.columnName);
+                    if (colIndex === -1) return "";
+                    return data[sel.rowIndex]?.[colIndex] || "";
+                });
+
+                try {
+                    await writeText(copiedValues.join("\n"));
+                    // Mark elements as cut (they'll be cleared on paste)
+                    setCutElements([...allSelectedElements]);
+                } catch (err) {
+                    console.error("Failed to cut to system clipboard:", err);
+                }
+                return;
+            }
+
+            // Handle Paste (Ctrl+V)
+            if (e.key === "v" && e.ctrlKey && !e.shiftKey && !e.altKey && printSelection.primary && !isInInput) {
+                e.preventDefault();
+
+                try {
+                    const text = await readText();
+                    if (!text) return;
+
+                    // Parse clipboard text - split by newlines
+                    const values = text.split("\n").filter(v => v !== "");
+
+                    // Paste starting at primary selection
+                    const startElementIndex = printSelection.primary.elementIndex;
+
+                    // Build array of cell updates
+                    const cellUpdates: Array<{ row: number; col: number; value: string }> = [];
+
+                    for (let i = 0; i < values.length; i++) {
+                        const targetElement = elements[startElementIndex + i];
+                        if (!targetElement) break;
+
+                        const colIndex = headers.indexOf(targetElement.columnName);
+                        if (colIndex === -1) continue;
+
+                        cellUpdates.push({
+                            row: targetElement.rowIndex,
+                            col: colIndex,
+                            value: values[i]
+                        });
+                    }
+
+                    // Update all cells at once
+                    if (cellUpdates.length > 0) {
+                        useCSVStore.getState().updateCells(cellUpdates);
+                    }
+
+                    // Clear cut elements if there were any
+                    if (cutElements.length > 0) {
+                        const clearUpdates = cutElements.map(sel => {
+                            const colIndex = headers.indexOf(sel.columnName);
+                            return {
+                                row: sel.rowIndex,
+                                col: colIndex,
+                                value: ""
+                            };
+                        });
+                        useCSVStore.getState().updateCells(clearUpdates);
+                        setCutElements([]);
+                    }
+                } catch (err) {
+                    console.error("Failed to paste from system clipboard:", err);
+                }
+                return;
+            }
+
+            // Handle Delete/Backspace to clear selected elements
+            if ((e.key === "Delete" || e.key === "Backspace") && hasSelection && !isInInput) {
+                e.preventDefault();
+
+                const clearUpdates = allSelectedElements.map(sel => {
+                    const colIndex = headers.indexOf(sel.columnName);
+                    return {
+                        row: sel.rowIndex,
+                        col: colIndex,
+                        value: ""
+                    };
+                });
+
+                useCSVStore.getState().updateCells(clearUpdates);
+                return;
+            }
+
+            // Handle type-to-overwrite: if a printable character is typed, clear element and start editing
+            if (printSelection.primary && !isEditingFromPrint && !isInInput) {
+                const isPrintableChar = e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey;
+
+                if (isPrintableChar) {
+                    e.preventDefault();
+                    // Start editing with the typed character as the initial value
+                    const colIndex = headers.indexOf(printSelection.primary.columnName);
+                    if (colIndex === -1) return;
+
+                    setEditingCell(printSelection.primary.rowIndex, colIndex, e.key, "print");
+                    setIsEditingFromPrint(true);
+                    return;
+                }
+            }
+
+            // Handle arrow key navigation
+            if (printSelection.primary && !isEditingFromPrint && !isInInput) {
+                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                    e.preventDefault();
+                    const currentIndex = printSelection.primary.elementIndex;
+                    const newIndex = e.key === "ArrowUp" ? currentIndex - 1 : currentIndex + 1;
+
+                    if (newIndex >= 0 && newIndex < elements.length) {
+                        const newElement = elements[newIndex];
+                        const newSelection: SelectedPrintElement = {
+                            rowIndex: newElement.rowIndex,
+                            columnName: newElement.columnName,
+                            elementIndex: newIndex,
+                        };
+
+                        // If Shift is held, extend selection
+                        if (e.shiftKey) {
+                            // Add to selection range
+                            const minIndex = Math.min(currentIndex, newIndex);
+                            const maxIndex = Math.max(currentIndex, newIndex);
+                            const rangeElements: SelectedPrintElement[] = [];
+
+                            for (let i = minIndex; i <= maxIndex; i++) {
+                                if (i !== printSelection.primary.elementIndex) {
+                                    const el = elements[i];
+                                    rangeElements.push({
+                                        rowIndex: el.rowIndex,
+                                        columnName: el.columnName,
+                                        elementIndex: i,
+                                    });
+                                }
+                            }
+
+                            setPrintSelection({
+                                primary: printSelection.primary,
+                                additional: rangeElements,
+                            });
+                        } else {
+                            // Normal navigation - clear selection and move
+                            setPrintSelection({
+                                primary: newSelection,
+                                additional: [],
+                            });
+                        }
+
+                        // Scroll to the new element
+                        const elementKey = `${newElement.rowIndex}-${newElement.columnName}`;
+                        const element = elementRefs.current.get(elementKey);
+                        if (element) {
+                            element.scrollIntoView({
+                                behavior: "smooth",
+                                block: "center",
+                                inline: "nearest",
+                            });
+                        }
+                    }
+                    return;
+                }
+            }
+
             // Handle F2 or Enter to start editing from Print view
-            if ((e.key === "F2" || e.key === "Enter") && selectedPrintElement && !isEditingFromPrint && !isInInput) {
+            if ((e.key === "F2" || e.key === "Enter") && printSelection.primary && !isEditingFromPrint && !isInInput) {
                 e.preventDefault();
                 // Start editing from Print view
-                const colIndex = headers.indexOf(selectedPrintElement.columnName);
+                const colIndex = headers.indexOf(printSelection.primary.columnName);
                 if (colIndex === -1) return;
 
-                const value = data[selectedPrintElement.rowIndex]?.[colIndex] || "";
-                setEditingCell(selectedPrintElement.rowIndex, colIndex, value, "print");
+                const value = data[printSelection.primary.rowIndex]?.[colIndex] || "";
+                setEditingCell(printSelection.primary.rowIndex, colIndex, value, "print");
                 setIsEditingFromPrint(true);
             }
 
             // Handle Enter or F2 to save editing from Print view
             // For multi-line elements, Ctrl+Enter creates newlines; Enter or F2 saves
             if (isEditingFromPrint && editingCell) {
-                const isMultiLine = selectedPrintElement &&
+                const primary = printSelection.primary;
+                const isMultiLine = primary &&
                     isMultiLineElement(
                         elements.find(el =>
-                            el.rowIndex === selectedPrintElement.rowIndex &&
-                            el.columnName === selectedPrintElement.columnName
+                            el.rowIndex === primary.rowIndex &&
+                            el.columnName === primary.columnName
                         )?.type || "action"
                     );
 
@@ -439,15 +677,16 @@ function ScreenplayPrint({
                 }
             }
 
-            // Handle Escape to cancel editing
+            // Handle Escape to cancel editing or clear selection
             if (e.key === "Escape") {
                 if (isEditingFromPrint) {
                     e.preventDefault();
                     clearEditingCell();
                     setIsEditingFromPrint(false);
-                } else if (selectedPrintElement) {
+                } else if (hasSelection) {
                     e.preventDefault();
-                    setSelectedPrintElement(null);
+                    setPrintSelection({ primary: null, additional: [] });
+                    setCutElements([]);
                 }
             }
         };
@@ -455,15 +694,60 @@ function ScreenplayPrint({
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing elements dependency. elements is derived from data and is recalculated on every render. Adding it would cause the keyboard handler to constantly detach/reattach, causing performance issues. The effect already depends on data, which is sufficient. Alternative: Memoize elements array with useMemo, then add to dependencies.
-    }, [selectedPrintElement, isEditingFromPrint, headers, data, editingCell, editingValue, setEditingCell, updateCell, clearEditingCell]);
+    }, [printSelection, isEditingFromPrint, headers, data, editingCell, editingValue, setEditingCell, updateCell, clearEditingCell, cutElements]);
 
     // Handle clicking on a Print element
-    const handleElementClick = (element: ScreenplayElement, elementIndex: number) => {
-        setSelectedPrintElement({
+    const handleElementClick = (e: React.MouseEvent, element: ScreenplayElement, elementIndex: number) => {
+        const newSelection: SelectedPrintElement = {
             rowIndex: element.rowIndex,
             columnName: element.columnName,
             elementIndex,
-        });
+        };
+
+        // Ctrl+click for multi-select (add to selection)
+        if (e.ctrlKey || e.metaKey) {
+            // Check if this element is already selected
+            const isAlreadySelected =
+                (printSelection.primary?.elementIndex === elementIndex) ||
+                printSelection.additional.some(sel => sel.elementIndex === elementIndex);
+
+            if (isAlreadySelected) {
+                // Remove from selection
+                if (printSelection.primary?.elementIndex === elementIndex) {
+                    // Removing primary - promote first additional to primary
+                    if (printSelection.additional.length > 0) {
+                        setPrintSelection({
+                            primary: printSelection.additional[0],
+                            additional: printSelection.additional.slice(1),
+                        });
+                    } else {
+                        setPrintSelection({ primary: null, additional: [] });
+                    }
+                } else {
+                    // Remove from additional
+                    setPrintSelection({
+                        primary: printSelection.primary,
+                        additional: printSelection.additional.filter(sel => sel.elementIndex !== elementIndex),
+                    });
+                }
+            } else {
+                // Add to selection
+                if (!printSelection.primary) {
+                    setPrintSelection({ primary: newSelection, additional: [] });
+                } else {
+                    setPrintSelection({
+                        primary: printSelection.primary,
+                        additional: [...printSelection.additional, newSelection],
+                    });
+                }
+            }
+        } else {
+            // Normal click - replace selection
+            setPrintSelection({
+                primary: newSelection,
+                additional: [],
+            });
+        }
 
         // Clear CSV selection so CSV grid doesn't compete for keyboard input
         clearSelection();
@@ -477,10 +761,13 @@ function ScreenplayPrint({
     // Handle double-clicking on a Print element to start editing
     const handleElementDoubleClick = (element: ScreenplayElement, elementIndex: number) => {
         // Set selected element
-        setSelectedPrintElement({
-            rowIndex: element.rowIndex,
-            columnName: element.columnName,
-            elementIndex,
+        setPrintSelection({
+            primary: {
+                rowIndex: element.rowIndex,
+                columnName: element.columnName,
+                elementIndex,
+            },
+            additional: [],
         });
 
         // Start editing immediately
@@ -505,17 +792,27 @@ function ScreenplayPrint({
             elementIndex,
         });
 
-        // Also select the element
-        setSelectedPrintElement({
-            rowIndex: element.rowIndex,
-            columnName: element.columnName,
-            elementIndex,
-        });
+        // If element is not already in selection, select it
+        const isInSelection =
+            (printSelection.primary?.elementIndex === elementIndex) ||
+            printSelection.additional.some(sel => sel.elementIndex === elementIndex);
+
+        if (!isInSelection) {
+            setPrintSelection({
+                primary: {
+                    rowIndex: element.rowIndex,
+                    columnName: element.columnName,
+                    elementIndex,
+                },
+                additional: [],
+            });
+        }
     };
 
     // Transform CSV data into screenplay elements
     // Use editingValue for real-time preview if a cell is being edited
     const elements: ScreenplayElement[] = [];
+    let sceneCounter = 0; // Counter for scene numbering
 
     // Helper to get cell value (either from data or editingValue if being edited)
     const getCellValue = (rowIndex: number, colIndex: number): string => {
@@ -553,11 +850,13 @@ function ScreenplayPrint({
         if (sceneHeadingIdx >= 0) {
             const content = getCellValue(rowIndex, sceneHeadingIdx);
             if (content.trim()) {
+                sceneCounter++; // Increment scene number
                 elements.push({
                     type: "scene_heading",
                     content,
                     rowIndex,
                     columnName: headers[sceneHeadingIdx],
+                    sceneNumber: sceneCounter,
                 });
             }
         }
@@ -651,7 +950,7 @@ function ScreenplayPrint({
                     (printContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
                 }
             }}
-            className="screenplay-print-container w-full h-full overflow-scroll p-2 bg-black/20 outline-none"
+            className="screenplay-print-container w-full h-full overflow-scroll p-2 outline-none"
             tabIndex={0}
             onClick={(e) => {
                 // Clear CSV selection when clicking anywhere in Print view
@@ -708,13 +1007,16 @@ function ScreenplayPrint({
 
             {/* Screenplay page */}
             <div
-                className={`screenplay-page text-grey-50 mb-8 relative ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
+                className={`screenplay-page ${backgroundColor} text-grey-50 mb-8 relative ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
                 style={pageStyle}
             >
                 {/* Page number (top right, only if enabled) */}
-                {showPageNumbers && (
-                    <div className="absolute top-2 right-8 text-sm font-mono">
-                        1.
+                {showPageNumbers && firstPageNumbered && (
+                    <div
+                        className="absolute right-10 text-sm font-mono"
+                        style={{ top: `${pageNumberMarginTop}in` }}
+                    >
+                        {startPageNumber}.
                     </div>
                 )}
 
@@ -726,10 +1028,21 @@ function ScreenplayPrint({
                             editingCell.row === element.rowIndex &&
                             headers[editingCell.col] === element.columnName;
 
-                        // Check if this element is selected
-                        const isSelected = selectedPrintElement !== null &&
-                            selectedPrintElement.rowIndex === element.rowIndex &&
-                            selectedPrintElement.columnName === element.columnName;
+                        // Check if this element is selected (in primary or additional selection)
+                        const isSelected =
+                            (printSelection.primary !== null &&
+                                printSelection.primary.rowIndex === element.rowIndex &&
+                                printSelection.primary.columnName === element.columnName) ||
+                            printSelection.additional.some(sel =>
+                                sel.rowIndex === element.rowIndex &&
+                                sel.columnName === element.columnName
+                            );
+
+                        // Check if this element is cut
+                        const isCut = cutElements.some(sel =>
+                            sel.rowIndex === element.rowIndex &&
+                            sel.columnName === element.columnName
+                        );
 
                         // Check if this element is being edited from Print view
                         const isEditingThisFromPrint = isEditingFromPrint &&
@@ -753,13 +1066,16 @@ function ScreenplayPrint({
                             <ScreenplayElementView
                                 key={index}
                                 element={element}
+                                recipe={recipe}
                                 showRowNumbers={false}
+                                showSceneNumbers={sceneNumbering}
                                 isBeingEdited={isBeingEdited}
                                 isSelected={isSelected}
+                                isCut={isCut}
                                 isEditingFromPrint={isEditingThisFromPrint}
                                 editingValue={editingValue}
                                 onEditingValueChange={updateEditingValue}
-                                onClick={() => handleElementClick(element, index)}
+                                onClick={(e) => handleElementClick(e, element, index)}
                                 onDoubleClick={() => handleElementDoubleClick(element, index)}
                                 onContextMenu={(e) => handleElementContextMenu(e, element, index)}
                                 setRef={setRef}

@@ -392,9 +392,9 @@ function CardPrint({
     const contentColumns = getMappedColumns(configuration.fieldMappings, "content");
 
     // Get render settings
-    const cardWidth = configuration.renderSettings.cardWidth ?? recipe.renderSettings.cardWidth ?? 280;
-    const cardHeight = configuration.renderSettings.cardHeight ?? recipe.renderSettings.cardHeight ?? 200;
-    const cardSpacing = configuration.renderSettings.cardSpacing ?? recipe.renderSettings.cardSpacing ?? 16;
+    const cardWidth = configuration.renderSettings.cardWidth ?? recipe.documentSettings.cardWidth ?? 280;
+    const cardHeight = configuration.renderSettings.cardHeight ?? recipe.documentSettings.cardHeight ?? 200;
+    const cardSpacing = configuration.renderSettings.cardSpacing ?? recipe.documentSettings.cardSpacing ?? 16;
 
     // Calculate available space
     const availableWidth = containerWidth ?? containerRef?.clientWidth ?? 800;

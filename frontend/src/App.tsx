@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import Layout from "./components/Layout";
+import Layout from "@components/layout/Layout";
 import Editor from "./pages/Editor";
-import PrintDrawer from "@components/PrintDrawer";
-import SettingsModal from "./components/SettingsModal";
-import FindReplaceModal from "./components/FindReplaceModal";
+import PrintDrawer from "@components/prints/PrintDrawer";
+import SettingsModal from "@components/modals/SettingsModal";
+import FindReplaceModal from "@components/modals/FindReplaceModal";
 import { useCSVStore } from "./stores/csvStore";
 import { useFindReplaceStore } from "./stores/findReplaceStore";
 import { useDrawerStore } from "./stores/drawerStore";
@@ -23,7 +23,7 @@ function App() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(100);
-    const { saveCSV, loadCSV, undo, redo, canUndo, canRedo, columnFilters, currentFile } = useCSVStore();
+    const { saveCSV, loadCSV, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile } = useCSVStore();
     const { openFind, openReplace } = useFindReplaceStore();
     const { position: printPreviewPosition, togglePosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
     const { loadConfigs } = useFileConfigStore();
@@ -57,6 +57,7 @@ function App() {
         autoFitColumns,
         hoverHighlightMode,
         columnFilters,
+        columnOrder,
         printPreviewPosition,
         rightDrawerSize,
         bottomDrawerSize,

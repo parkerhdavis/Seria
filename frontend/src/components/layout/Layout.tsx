@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect, useRef } from "react";
 import Header from "./Header";
-import FileTree from "./FileTree";
+import FileTree from "../FileTree";
 import ThemeToggle from "./ThemeToggle";
 import { useDrag } from "@/contexts/DragContext";
 

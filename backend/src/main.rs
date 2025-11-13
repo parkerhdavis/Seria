@@ -14,6 +14,7 @@
  * - User preferences storage
  * - Custom Print template storage
  * - Per-file configuration storage
+ * - Clipboard operations (read/write text)
  */
 
 mod file_ops;
@@ -24,6 +25,7 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             // File operations
             file_ops::open_csv_file,

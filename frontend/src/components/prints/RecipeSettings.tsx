@@ -7,9 +7,9 @@
  */
 
 import { useEffect, useState } from "react";
-import { usePrintRecipeStore } from "@/stores/printRecipeStore";
+import { usePrintRecipeStore } from "@stores/printRecipeStore";
 import type { PrintRecipe, RecipeIngredient } from "@/types/printRecipe";
-import { getMappedColumn } from "@/utils/printRecipeMapper";
+import { getMappedColumn } from "@utils/printRecipeMapper";
 
 /**
  * Recipe card showing recipe details
@@ -61,7 +61,8 @@ function RecipeCard({ recipe }: { recipe: PrintRecipe }) {
                         <span className="font-semibold">Version:</span> {recipe.version}
                     </span>
                     <span>
-                        <span className="font-semibold">Ingredients:</span> {recipe.ingredients.length}
+                        <span className="font-semibold">Ingredients:</span>{" "}
+                        {Object.keys(recipe.ingredients || {}).length}
                     </span>
                 </div>
 
@@ -70,20 +71,21 @@ function RecipeCard({ recipe }: { recipe: PrintRecipe }) {
                     <div className="mt-4 pt-4 border-t border-base-300">
                         <h4 className="font-semibold text-sm mb-3">Recipe Ingredients</h4>
                         <div className="space-y-3">
-                            {recipe.ingredients.map((ingredient) => (
+                            {Object.entries(recipe.ingredients || {}).map(([id, ingredient]) => (
                                 <IngredientRow
-                                    key={ingredient.id}
+                                    key={id}
+                                    ingredientId={id}
                                     ingredient={ingredient}
-                                    mappedColumn={config ? getMappedColumn(config.fieldMappings, ingredient.id) : null}
+                                    mappedColumn={config ? getMappedColumn(config.fieldMappings, id) : null}
                                 />
                             ))}
                         </div>
 
-                        {/* Render settings */}
-                        <h4 className="font-semibold text-sm mb-3 mt-6">Render Settings</h4>
+                        {/* Document settings */}
+                        <h4 className="font-semibold text-sm mb-3 mt-6">Document Settings</h4>
                         <div className="bg-base-200 rounded-lg p-3 font-mono text-xs">
                             <pre className="whitespace-pre-wrap">
-                                {JSON.stringify(recipe.renderSettings, null, 2)}
+                                {JSON.stringify(recipe.documentSettings, null, 2)}
                             </pre>
                         </div>
                     </div>
@@ -97,9 +99,11 @@ function RecipeCard({ recipe }: { recipe: PrintRecipe }) {
  * Individual ingredient row
  */
 function IngredientRow({
+    ingredientId,
     ingredient,
     mappedColumn,
 }: {
+    ingredientId: string;
     ingredient: RecipeIngredient;
     mappedColumn: string | null;
 }) {
@@ -107,12 +111,9 @@ function IngredientRow({
         <div className="bg-base-200 rounded-lg p-3">
             <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm">{ingredient.name}</span>
-                    {ingredient.required && (
+                    <span className="font-semibold text-sm">{ingredient.setup.name || ingredientId}</span>
+                    {ingredient.setup.required && (
                         <span className="badge badge-xs badge-error">Required</span>
-                    )}
-                    {ingredient.multipleAllowed && (
-                        <span className="badge badge-xs badge-info">Multiple</span>
                     )}
                 </div>
                 {mappedColumn && (
@@ -125,17 +126,21 @@ function IngredientRow({
                 )}
             </div>
 
-            <p className="text-xs text-base-content/70 mb-2">
-                {ingredient.description}
-            </p>
+            {ingredient.setup.description && (
+                <p className="text-xs text-base-content/70 mb-2">
+                    {ingredient.setup.description}
+                </p>
+            )}
 
-            <div className="flex flex-wrap gap-1 mb-2">
-                {ingredient.autoMapKeywords.map((keyword) => (
-                    <span key={keyword} className="badge badge-xs badge-ghost">
-                        {keyword}
-                    </span>
-                ))}
-            </div>
+            {ingredient.setup.autoMapKeywords && ingredient.setup.autoMapKeywords.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                    {ingredient.setup.autoMapKeywords.map((keyword) => (
+                        <span key={keyword} className="badge badge-xs badge-ghost">
+                            {keyword}
+                        </span>
+                    ))}
+                </div>
+            )}
 
             {mappedColumn && (
                 <div className="text-xs text-base-content/60 mt-2 pt-2 border-t border-base-300">

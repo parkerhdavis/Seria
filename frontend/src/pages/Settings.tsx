@@ -5,7 +5,7 @@
  * default Print template, recent files, and other configuration options.
  */
 
-import RecipeSettings from "@/components/RecipeSettings";
+import RecipeSettings from "@components/prints/RecipeSettings";
 
 function Settings() {
     return (
