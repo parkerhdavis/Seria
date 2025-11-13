@@ -13,7 +13,8 @@ import type {
     RecipeConfiguration,
     RecipeDocumentSettings,
 } from "@/types/printRecipe";
-import { getBundledRecipes } from "@/utils/bundledRecipes";
+import { SCREENPLAY_RECIPE } from "@/data/screenplayRecipe";
+import { CORKBOARD_RECIPE } from "@/data/corkboardRecipe";
 import { autoMapRecipe, updateFieldMapping, validateRecipeConfiguration } from "@/utils/printRecipeMapper";
 
 interface PrintRecipeState {
@@ -59,7 +60,7 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
              * Loads bundled recipes into the store
              */
             loadBundledRecipes: () => {
-                const bundledRecipes = getBundledRecipes();
+                const bundledRecipes = [CORKBOARD_RECIPE, SCREENPLAY_RECIPE];
                 set({ recipes: bundledRecipes });
 
                 // Initialize default configurations for bundled recipes if not present

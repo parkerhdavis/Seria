@@ -7,9 +7,9 @@
  */
 
 import { useEffect, useState } from "react";
-import { usePrintRecipeStore } from "@/stores/printRecipeStore";
+import { usePrintRecipeStore } from "@stores/printRecipeStore";
 import type { PrintRecipe, RecipeIngredient } from "@/types/printRecipe";
-import { getMappedColumn } from "@/utils/printRecipeMapper";
+import { getMappedColumn } from "@utils/printRecipeMapper";
 
 /**
  * Recipe card showing recipe details

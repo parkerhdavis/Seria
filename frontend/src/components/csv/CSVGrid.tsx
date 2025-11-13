@@ -11,7 +11,7 @@ import { useCSVStore } from "@stores/csvStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { useDrawerStore } from "@stores/drawerStore";
-import ColumnFilterDropdown from "./ColumnFilterDropdown";
+import ColumnFilterDropdown from "../toolbar/ColumnFilterDropdown";
 import MultiCellEditDialog from "./MultiCellEditDialog";
 import { calculateSummary } from "@utils/summaryCalculations";
 import { debouncedSaveCurrentFileConfig } from "@utils/configPersistence";

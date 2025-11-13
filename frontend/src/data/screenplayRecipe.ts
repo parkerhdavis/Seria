@@ -15,6 +15,8 @@ import type { PrintRecipe, RecipeDocumentSettings, RecipeIngredient } from "@/ty
 export interface ScreenplayDocumentSettings extends RecipeDocumentSettings {
     showPageNumbers?: boolean;      // Show page numbers
     startPageNumber?: number;       // Starting page number (default 1)
+    pageNumberMarginTop?: number;   // Distance from top of page to page number (in inches)
+    firstPageNumbered?: boolean;    // Whether the first page should have a page number
     sceneNumbering?: boolean;       // Show scene numbers
 }
 
@@ -26,7 +28,7 @@ export interface ScreenplayDocumentSettings extends RecipeDocumentSettings {
 export interface ScreenplayIngredient extends RecipeIngredient {
     style: RecipeIngredient["style"] & {
         // Screenplay-specific additions
-        maxWidth?: string;              // CSS max-width value (e.g., "3.5in" for dialogue)
+        maxWidth?: string;              // CSS max-width value (e.g., "3.3in" for dialogue)
     };
 }
 
@@ -55,16 +57,21 @@ export const SCREENPLAY_RECIPE: ScreenplayRecipe = {
         pageWidth: 8.5,
         pageHeight: 11,
 
-        // Standard screenplay margins
+        // Standard screenplay margins (accommodates three-hole punch with brads)
         marginTop: 1,
         marginBottom: 1,
         marginLeft: 1.5,
         marginRight: 1,
 
+        // Page appearance
+        backgroundColor: "bg-black/20", // Subtle paper-like background
+
         // Screenplay-specific settings
         showPageNumbers: true,
-        startPageNumber: 1,
-        sceneNumbering: false,
+        startPageNumber: 2,             // First numbered page is "2" (title page doesn't count)
+        pageNumberMarginTop: 0.5,       // Page number position: 0.5" from top
+        firstPageNumbered: false,       // First page is unnumbered
+        sceneNumbering: true,
     },
     // Ingredient definitions (keyed by ID)
     // Each ingredient contains setup (metadata) and style (visual formatting)
@@ -80,11 +87,14 @@ export const SCREENPLAY_RECIPE: ScreenplayRecipe = {
             style: {
                 fontFamily: "Courier",
                 fontSize: 12,
-                bold: true,
+                fontWeight: 700,
                 textTransform: "uppercase",
                 textAlign: "left",
-                indent: 0,
-                lineSpacing: 1,
+                leftMargin: 0,
+                rightMargin: 0,
+                lineSpaceBefore: 2,
+                lineSpaceAfter: 1,
+                maxWidth: "6in",
             },
         },
         action: {
@@ -100,8 +110,11 @@ export const SCREENPLAY_RECIPE: ScreenplayRecipe = {
                 fontSize: 12,
                 textTransform: "none",
                 textAlign: "left",
-                indent: 0,
-                lineSpacing: 1,
+                leftMargin: 0,
+                rightMargin: 0,
+                lineSpaceBefore: 0,
+                lineSpaceAfter: 0,
+                maxWidth: "6in",
             },
         },
         character: {
@@ -117,26 +130,11 @@ export const SCREENPLAY_RECIPE: ScreenplayRecipe = {
                 fontSize: 12,
                 textTransform: "uppercase",
                 textAlign: "left",
-                indent: 2.2,  // 2.2" from left margin (3.7" from page edge)
-                lineSpacing: 1,
-            },
-        },
-        dialogue: {
-            setup: {
-                name: "Dialogue",
-                description: "Character dialogue",
-                required: false,
-                autoMapKeywords: ["dialogue", "line", "speech"],
-                multipleAllowed: false,
-            },
-            style: {
-                fontFamily: "Courier",
-                fontSize: 12,
-                textTransform: "none",
-                textAlign: "left",
-                indent: 1.0,   // 1" from left margin (2.5" from page edge)
-                lineSpacing: 1,
-                maxWidth: "3.5in",  // Screenplay-specific
+                leftMargin: 2,
+                rightMargin: 0.5,
+                lineSpaceBefore: 1.5,
+                lineSpaceAfter: -0.75,
+                maxWidth: "3.3in",
             },
         },
         parenthetical: {
@@ -152,8 +150,31 @@ export const SCREENPLAY_RECIPE: ScreenplayRecipe = {
                 fontSize: 12,
                 textTransform: "none",
                 textAlign: "left",
-                indent: 1.6,   // 1.6" from left margin (3.1" from page edge)
-                lineSpacing: 1,
+                leftMargin: 1.5,
+                rightMargin: 2.0,
+                lineSpaceBefore: 0,
+                lineSpaceAfter: 0,
+                maxWidth: "2in",
+            },
+        },
+        dialogue: {
+            setup: {
+                name: "Dialogue",
+                description: "Character dialogue",
+                required: false,
+                autoMapKeywords: ["dialogue", "line", "speech"],
+                multipleAllowed: false,
+            },
+            style: {
+                fontFamily: "Courier",
+                fontSize: 12,
+                textTransform: "none",
+                textAlign: "left",
+                leftMargin: 1.0,
+                rightMargin: 1.5,
+                lineSpaceBefore: 0,
+                lineSpaceAfter: 1.5,
+                maxWidth: "3.3in",
             },
         },
         transition: {
@@ -169,8 +190,11 @@ export const SCREENPLAY_RECIPE: ScreenplayRecipe = {
                 fontSize: 12,
                 textTransform: "uppercase",
                 textAlign: "right",
-                indent: 0,
-                lineSpacing: 1,
+                leftMargin: 0.5,
+                rightMargin: 0.0,
+                lineSpaceBefore: 1,
+                lineSpaceAfter: 2,
+                maxWidth: "1.5in",
             },
         },
     },

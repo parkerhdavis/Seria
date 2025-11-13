@@ -32,6 +32,7 @@ interface ScreenplayElement {
     content: string;
     rowIndex: number;
     columnName: string;  // Which CSV column this element came from
+    sceneNumber?: number; // Scene number (only for scene_heading elements)
 }
 
 /**
@@ -60,8 +61,9 @@ function getElementStyle(recipe: PrintRecipe, elementType: ElementType): RecipeI
         fontFamily: "Courier",
         fontSize: 12,
         textAlign: "left",
-        indent: 0,
-        lineSpacing: 1,
+        leftMargin: 0,
+        lineSpaceBefore: 0,
+        lineSpaceAfter: 0,
     };
 }
 
@@ -72,6 +74,7 @@ function ScreenplayElementView({
     element,
     recipe,
     showRowNumbers,
+    showSceneNumbers,
     isBeingEdited,
     isSelected,
     isEditingFromPrint,
@@ -85,6 +88,7 @@ function ScreenplayElementView({
     element: ScreenplayElement;
     recipe: PrintRecipe;
     showRowNumbers: boolean;
+    showSceneNumbers: boolean;
     isBeingEdited: boolean;
     isSelected: boolean;
     isEditingFromPrint: boolean;
@@ -106,15 +110,17 @@ function ScreenplayElementView({
 
     // Build style object from recipe configuration with sensible defaults
     const style = {
-        marginLeft: elementConfig.indent ? `${elementConfig.indent}in` : undefined,
+        marginLeft: elementConfig.leftMargin ? `${elementConfig.leftMargin}in` : undefined,
+        marginRight: elementConfig.rightMargin ? `${elementConfig.rightMargin}in` : undefined,
         textAlign: elementConfig.textAlign || "left",
         textTransform: elementConfig.textTransform || "none",
-        fontWeight: elementConfig.bold ? "bold" : "normal",
+        fontWeight: elementConfig.fontWeight || 400,
         fontSize: elementConfig.fontSize ? `${elementConfig.fontSize}pt` : undefined,
         maxWidth: elementConfig.textAlign !== "right" ?
-            (('maxWidth' in elementConfig ? (elementConfig as {maxWidth?: string}).maxWidth : undefined) || "100%") :
+            (("maxWidth" in elementConfig ? (elementConfig as {maxWidth?: string}).maxWidth : undefined) || "100%") :
             undefined,
-        lineHeight: elementConfig.lineSpacing || 1,
+        marginTop: elementConfig.lineSpaceBefore ? `${elementConfig.lineSpaceBefore}em` : undefined,
+        marginBottom: elementConfig.lineSpaceAfter ? `${elementConfig.lineSpaceAfter}em` : undefined,
     };
 
     // Auto-focus input/textarea when editing starts from Print view
@@ -133,9 +139,9 @@ function ScreenplayElementView({
                 inputRef.current.setSelectionRange(editingValue.length, editingValue.length);
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing editingValue.length dependency
     // Reason: Including editingValue.length causes cursor to reset on every keystroke
     // Alternative: Only run when editing starts (isEditingFromPrint changes) or field type changes (isMultiLine)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing editingValue.length dependency
     }, [isEditingFromPrint, isMultiLine]);
 
     // Format content based on element type
@@ -187,6 +193,20 @@ function ScreenplayElementView({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                 </div>
+            )}
+
+            {/* Scene numbers (left and right margins for scene headings) */}
+            {showSceneNumbers && element.type === "scene_heading" && element.sceneNumber && (
+                <>
+                    {/* Left scene number */}
+                    <div className="absolute top-0 text-sm font-mono text-base-content font-bold" style={{ left: "-0.7in" }}>
+                        {element.sceneNumber}.
+                    </div>
+                    {/* Right scene number */}
+                    <div className="absolute top-0 text-sm font-mono text-base-content font-bold" style={{ right: "-0.7in" }}>
+                        {element.sceneNumber}.
+                    </div>
+                </>
             )}
 
             {isEditingFromPrint ? (
@@ -277,17 +297,30 @@ function ScreenplayPrint({
     const transitionColumn = getMappedColumn(configuration.fieldMappings, "transition");
 
     // Get render settings
-    const pageWidth = configuration.renderSettings.pageWidth ?? recipe.documentSettings.pageWidth ?? 8.5;
-    const pageHeight = configuration.renderSettings.pageHeight ?? recipe.documentSettings.pageHeight ?? 11;
-    const marginTop = configuration.renderSettings.marginTop ?? recipe.documentSettings.marginTop ?? 1;
-    const marginBottom = configuration.renderSettings.marginBottom ?? recipe.documentSettings.marginBottom ?? 1;
-    const marginLeft = configuration.renderSettings.marginLeft ?? recipe.documentSettings.marginLeft ?? 1.5;
-    const marginRight = configuration.renderSettings.marginRight ?? recipe.documentSettings.marginRight ?? 1;
-    const showPageNumbers = configuration.renderSettings.showPageNumbers ?? recipe.documentSettings.showPageNumbers ?? true;
+    // Note: pageWidth and pageHeight are used as intended aspect ratio for drawer scaling
+    // (absolute values will be used for PDF export in the future)
+    const pageWidth = recipe.documentSettings.pageWidth ?? 8.5;
+    const pageHeight = recipe.documentSettings.pageHeight ?? 11;
+    const marginTop = recipe.documentSettings.marginTop ?? 1;
+    const marginBottom = recipe.documentSettings.marginBottom ?? 1;
+    const marginLeft = recipe.documentSettings.marginLeft ?? 1.5;
+    const marginRight = recipe.documentSettings.marginRight ?? 1;
+    const backgroundColor = recipe.documentSettings.backgroundColor ?? "bg-white";
+
+    // Screenplay-specific settings
+    // Type assertions needed due to index signature in RecipeDocumentSettings
+    const showPageNumbers = (recipe.documentSettings.showPageNumbers ?? true) as boolean;
+    const startPageNumber = (recipe.documentSettings.startPageNumber ?? 1) as number;
+    const pageNumberMarginTop = (recipe.documentSettings.pageNumberMarginTop ?? 0.5) as number;
+    const firstPageNumbered = (recipe.documentSettings.firstPageNumbered ?? true) as boolean;
+    const sceneNumbering = (recipe.documentSettings.sceneNumbering ?? false) as boolean;
 
     // Calculate available space
-    const availableWidth = containerWidth ?? containerRef?.clientWidth ?? 800;
-    const availableHeight = containerHeight ?? containerRef?.clientHeight ?? 600;
+    // Account for p-2 padding (0.5rem = 8px per side = 16px total horizontal padding)
+    const paddingX = 16;
+    const paddingY = 16;
+    const availableWidth = (containerWidth ?? containerRef?.clientWidth ?? 800) - paddingX;
+    const availableHeight = (containerHeight ?? containerRef?.clientHeight ?? 600) - paddingY;
 
     // Calculate zoom scale to fit page width in available space
     // Page width is in inches, convert to pixels at 96dpi
@@ -504,6 +537,7 @@ function ScreenplayPrint({
     // Transform CSV data into screenplay elements
     // Use editingValue for real-time preview if a cell is being edited
     const elements: ScreenplayElement[] = [];
+    let sceneCounter = 0; // Counter for scene numbering
 
     // Helper to get cell value (either from data or editingValue if being edited)
     const getCellValue = (rowIndex: number, colIndex: number): string => {
@@ -541,11 +575,13 @@ function ScreenplayPrint({
         if (sceneHeadingIdx >= 0) {
             const content = getCellValue(rowIndex, sceneHeadingIdx);
             if (content.trim()) {
+                sceneCounter++; // Increment scene number
                 elements.push({
                     type: "scene_heading",
                     content,
                     rowIndex,
                     columnName: headers[sceneHeadingIdx],
+                    sceneNumber: sceneCounter,
                 });
             }
         }
@@ -639,7 +675,7 @@ function ScreenplayPrint({
                     (printContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
                 }
             }}
-            className="screenplay-print-container w-full h-full overflow-scroll p-2 bg-black/20 outline-none"
+            className="screenplay-print-container w-full h-full overflow-scroll p-2 outline-none"
             tabIndex={0}
             onClick={(e) => {
                 // Clear CSV selection when clicking anywhere in Print view
@@ -696,13 +732,16 @@ function ScreenplayPrint({
 
             {/* Screenplay page */}
             <div
-                className={`screenplay-page text-grey-50 mb-8 relative ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
+                className={`screenplay-page ${backgroundColor} text-grey-50 mb-8 relative ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
                 style={pageStyle}
             >
                 {/* Page number (top right, only if enabled) */}
-                {showPageNumbers && (
-                    <div className="absolute top-2 right-10 text-sm font-mono">
-                        1.
+                {showPageNumbers && firstPageNumbered && (
+                    <div
+                        className="absolute right-10 text-sm font-mono"
+                        style={{ top: `${pageNumberMarginTop}in` }}
+                    >
+                        {startPageNumber}.
                     </div>
                 )}
 
@@ -743,6 +782,7 @@ function ScreenplayPrint({
                                 element={element}
                                 recipe={recipe}
                                 showRowNumbers={false}
+                                showSceneNumbers={sceneNumbering}
                                 isBeingEdited={isBeingEdited}
                                 isSelected={isSelected}
                                 isEditingFromPrint={isEditingThisFromPrint}

@@ -228,7 +228,8 @@ interface PrintTemplate {
                 font: string;
                 size: number;
                 indent: number;
-                lineSpacing: number;
+                lineSpaceBefore: number;
+                lineSpaceAfter: number;
                 color?: string;
             };
             transform?: (value: string) => string;  // Optional formatting

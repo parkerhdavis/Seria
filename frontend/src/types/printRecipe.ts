@@ -28,14 +28,16 @@ export interface RecipeIngredient {
     style: {
         fontFamily: FontFamily;
         fontSize: number;               // Font size in points
-        fontColor?: string;             // Optional text color (hex or CSS color name)
-        bold?: boolean;
+        fontColor?: string;             // Optional text color using utility class (e.g., "text-primary", "text-base-content/60")
+        fontWeight?: number;            // Font weight (100-900, e.g., 400 = normal, 700 = bold)
         italic?: boolean;
         underline?: boolean;
         textTransform?: TextTransform;  // Optional text transformation
         textAlign: string;
-        indent: number;                 // Left indent in pixels or percentage
-        lineSpacing: number;            // Line spacing multiplier (1.0 = single, 2.0 = double)
+        leftMargin: number;             // Left margin in inches (beyond document margin)
+        rightMargin?: number;           // Right margin in inches (beyond document margin)
+        lineSpaceBefore: number;        // Space before element (in line heights)
+        lineSpaceAfter: number;         // Space after element (in line heights)
     };
 }
 
@@ -50,11 +52,12 @@ export interface RecipeDocumentSettings {
     marginBottom?: number;          // Bottom margin in inches (default 1)
     marginLeft?: number;            // Left margin in inches (default 1.5)
     marginRight?: number;           // Right margin in inches (default 1)
+    backgroundColor?: string;       // Background color using utility class (e.g., "bg-black/10", "bg-base-200")
 
-    // Card-specific settings
-    cardWidth?: number;             // Card width in pixels (for Card Print)
-    cardHeight?: number;            // Card height in pixels (for Card Print)
-    cardsPerRow?: number;           // Number of cards per row (for Card Print)
+    // Corkboard-specific settings
+    cardWidth?: number;             // Card width in pixels (for Corkboard Print)
+    cardHeight?: number;            // Card height in pixels (for Corkboard Print)
+    cardsPerRow?: number;           // Number of cards per row (for Corkboard Print)
     cardSpacing?: number;           // Spacing between cards in pixels
 
     // Custom settings (extensible)
@@ -66,8 +69,8 @@ export interface RecipeDocumentSettings {
  * Core structure for all print formats
  */
 export interface PrintRecipe {
-    id: string;                     // Unique identifier (e.g., "card", "screenplay")
-    name: string;                   // Display name (e.g., "Card Print", "Screenplay Print")
+    id: string;                     // Unique identifier (e.g., "corkboard", "screenplay")
+    name: string;                   // Display name (e.g., "Corkboard Print", "Screenplay Print")
     description: string;            // Description of what this recipe does
     type: RecipeType;               // Type of recipe
     ingredients: Record<string, RecipeIngredient>; // Ingredients keyed by ID
@@ -81,7 +84,7 @@ export interface PrintRecipe {
 /**
  * Recipe type enum
  */
-export type RecipeType = "card" | "screenplay" | "dialogue" | "custom";
+export type RecipeType = "corkboard" | "screenplay" | "dialogue" | "custom";
 
 
 
