@@ -12,6 +12,7 @@ import { useSettingsStore } from "@stores/settingsStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { useDrawerStore } from "@stores/drawerStore";
 import ColumnFilterDropdown from "./ColumnFilterDropdown";
+import MultiCellEditDialog from "./MultiCellEditDialog";
 import { calculateSummary } from "@utils/summaryCalculations";
 import { debouncedSaveCurrentFileConfig } from "@utils/configPersistence";
 
@@ -27,6 +28,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         headers,
         data,
         updateCell,
+        updateCells,
         editingCell,
         editingValue,
         editingSource,
@@ -40,6 +42,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         clearSelection,
         copySelection,
         pasteClipboard,
+        clearCells,
         columnWidths,
         setColumnWidths,
         columnFilters,
@@ -85,6 +88,11 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         y: number;
         row?: number;
         col?: number;
+    } | null>(null);
+
+    // Multi-cell edit dialog state
+    const [multiCellEditDialog, setMultiCellEditDialog] = useState<{
+        position: { top: number; left: number; width: number; height: number };
     } | null>(null);
 
     // Hover state for column highlighting
@@ -301,9 +309,21 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             }
 
             // F2 or Enter to edit
-            if ((e.key === "F2" || e.key === "Enter") && selectedCell && !e.ctrlKey) {
-                const value = filteredData[selectedCell.row]?.[selectedCell.col] || "";
-                handleStartEdit(selectedCell.row, selectedCell.col, value);
+            if ((e.key === "F2" || e.key === "Enter") && !e.ctrlKey) {
+                if (selectedRange) {
+                    // Open multi-cell edit dialog
+                    handleOpenMultiCellEdit();
+                    e.preventDefault();
+                } else if (selectedCell) {
+                    const value = filteredData[selectedCell.row]?.[selectedCell.col] || "";
+                    handleStartEdit(selectedCell.row, selectedCell.col, value);
+                    e.preventDefault();
+                }
+            }
+
+            // Delete or Backspace to clear cells
+            if ((e.key === "Delete" || e.key === "Backspace") && (selectedCell || selectedRange)) {
+                clearCells();
                 e.preventDefault();
             }
 
@@ -338,7 +358,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing handleStartEdit dependency. handleStartEdit is a stable function defined in component scope. Adding it would cause the effect to re-run on every render, constantly detaching/reattaching event listeners. Alternative: Wrap handleStartEdit in useCallback to memoize it, then add to dependencies.
-    }, [editingCell, editingSource, selectedCell, selectedRange, filteredData, headers, copySelection, pasteClipboard, clearSelection, setSelectedCell, addRow]);
+    }, [editingCell, editingSource, selectedCell, selectedRange, filteredData, headers, copySelection, pasteClipboard, clearCells, clearSelection, setSelectedCell, addRow]);
 
     // Scroll to row when editing from Print view
     useEffect(() => {
@@ -644,6 +664,75 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
             }
         }
         clearEditingCell();
+
+        // Restore focus to grid
+        if (gridFocusRef.current) {
+            gridFocusRef.current.focus();
+        }
+    };
+
+    // Open multi-cell edit dialog
+    const handleOpenMultiCellEdit = () => {
+        if (!selectedRange || !tableContainerRef.current) return;
+
+        const { startRow, startCol, endRow, endCol } = selectedRange;
+        const minRow = Math.min(startRow, endRow);
+        const minCol = Math.min(startCol, endCol);
+
+        // Find the cell element to position the dialog
+        const cellElement = tableContainerRef.current.querySelector(
+            `[data-row="${minRow}"][data-col="${minCol}"]`
+        ) as HTMLElement;
+
+        if (cellElement) {
+            const rect = cellElement.getBoundingClientRect();
+            const containerRect = tableContainerRef.current.getBoundingClientRect();
+
+            setMultiCellEditDialog({
+                position: {
+                    top: rect.top - containerRect.top,
+                    left: rect.left - containerRect.left,
+                    width: rect.width,
+                    height: rect.height,
+                },
+            });
+        }
+    };
+
+    // Save multi-cell edit
+    const handleSaveMultiCellEdit = (value: string) => {
+        if (!selectedRange) return;
+
+        const { startRow, startCol, endRow, endCol } = selectedRange;
+        const minRow = Math.min(startRow, endRow);
+        const maxRow = Math.max(startRow, endRow);
+        const minCol = Math.min(startCol, endCol);
+        const maxCol = Math.max(startCol, endCol);
+
+        // Build array of all cells to update
+        const cellsToUpdate: Array<{ row: number; col: number; value: string }> = [];
+        for (let r = minRow; r <= maxRow; r++) {
+            for (let c = minCol; c <= maxCol; c++) {
+                if (r < filteredData.length && c < headers.length) {
+                    cellsToUpdate.push({ row: r, col: c, value });
+                }
+            }
+        }
+
+        // Update all cells in a single operation (creates single undo snapshot)
+        updateCells(cellsToUpdate);
+
+        setMultiCellEditDialog(null);
+
+        // Restore focus to grid
+        if (gridFocusRef.current) {
+            gridFocusRef.current.focus();
+        }
+    };
+
+    // Cancel multi-cell edit
+    const handleCancelMultiCellEdit = () => {
+        setMultiCellEditDialog(null);
 
         // Restore focus to grid
         if (gridFocusRef.current) {
@@ -1196,6 +1285,8 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                             key={colIndex}
                                             className={`${cellClass} relative`}
                                             style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
+                                            data-row={rowIndex}
+                                            data-col={colIndex}
                                             onMouseDown={(e) => handleCellMouseDown(e, rowIndex, colIndex)}
                                             onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                                             onMouseLeave={handleCellMouseLeave}
@@ -1410,6 +1501,38 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                 Paste
                             </a>
                         </li>
+                        {/* Multi-cell operations (only show when range is selected) */}
+                        {selectedRange && (
+                            <>
+                                <div className="divider my-1"></div>
+                                <li>
+                                    <a
+                                        onClick={() => {
+                                            clearCells();
+                                            setContextMenu(null);
+                                        }}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        Clear Selected Cells
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        onClick={() => {
+                                            setContextMenu(null);
+                                            handleOpenMultiCellEdit();
+                                        }}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                        Fill Selected Cells...
+                                    </a>
+                                </li>
+                            </>
+                        )}
                         <div className="divider my-1"></div>
                         {contextMenu.row !== undefined && (
                             <>
@@ -1473,6 +1596,15 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                         )}
                     </ul>
                 </div>
+            )}
+
+            {/* Multi-cell edit dialog */}
+            {multiCellEditDialog && (
+                <MultiCellEditDialog
+                    position={multiCellEditDialog.position}
+                    onSave={handleSaveMultiCellEdit}
+                    onCancel={handleCancelMultiCellEdit}
+                />
             )}
         </div>
     );

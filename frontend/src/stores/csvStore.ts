@@ -93,6 +93,7 @@ interface CSVStore {
     saveCSV: () => Promise<void>;
     saveCSVAs: (path: string) => Promise<void>;
     updateCell: (row: number, col: number, value: string) => void;
+    updateCells: (cells: Array<{ row: number; col: number; value: string }>) => void;
     updateRow: (rowIndex: number, newRow: string[]) => void;
     addRow: (atIndex?: number) => void;
     deleteRows: (indices: number[]) => void;
@@ -118,6 +119,7 @@ interface CSVStore {
     clearSelection: () => void;
     copySelection: () => void;
     pasteClipboard: () => void;
+    clearCells: () => void;
 
     // Filtering and summary actions
     setColumnFilter: (column: string, operation: "contains" | "not-contains" | "equals" | "not-equals", value: string) => void;
@@ -398,6 +400,27 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
         const newData = data.map((r, i) =>
             i === row ? r.map((c, j) => (j === col ? value : c)) : r
         );
+
+        set({ data: newData, isDirty: true });
+    },
+
+    // Update multiple cells at once (creates single undo snapshot)
+    updateCells: (cells: Array<{ row: number; col: number; value: string }>) => {
+        const { data } = get();
+
+        if (cells.length === 0) return;
+
+        // Push current state to undo stack (once for all updates)
+        pushToUndoStack(get, set);
+
+        const newData = data.map((row) => [...row]);
+
+        // Apply all updates
+        cells.forEach(({ row, col, value }) => {
+            if (row >= 0 && row < newData.length && col >= 0 && col < newData[row].length) {
+                newData[row][col] = value;
+            }
+        });
 
         set({ data: newData, isDirty: true });
     },
@@ -771,6 +794,42 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                         newData[targetRow][targetCol] = clipboard.data[r][c];
                     }
                 }
+            }
+        }
+
+        set({ data: newData, isDirty: true });
+    },
+
+    clearCells: () => {
+        const { selectedCell, selectedRange, data } = get();
+
+        if (!selectedCell && !selectedRange) return;
+
+        // Push current state to undo stack
+        pushToUndoStack(get, set);
+
+        const newData = data.map((row) => [...row]);
+
+        if (selectedRange) {
+            // Clear range
+            const { startRow, startCol, endRow, endCol } = selectedRange;
+            const minRow = Math.min(startRow, endRow);
+            const maxRow = Math.max(startRow, endRow);
+            const minCol = Math.min(startCol, endCol);
+            const maxCol = Math.max(startCol, endCol);
+
+            for (let r = minRow; r <= maxRow; r++) {
+                for (let c = minCol; c <= maxCol; c++) {
+                    if (r < newData.length && c < newData[r].length) {
+                        newData[r][c] = "";
+                    }
+                }
+            }
+        } else if (selectedCell) {
+            // Clear single cell
+            const { row, col } = selectedCell;
+            if (row < newData.length && col < newData[row].length) {
+                newData[row][col] = "";
             }
         }
 
