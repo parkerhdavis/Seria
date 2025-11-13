@@ -366,6 +366,21 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 }
                 e.preventDefault();
             }
+
+            // Type to overwrite: if a printable character is typed, clear cell and start editing
+            // This allows users to start typing to immediately replace cell contents
+            if (selectedCell && !selectedRange) {
+                // Check if this is a printable character (single character, no ctrl/alt modifiers)
+                // Shift is allowed (for uppercase/symbols)
+                const isPrintableChar = e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey;
+
+                if (isPrintableChar) {
+                    // Start editing with the typed character as the initial value
+                    // This clears the previous cell content and begins editing with the new character
+                    handleStartEdit(selectedCell.row, selectedCell.col, e.key);
+                    e.preventDefault(); // Prevent the character from being typed twice
+                }
+            }
         };
 
         document.addEventListener("keydown", handleKeyDown);
@@ -1384,6 +1399,13 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                             {isEditing && editingSource === "csv" ? (
                                                 shouldUseTextarea ? (
                                                     <textarea
+                                                        ref={(el) => {
+                                                            // Position cursor at end of text when editing starts
+                                                            if (el) {
+                                                                const length = el.value.length;
+                                                                el.setSelectionRange(length, length);
+                                                            }
+                                                        }}
                                                         className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight resize-none overflow-hidden"
                                                         style={{ userSelect: "text", WebkitUserSelect: "text" }}
                                                         value={editingValue}
@@ -1414,6 +1436,13 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                     />
                                                 ) : (
                                                     <input
+                                                        ref={(el) => {
+                                                            // Position cursor at end of text when editing starts
+                                                            if (el) {
+                                                                const length = el.value.length;
+                                                                el.setSelectionRange(length, length);
+                                                            }
+                                                        }}
                                                         type="text"
                                                         className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight"
                                                         style={{ userSelect: "text", WebkitUserSelect: "text" }}
