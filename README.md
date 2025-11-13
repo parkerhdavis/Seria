@@ -1,6 +1,6 @@
-# Juniper
+# Seria
 
-**A cellular editor for game writers and narrative designers.** Juniper lets you work directly with primitive data files (**CSV and TSV**, with **JSON coming soon**) while viewing and editing your content in writer-friendly formats like Screenplay and Corkboard, or data-friendly views like Charts and Record editors. Changes made in any view sync instantly across all views - no export step, no duplication, just your data in the format that works for what you're doing.
+**A cellular editor for game writers and narrative designers.** Seria lets you work directly with primitive data files (**CSV and TSV**, with **JSON coming soon**) while viewing and editing your content in writer-friendly formats like Screenplay and Corkboard, or data-friendly views like Charts and Record editors. Changes made in any view sync instantly across all views - no export step, no duplication, just your data in the format that works for what you're doing.
 
 ---
 
@@ -42,13 +42,13 @@ Game writers need primitive data sources, but the tools available force painful 
 
 ---
 
-## The Juniper Solution
+## The Seria Solution
 
-Juniper sits directly on top of your data files. no import/export step, no conversion, no duplication. Your data file stays the single source of truth while you view and edit it through a rich cellular editor and multi-modal rendered views (what I call Prints) that accommodate far more ways writers actually think.
+Seria sits directly on top of your data files. no import/export step, no conversion, no duplication. Your data file stays the single source of truth while you view and edit it through a rich cellular editor and multi-modal rendered views (what I call Prints) that accommodate far more ways writers actually think.
 
 ### Feature Comparison
 
-| Feature                               | Excel/Sheets | Final Draft/Scrivener | **Juniper**      |
+| Feature                               | Excel/Sheets | Final Draft/Scrivener | **Seria**      |
 | ------------------------------------- | ------------ | --------------------- | ---------------- |
 | Primitive data format (CSV/TSV, JSON) | ✅            | 🚫                    | ✅ (JSON soon) |
 | Git-friendly / version control        | ✅            | 🚫                    | ✅            |
@@ -61,7 +61,7 @@ Juniper sits directly on top of your data files. no import/export step, no conve
 | Real-time collaboration / cloud sync  | ✅            | Limited               | 🚫 (not yet) |
 | Custom print templates                | 🚫           | Limited               | ✅            |
 
-**Juniper gives you the data discipline and flexibility of sheets with the fluid experience of dedicated writing tools.**
+**Seria gives you the data discipline and flexibility of sheets with the fluid experience of dedicated writing tools.**
 
 ---
 
@@ -104,7 +104,7 @@ The killer feature: **edit in any view, changes sync everywhere.**
 - **Fast & lightweight** - Small installer (~10-15MB), native performance
 - **No vendor lock-in** - Plain CSV files you own forever
 
-→ [Installation Guide](wiki/00-Introduction/00.03%20-%20Installation.md)
+→ [Installation Guide](wiki/00%20-%20Introduction/00.03%20-%20Installation.md)
 
 
 ---
@@ -116,23 +116,23 @@ The killer feature: **edit in any view, changes sync everywhere.**
 > The first packaged release will drop later this month. Stay tuned!
 
 
-Formats available on [GitLab Releases](https://gitlab.com/parkerhdavis/Juniper/-/releases):
+Formats available on [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/releases):
 
 - **Linux:** `.AppImage` (universal), `.deb` (Debian/Ubuntu), `.rpm` (Fedora/RHEL)
 - **Windows:** `.msi` or `_setup.exe`
 - **macOS:** `.dmg`
 
-→ [Detailed installation instructions for all platforms](wiki/00-Introduction/00.03%20-%20Installation.md)
+→ [Detailed installation instructions for all platforms](wiki/00%20-%20Introduction/00.03%20-%20Installation.md)
 
 ---
 
 ## Documentation
 
 **Getting Started:**
-- [Installation](wiki/00-Introduction/00.03%20-%20Installation.md) - Install on Windows, macOS, or Linux
-- [Is This App for You?](wiki/00-Introduction/00.02%20-%20Is%20This%20App%20for%20You.md) - See if Juniper fits your workflow
+- [Installation](wiki/00%20-%20Introduction/00.03%20-%20Installation.md) - Install on Windows, macOS, or Linux
+- [Is This App for You?](wiki/00%20-%20Introduction/00.02%20-%20Is%20This%20App%20for%20You.md) - See if Seria fits your workflow
 
-**Using Juniper:**
+**Using Seria:**
 - [Cell View Guide](wiki/01%20-%20Cell%20View/01.00%20-%20The%20Cell%20View.md) - CSV editing features
 - [Print View Guide](wiki/02%20-%20Print%20View/02.00%20-%20The%20Print%20View.md) - Using Print views
 - [Print Recipes](wiki/02%20-%20Print%20View/02.02%20-%20Print%20Recipes.md) - Creating custom formats
@@ -150,10 +150,10 @@ Formats available on [GitLab Releases](https://gitlab.com/parkerhdavis/Juniper/-
 
 ## Links
 
-- **GitLab (main repo):** [https://gitlab.com/parkerhdavis/Juniper](https://gitlab.com/parkerhdavis/Juniper)
-- **GitHub (mirror repo):** [https://github.com/parkerhdavis/Juniper](https://github.com/parkerhdavis/Juniper)
-- **Issues:** [GitLab Issues](https://gitlab.com/parkerhdavis/Juniper/-/issues)
-- **Releases:** [GitLab Releases](https://gitlab.com/parkerhdavis/Juniper/-/releases)
+- **GitLab (main repo):** [https://gitlab.com/parkerhdavis/Seria](https://gitlab.com/parkerhdavis/Seria)
+- **GitHub (mirror repo):** [https://github.com/parkerhdavis/Seria](https://github.com/parkerhdavis/Seria)
+- **Issues:** [GitLab Issues](https://gitlab.com/parkerhdavis/Seria/-/issues)
+- **Releases:** [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/releases)
 
 ---
 
@@ -165,7 +165,7 @@ Tauri 2.0 + React 18 + TypeScript + Vite + TailwindCSS + daisyUI
 
 ## Inspiration
 
-Juniper was inspired by tools like [Obsidian](https://obsidian.md/) that demonstrate what's possible with local-first experiences built on top of simple, portable file formats. Just as Obsidian provides a powerful editing environment while keeping notes as plain markdown files, Juniper provides rich writing views while keeping your data as plain CSV files.
+Seria was inspired by tools like [Obsidian](https://obsidian.md/) that demonstrate what's possible with local-first experiences built on top of simple, portable file formats. Just as Obsidian provides a powerful editing environment while keeping notes as plain markdown files, Seria provides rich writing views while keeping your data as plain CSV files.
 
 ---
 
