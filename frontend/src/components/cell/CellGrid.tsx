@@ -1,13 +1,13 @@
 /**
- * CSV Grid Component
+ * Cell Grid Component
  *
- * Editable spreadsheet-like grid for viewing and editing CSV data.
+ * Editable spreadsheet-like grid for viewing and editing Cell data.
  * Supports cell selection, multi-cell selection, copy/paste, drag-and-drop reordering,
  * filtering, summaries, and comprehensive keyboard shortcuts.
  */
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useCSVStore } from "@stores/csvStore";
+import { useCellStore } from "@stores/cellStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { useDrawerStore } from "@stores/drawerStore";
@@ -18,14 +18,14 @@ import { debouncedSaveCurrentFileConfig } from "@utils/configPersistence";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 import { useAutosave } from "@utils/useAutosave";
 
-interface CSVGridProps {
+interface CellGridProps {
     onCellEdit?: (row: number, col: number, value: string) => void;
 }
 
 /**
- * CSVGrid component - displays CSV data in an editable table
+ * CellGrid component - displays Cell Data in an editable table
  */
-function CSVGrid({ onCellEdit }: CSVGridProps) {
+function CellGrid({ onCellEdit }: CellGridProps) {
     const {
         headers,
         data,
@@ -55,7 +55,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         reorderColumns,
         addRow,
         addColumn,
-    } = useCSVStore();
+    } = useCellStore();
 
     const {
         showColumnSeparators,
@@ -63,7 +63,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         autoFitColumns,
         rowColoringMode,
         rowColorFilter,
-        csvFollowsPrintEdit,
+        cellFollowsPrintEdit,
         hoverHighlightMode,
     } = useSettingsStore();
 
@@ -266,7 +266,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     // Handle clicking outside editing cell to save
     useEffect(() => {
         const handleMouseDown = (e: MouseEvent) => {
-            if (editingCell && editingSource === "csv" && editingCellRef.current) {
+            if (editingCell && editingSource === "cell" && editingCellRef.current) {
                 const target = e.target as Node;
                 // Check if click is inside the editing cell element (including padding and input)
                 const isClickInsideEditingCell = editingCellRef.current.contains(target);
@@ -429,7 +429,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
     // Scroll to row when editing from Print view
     useEffect(() => {
-        if (editingCell && editingSource === "print" && tableContainerRef.current && csvFollowsPrintEdit) {
+        if (editingCell && editingSource === "print" && tableContainerRef.current && cellFollowsPrintEdit) {
             const row = rowRefs.current.get(editingCell.row);
             if (row) {
                 // Scroll to the row smoothly and center it
@@ -440,7 +440,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                 });
             }
         }
-    }, [editingCell, editingSource, csvFollowsPrintEdit]);
+    }, [editingCell, editingSource, cellFollowsPrintEdit]);
 
     // Position cursor at end when editing starts (for type-to-overwrite feature)
     useEffect(() => {
@@ -1064,7 +1064,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
 
         // Don't handle drag selection if we're currently editing a cell
         // This prevents interference with text selection inside the editor
-        if (editingCell && editingSource === "csv") {
+        if (editingCell && editingSource === "cell") {
             return;
         }
 
@@ -1193,21 +1193,21 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     // Container height is reduced so scrollbar appears above summary row
     const summaryRowHeight = 60;
     // Only disable text selection when doing cell selection, not when editing
-    const isEditingCSV = editingCell && editingSource === "csv";
+    const isEditingCell = editingCell && editingSource === "cell";
     const containerStyle: React.CSSProperties = {
         width: drawerPosition === "right" ? `calc(100% - ${rightDrawerSize}px)` : "100%",
         height: drawerPosition === "bottom"
             ? `calc(100% - ${bottomDrawerSize}px - ${summaryRowHeight}px)`
             : `calc(100% - ${summaryRowHeight}px)`,
         paddingBottom: "20px", // Small padding for content breathing room
-        userSelect: (!isEditingCSV && (isSelecting || isDraggingRow || isDraggingColumn)) ? "none" : "auto",
-        WebkitUserSelect: (!isEditingCSV && (isSelecting || isDraggingRow || isDraggingColumn)) ? "none" : "auto",
+        userSelect: (!isEditingCell && (isSelecting || isDraggingRow || isDraggingColumn)) ? "none" : "auto",
+        WebkitUserSelect: (!isEditingCell && (isSelecting || isDraggingRow || isDraggingColumn)) ? "none" : "auto",
         position: "relative",
     };
 
     return (
         <div
-            className={`csv-grid-container relative outline-none ${autoFitColumns ? "overflow-y-scroll overflow-x-hidden" : "overflow-scroll"}`}
+            className={`cell-grid-container relative outline-none ${autoFitColumns ? "overflow-y-scroll overflow-x-hidden" : "overflow-scroll"}`}
             ref={(el) => {
                 if (tableContainerRef.current !== el) {
                     (tableContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
@@ -1272,25 +1272,25 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
         >
             {/* Force scrollbars to always be visible and hide scrollbar for summary row */}
             <style>{`
-                .csv-grid-container {
+                .cell-grid-container {
                     scrollbar-width: thin; /* Firefox - always show */
                     scrollbar-gutter: stable both-edges; /* Reserve space for scrollbar */
                     -webkit-overflow-scrolling: touch;
                 }
 
                 /* Force scrollbar to always be visible in Webkit browsers */
-                .csv-grid-container::-webkit-scrollbar {
+                .cell-grid-container::-webkit-scrollbar {
                     -webkit-appearance: none;
                     width: 14px;
                     height: 14px;
                 }
 
-                .csv-grid-container::-webkit-scrollbar-track {
+                .cell-grid-container::-webkit-scrollbar-track {
                     background: oklch(var(--b2));
                     border: 1px solid oklch(var(--bc) / 0.1);
                 }
 
-                .csv-grid-container::-webkit-scrollbar-thumb {
+                .cell-grid-container::-webkit-scrollbar-thumb {
                     background: oklch(var(--bc) / 0.4);
                     border-radius: 7px;
                     border: 2px solid oklch(var(--b2));
@@ -1298,15 +1298,15 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                     min-width: 30px;
                 }
 
-                .csv-grid-container::-webkit-scrollbar-thumb:hover {
+                .cell-grid-container::-webkit-scrollbar-thumb:hover {
                     background: oklch(var(--bc) / 0.6);
                 }
 
-                .csv-grid-container::-webkit-scrollbar-thumb:active {
+                .cell-grid-container::-webkit-scrollbar-thumb:active {
                     background: oklch(var(--bc) / 0.7);
                 }
 
-                .csv-grid-container::-webkit-scrollbar-corner {
+                .cell-grid-container::-webkit-scrollbar-corner {
                     background: oklch(var(--b2));
                 }
 
@@ -1551,12 +1551,12 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                     return (
                                         <td
                                             key={colIndex}
-                                            className={`${cellClass} relative ${isEditing && editingSource === "csv" ? "editing-cell" : ""}`}
+                                            className={`${cellClass} relative ${isEditing && editingSource === "cell" ? "editing-cell" : ""}`}
                                             style={{
                                                 width: `${columnWidth}px`,
                                                 minWidth: `${columnWidth}px`,
                                                 maxWidth: `${columnWidth}px`,
-                                                ...(isEditing && editingSource === "csv" ? { userSelect: "text", WebkitUserSelect: "text" } : {}),
+                                                ...(isEditing && editingSource === "cell" ? { userSelect: "text", WebkitUserSelect: "text" } : {}),
                                                 ...(isCut ? {
                                                     outline: "2px dashed oklch(var(--p))",
                                                     outlineOffset: "-2px",
@@ -1567,7 +1567,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                             data-col={colIndex}
                                             ref={(el) => {
                                                 // Set ref to the currently editing cell
-                                                if (isEditing && editingSource === "csv") {
+                                                if (isEditing && editingSource === "cell") {
                                                     editingCellRef.current = el;
                                                 } else if (editingCellRef.current === el) {
                                                     editingCellRef.current = null;
@@ -1589,7 +1589,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                 </div>
                                             )}
 
-                                            {isEditing && editingSource === "csv" ? (
+                                            {isEditing && editingSource === "cell" ? (
                                                 shouldUseTextarea ? (
                                                     <textarea
                                                         ref={(el) => {
@@ -1720,7 +1720,7 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
                                                 onChange={(e) => setColumnSummary(columnName, e.target.value as "count" | "unique" | "mode" | "average" | "min" | "max" | "sum")}
                                                 style={{
                                                     appearance: "none",
-                                                    backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4-4 4 4\'/%3e%3c/svg%3e")',
+                                                    backgroundImage: 'url("data:image/svg+xml,%3cellg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4-4 4 4\'/%3e%3c/svg%3e")',
                                                     backgroundPosition: "right 0.5rem center",
                                                     backgroundRepeat: "no-repeat",
                                                     backgroundSize: "1.5em 1.5em",
@@ -1926,4 +1926,4 @@ function CSVGrid({ onCellEdit }: CSVGridProps) {
     );
 }
 
-export default CSVGrid;
+export default CellGrid;

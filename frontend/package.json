@@ -1,7 +1,7 @@
 {
-    "name": "juniper-frontend",
+    "name": "seria-frontend",
     "version": "0.1.0",
-    "description": "Juniper frontend - React + TypeScript + Vite",
+    "description": "Seria frontend - React + TypeScript + Vite",
     "type": "module",
     "scripts": {
         "dev": "vite",

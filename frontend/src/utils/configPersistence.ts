@@ -5,7 +5,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { useCSVStore } from "@stores/csvStore";
+import { useCellStore } from "@stores/cellStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useDrawerStore } from "@stores/drawerStore";
 import { useFileConfigStore, type FileIdentifiers, type FileConfig } from "@stores/fileConfigStore";
@@ -14,33 +14,33 @@ import { useFileConfigStore, type FileIdentifiers, type FileConfig } from "@stor
  * Collect current state from all relevant stores and save as file config
  */
 export async function saveCurrentFileConfig(): Promise<void> {
-    const csvStore = useCSVStore.getState();
+    const cellStore = useCellStore.getState();
     const settingsStore = useSettingsStore.getState();
     const drawerStore = useDrawerStore.getState();
     const fileConfigStore = useFileConfigStore.getState();
 
     // Only save if we have a file open
-    if (!csvStore.currentFile) {
+    if (!cellStore.currentFile) {
         return;
     }
 
     try {
         // Get file identifiers
         const identifiers = await invoke<FileIdentifiers>("get_file_identifiers", {
-            path: csvStore.currentFile,
+            path: cellStore.currentFile,
         });
 
         // Collect config from all stores
         const config: FileConfig["config"] = {
             // Column display
-            columnWidths: csvStore.columnWidths,
-            columnOrder: csvStore.columnOrder,
+            columnWidths: cellStore.columnWidths,
+            columnOrder: cellStore.columnOrder,
 
             // Column summaries
-            columnSummaries: csvStore.columnSummaries as Record<string, string>,
+            columnSummaries: cellStore.columnSummaries as Record<string, string>,
 
-            // Filtering and sorting (from csvStore)
-            filters: csvStore.columnFilters.map((filter) => ({
+            // Filtering and sorting (from cellStore)
+            filters: cellStore.columnFilters.map((filter) => ({
                 field: filter.column,
                 operation: filter.operation,
                 value: filter.value,
@@ -63,7 +63,7 @@ export async function saveCurrentFileConfig(): Promise<void> {
         // Save config
         await fileConfigStore.saveConfigForFile(identifiers, config);
 
-        console.log("Saved file config for:", csvStore.fileInfo?.name);
+        console.log("Saved file config for:", cellStore.fileInfo?.name);
     } catch (error) {
         console.error("Failed to save file config:", error);
     }

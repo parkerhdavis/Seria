@@ -1,6 +1,6 @@
 # Juniper
 
-**A cellular editor for game writers and narrative designers.** Juniper lets you work directly with primitive data files (CSV, TSV, JSON) while viewing and editing your content in writer-friendly formats like Screenplay and Corkboard, or data-friendly views like Charts and Record editors. Changes made in any view sync instantly across all views - no export step, no duplication, just your data in the format that works for what you're doing.
+**A cellular editor for game writers and narrative designers.** Juniper lets you work directly with primitive data files (**CSV and TSV**, with **JSON coming soon**) while viewing and editing your content in writer-friendly formats like Screenplay and Corkboard, or data-friendly views like Charts and Record editors. Changes made in any view sync instantly across all views - no export step, no duplication, just your data in the format that works for what you're doing.
 
 ---
 
@@ -48,9 +48,9 @@ Juniper sits directly on top of your data files. no import/export step, no conve
 
 ### Feature Comparison
 
-| Feature                               | Excel/Sheets | Final Draft/Scrivener | **Juniper**  |
-| ------------------------------------- | ------------ | --------------------- | ------------ |
-| Primitive data format (CSV/TSV, JSON) | ✅            | 🚫                    | ✅            |
+| Feature                               | Excel/Sheets | Final Draft/Scrivener | **Juniper**      |
+| ------------------------------------- | ------------ | --------------------- | ---------------- |
+| Primitive data format (CSV/TSV, JSON) | ✅            | 🚫                    | ✅ (JSON soon) |
 | Git-friendly / version control        | ✅            | 🚫                    | ✅            |
 | Screenplay formatting                 | 🚫           | ✅                     | ✅            |
 | Card/corkboard view                   | 🚫           | ✅                     | ✅            |
@@ -172,6 +172,8 @@ Juniper was inspired by tools like [Obsidian](https://obsidian.md/) that demonst
 ## License
 
 Covered under the GPL License, see [[LICENSE]]
+
+Beyond that, I only have one rule: **First, do no harm. Then, help where you can.**
 
 ---
 

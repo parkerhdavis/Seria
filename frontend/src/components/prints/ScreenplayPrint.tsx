@@ -1,7 +1,7 @@
 /**
  * Screenplay Print Component
  *
- * Renders CSV data in industry-standard screenplay format.
+ * Renders Cell Data in industry-standard screenplay format.
  * Follows Hollywood screenplay formatting rules with proper margins,
  * capitalization, and element positioning.
  */
@@ -9,7 +9,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
 import { getMappedColumn } from "@/utils/printRecipeMapper";
-import { useCSVStore } from "@/stores/csvStore";
+import { useCellStore } from "@stores/cellStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 
 interface ScreenplayPrintProps {
@@ -31,7 +31,7 @@ interface ScreenplayElement {
     type: ElementType;
     content: string;
     rowIndex: number;
-    columnName: string;  // Which CSV column this element came from
+    columnName: string;  // Which Cell column this element came from
     sceneNumber?: number; // Scene number (only for scene_heading elements)
 }
 
@@ -192,10 +192,10 @@ function ScreenplayElementView({
                 </div>
             )}
 
-            {/* "Editing from CSV" overlay indicator */}
+            {/* "Editing from Cell" overlay indicator */}
             {isBeingEdited && !isEditingFromPrint && (
                 <div className="absolute -top-5 left-0 text-xs text-primary/70 italic bg-base-100/90 px-2 py-0.5 rounded shadow-sm border border-primary/20">
-                    (editing from CSV)
+                    (editing from Cell)
                 </div>
             )}
 
@@ -283,8 +283,8 @@ function ScreenplayPrint({
     containerHeight,
 }: ScreenplayPrintProps) {
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
-    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell, clearSelection } = useCSVStore();
-    const { printFollowsCsvEdit } = useSettingsStore();
+    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell, clearSelection } = useCellStore();
+    const { printFollowsCellEdit } = useSettingsStore();
     const elementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     // State for Print view selection and editing
@@ -356,7 +356,7 @@ function ScreenplayPrint({
 
     // Scroll to element when editing cell changes
     useEffect(() => {
-        if (editingCell && containerRef && printFollowsCsvEdit) {
+        if (editingCell && containerRef && printFollowsCellEdit) {
             // Create a unique key for the editing cell
             const editingKey = `${editingCell.row}-${headers[editingCell.col]}`;
             const element = elementRefs.current.get(editingKey);
@@ -370,33 +370,33 @@ function ScreenplayPrint({
                 });
             }
         }
-    }, [editingCell, headers, containerRef, printFollowsCsvEdit]);
+    }, [editingCell, headers, containerRef, printFollowsCellEdit]);
 
-    // Clear Print selection when editing cell from CSV grid changes
+    // Clear Print selection when editing cell from Cell Grid changes
     useEffect(() => {
         if (editingCell && !isEditingFromPrint) {
-            // Clear Print selection since user is editing from CSV grid
+            // Clear Print selection since user is editing from Cell Grid
             setPrintSelection({ primary: null, additional: [] });
         }
     }, [editingCell, isEditingFromPrint]);
 
-    // Clear Print selection when CSV cell is selected
-    const { selectedCell, selectedRange } = useCSVStore();
+    // Clear Print selection when Cell cell is selected
+    const { selectedCell, selectedRange } = useCellStore();
     useEffect(() => {
         if ((selectedCell || selectedRange) && printSelection.primary && !isEditingFromPrint) {
-            // User clicked in CSV grid, clear Print selection
+            // User clicked in Cell Grid, clear Print selection
             setPrintSelection({ primary: null, additional: [] });
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing isEditingFromPrint, printSelection dependencies. Adding these would create an infinite loop - the effect clears printSelection, which would trigger the effect again, clearing it again, etc. Alternative: Restructure logic to use a ref for tracking state or separate the concerns.
     }, [selectedCell, selectedRange]);
 
-    // Clear Print selection when clicking anywhere in CSV grid area (including background)
+    // Clear Print selection when clicking anywhere in Cell Grid area (including background)
     useEffect(() => {
         const handleDocumentClick = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
-            // Check if click is within CSV grid container
-            const csvGrid = document.querySelector(".csv-grid-container");
-            if (csvGrid && csvGrid.contains(target) && printSelection.primary && !isEditingFromPrint) {
+            // Check if click is within Cell Grid container
+            const cellGrid = document.querySelector(".cell-grid-container");
+            if (cellGrid && cellGrid.contains(target) && printSelection.primary && !isEditingFromPrint) {
                 setPrintSelection({ primary: null, additional: [] });
             }
         };
@@ -524,7 +524,7 @@ function ScreenplayPrint({
 
                     // Update all cells at once
                     if (cellUpdates.length > 0) {
-                        useCSVStore.getState().updateCells(cellUpdates);
+                        useCellStore.getState().updateCells(cellUpdates);
                     }
 
                     // Clear cut elements if there were any
@@ -537,7 +537,7 @@ function ScreenplayPrint({
                                 value: ""
                             };
                         });
-                        useCSVStore.getState().updateCells(clearUpdates);
+                        useCellStore.getState().updateCells(clearUpdates);
                         setCutElements([]);
                     }
                 } catch (err) {
@@ -559,7 +559,7 @@ function ScreenplayPrint({
                     };
                 });
 
-                useCSVStore.getState().updateCells(clearUpdates);
+                useCellStore.getState().updateCells(clearUpdates);
                 return;
             }
 
@@ -749,7 +749,7 @@ function ScreenplayPrint({
             });
         }
 
-        // Clear CSV selection so CSV grid doesn't compete for keyboard input
+        // Clear Cell selection so Cell Grid doesn't compete for keyboard input
         clearSelection();
 
         // Focus the Print container so keyboard events work
@@ -809,7 +809,7 @@ function ScreenplayPrint({
         }
     };
 
-    // Transform CSV data into screenplay elements
+    // Transform Cell Data into screenplay elements
     // Use editingValue for real-time preview if a cell is being edited
     const elements: ScreenplayElement[] = [];
     let sceneCounter = 0; // Counter for scene numbering
@@ -920,7 +920,7 @@ function ScreenplayPrint({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     <p className="mb-2">No screenplay elements to display</p>
-                    <p className="text-xs">Make sure your CSV columns are mapped to screenplay elements</p>
+                    <p className="text-xs">Make sure your Cell columns are mapped to screenplay elements</p>
                 </div>
             </div>
         );
@@ -953,7 +953,7 @@ function ScreenplayPrint({
             className="screenplay-print-container w-full h-full overflow-scroll p-2 outline-none"
             tabIndex={0}
             onClick={(e) => {
-                // Clear CSV selection when clicking anywhere in Print view
+                // Clear Cell selection when clicking anywhere in Print view
                 // Only if we didn't click on an element (which handles its own selection)
                 if (e.target === e.currentTarget || (e.target as HTMLElement).closest(".screenplay-page")) {
                     clearSelection();

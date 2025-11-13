@@ -1,7 +1,7 @@
 /**
  * Column Filter Dropdown Component
  *
- * Dropdown filter UI for individual CSV columns.
+ * Dropdown filter UI for individual Cell columns.
  * Supports contains, not-contains, equals, and not-equals operations.
  */
 

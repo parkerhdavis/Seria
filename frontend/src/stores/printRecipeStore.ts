@@ -27,15 +27,15 @@ interface PrintRecipeState {
     // Currently selected recipe for preview
     selectedRecipeId: string | null;
 
-    // CSV headers (for field mapping)
-    csvHeaders: string[];
+    // Cell headers (for field mapping)
+    cellHeaders: string[];
 
     // Actions
     loadBundledRecipes: () => void;
-    setCSVHeaders: (headers: string[]) => void;
+    setCellHeaders: (headers: string[]) => void;
     selectRecipe: (recipeId: string) => void;
     autoMapFields: (recipeId: string) => void;
-    updateMapping: (recipeId: string, ingredientId: string, csvColumn: string | null) => void;
+    updateMapping: (recipeId: string, ingredientId: string, cellColumn: string | null) => void;
     updateRenderSettings: (recipeId: string, settings: RecipeDocumentSettings) => void;
     getConfiguration: (recipeId: string) => RecipeConfiguration | undefined;
     getRecipe: (recipeId: string) => PrintRecipe | undefined;
@@ -54,7 +54,7 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
             recipes: [],
             configurations: {},
             selectedRecipeId: null,
-            csvHeaders: [],
+            cellHeaders: [],
 
             /**
              * Loads bundled recipes into the store
@@ -82,10 +82,10 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
             },
 
             /**
-             * Sets the current CSV headers (triggers auto-mapping if needed)
+             * Sets the current Cell headers (triggers auto-mapping if needed)
              */
-            setCSVHeaders: (headers: string[]) => {
-                set({ csvHeaders: headers });
+            setCellHeaders: (headers: string[]) => {
+                set({ cellHeaders: headers });
 
                 // Auto-map the selected recipe if one is selected
                 const { selectedRecipeId } = get();
@@ -100,25 +100,25 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
             selectRecipe: (recipeId: string) => {
                 set({ selectedRecipeId: recipeId });
 
-                // Auto-map fields if we have CSV headers
-                const { csvHeaders } = get();
-                if (csvHeaders.length > 0) {
+                // Auto-map fields if we have Cell headers
+                const { cellHeaders } = get();
+                if (cellHeaders.length > 0) {
                     get().autoMapFields(recipeId);
                 }
             },
 
             /**
-             * Auto-maps CSV columns to recipe ingredients
+             * Auto-maps Cell columns to recipe ingredients
              */
             autoMapFields: (recipeId: string) => {
-                const { recipes, csvHeaders, configurations } = get();
+                const { recipes, cellHeaders, configurations } = get();
                 const recipe = recipes.find(r => r.id === recipeId);
 
-                if (!recipe || csvHeaders.length === 0) {
+                if (!recipe || cellHeaders.length === 0) {
                     return;
                 }
 
-                const result = autoMapRecipe(recipe, csvHeaders);
+                const result = autoMapRecipe(recipe, cellHeaders);
 
                 // Update configuration with auto-mapped fields
                 const newConfigurations = { ...configurations };
@@ -135,7 +135,7 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
             /**
              * Updates a field mapping for a recipe
              */
-            updateMapping: (recipeId: string, ingredientId: string, csvColumn: string | null) => {
+            updateMapping: (recipeId: string, ingredientId: string, cellColumn: string | null) => {
                 const { recipes, configurations } = get();
                 const recipe = recipes.find(r => r.id === recipeId);
 
@@ -152,7 +152,7 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
                     recipe,
                     currentConfig.fieldMappings,
                     ingredientId,
-                    csvColumn
+                    cellColumn
                 );
 
                 if (error) {
@@ -303,7 +303,7 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
             },
         }),
         {
-            name: "juniper-print-recipe-storage",
+            name: "seria-print-recipe-storage",
             // Only persist configurations and selected recipe, not the recipes themselves
             partialize: (state) => ({
                 configurations: state.configurations,

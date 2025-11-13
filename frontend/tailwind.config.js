@@ -14,7 +14,7 @@ export default {
             "light",
             "dark",
             {
-                juniper_light: {
+                seria_light: {
                     "primary": "#10b981",
                     "secondary": "#3b82f6",
                     "accent": "#8b5cf6",
@@ -27,7 +27,7 @@ export default {
                     "warning": "#f59e0b",
                     "error": "#ef4444",
                 },
-                juniper_dark: {
+                seria_dark: {
                     "primary": "#10b981",
                     "secondary": "#3b82f6",
                     "accent": "#8b5cf6",

@@ -19,29 +19,29 @@ export interface RowColorFilter {
 
 interface SettingsStore {
     // State
-    showNonCsvFiles: boolean;
+    showIncompatibleFiles: boolean;
     theme: "light" | "dark" | "auto";
     showColumnSeparators: boolean;
     wrapText: boolean;
     autoFitColumns: boolean;
     rowColoringMode: RowColoringMode;
     rowColorFilter: RowColorFilter | null;
-    printFollowsCsvEdit: boolean;
-    csvFollowsPrintEdit: boolean;
+    printFollowsCellEdit: boolean;
+    cellFollowsPrintEdit: boolean;
     hoverHighlightMode: HoverHighlightMode;
     autosaveEnabled: boolean;
     autosaveIntervalSeconds: number;
 
     // Actions
-    setShowNonCsvFiles: (show: boolean) => void;
+    setShowIncompatibleFiles: (show: boolean) => void;
     setTheme: (theme: "light" | "dark" | "auto") => void;
     setShowColumnSeparators: (show: boolean) => void;
     setWrapText: (wrap: boolean) => void;
     setAutoFitColumns: (autoFit: boolean) => void;
     setRowColoringMode: (mode: RowColoringMode) => void;
     setRowColorFilter: (filter: RowColorFilter | null) => void;
-    setPrintFollowsCsvEdit: (follow: boolean) => void;
-    setCsvFollowsPrintEdit: (follow: boolean) => void;
+    setPrintFollowsCellEdit: (follow: boolean) => void;
+    setCellFollowsPrintEdit: (follow: boolean) => void;
     setHoverHighlightMode: (mode: HoverHighlightMode) => void;
     setAutosaveEnabled: (enabled: boolean) => void;
     setAutosaveIntervalSeconds: (seconds: number) => void;
@@ -49,22 +49,22 @@ interface SettingsStore {
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
     // Initial state
-    showNonCsvFiles: false,
+    showIncompatibleFiles: false,
     theme: "dark",
     showColumnSeparators: true,
     wrapText: false,
     autoFitColumns: true,
     rowColoringMode: "off",
     rowColorFilter: null,
-    printFollowsCsvEdit: true,
-    csvFollowsPrintEdit: true,
+    printFollowsCellEdit: true,
+    cellFollowsPrintEdit: true,
     hoverHighlightMode: "row-and-column",
     autosaveEnabled: true,
     autosaveIntervalSeconds: 30,
 
-    // Toggle showing non-CSV files in file tree
-    setShowNonCsvFiles: (show: boolean) => {
-        set({ showNonCsvFiles: show });
+    // Toggle showing non-Cell files in file tree
+    setShowIncompatibleFiles: (show: boolean) => {
+        set({ showIncompatibleFiles: show });
     },
 
     // Set theme
@@ -97,14 +97,14 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
         set({ rowColorFilter: filter });
     },
 
-    // Toggle Print follows CSV edit
-    setPrintFollowsCsvEdit: (follow: boolean) => {
-        set({ printFollowsCsvEdit: follow });
+    // Toggle Print follows Cell edit
+    setPrintFollowsCellEdit: (follow: boolean) => {
+        set({ printFollowsCellEdit: follow });
     },
 
-    // Toggle CSV follows Print edit
-    setCsvFollowsPrintEdit: (follow: boolean) => {
-        set({ csvFollowsPrintEdit: follow });
+    // Toggle Cell follows Print edit
+    setCellFollowsPrintEdit: (follow: boolean) => {
+        set({ cellFollowsPrintEdit: follow });
     },
 
     // Set hover highlight mode

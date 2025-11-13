@@ -192,8 +192,8 @@ function RecipeSettings() {
                 </div>
 
                 <p className="text-sm text-base-content/70 mb-4">
-                    Print Recipes define how your CSV data is visualized in different formats.
-                    Each recipe has "ingredients" that map to your CSV columns.
+                    Print Recipes define how your Cell Data is visualized in different formats.
+                    Each recipe has "ingredients" that map to your Cell columns.
                 </p>
 
                 {/* Filter tabs */}
@@ -246,8 +246,8 @@ function RecipeSettings() {
                     <div className="text-sm">
                         <p className="font-semibold mb-1">How Recipe Mapping Works</p>
                         <p>
-                            When you open a CSV file and select a Print Recipe, Juniper automatically
-                            tries to map your CSV columns to the recipe's ingredients based on column names.
+                            When you open a Cell file and select a Print Recipe, Seria automatically
+                            tries to map your Cell columns to the recipe's ingredients based on column names.
                             You can always manually adjust these mappings in the Print Preview.
                         </p>
                     </div>

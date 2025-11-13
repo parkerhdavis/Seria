@@ -1,7 +1,7 @@
 /**
  * Print Recipe Auto-Mapping Utility
  *
- * Intelligently maps CSV columns to recipe elements based on column names
+ * Intelligently maps Cell columns to recipe elements based on column names
  * and keyword matching. Provides a confidence score for each mapping.
  */
 
@@ -52,7 +52,7 @@ function calculateSimilarity(str1: string, str2: string): number {
 }
 
 /**
- * Finds the best matching CSV column for a recipe ingredient
+ * Finds the best matching Cell column for a recipe ingredient
  * Returns the column name and confidence score
  */
 function findBestMatch(
@@ -88,12 +88,12 @@ function findBestMatch(
 }
 
 /**
- * Auto-maps CSV columns to recipe ingredients
+ * Auto-maps Cell columns to recipe ingredients
  * Returns mapping results with confidence scores
  */
 export function autoMapRecipe(
     recipe: PrintRecipe,
-    csvHeaders: string[]
+    cellHeaders: string[]
 ): AutoMapResult {
     const mappings: RecipeFieldMapping[] = [];
     const unmappedIngredients: string[] = [];
@@ -121,14 +121,14 @@ export function autoMapRecipe(
     for (const { id, ingredient } of ingredientEntries) {
         // Get available columns (exclude already used, unless multipleAllowed is true)
         const multipleAllowed = ingredient.setup.multipleAllowed ?? false;
-        const availableColumns = csvHeaders.filter(col => !usedColumns.has(col) || multipleAllowed);
+        const availableColumns = cellHeaders.filter(col => !usedColumns.has(col) || multipleAllowed);
 
         const { column, confidence } = findBestMatch(id, ingredient, availableColumns);
 
         if (column) {
             mappings.push({
                 ingredientId: id,
-                csvColumn: column,
+                cellColumn: column,
                 isAutoMapped: true,
                 order: 0,
             });
@@ -146,7 +146,7 @@ export function autoMapRecipe(
             if (ingredient.setup.required) {
                 mappings.push({
                     ingredientId: id,
-                    csvColumn: null,
+                    cellColumn: null,
                     isAutoMapped: false,
                     order: 0,
                 });
@@ -160,7 +160,7 @@ export function autoMapRecipe(
         : 0;
 
     // Find unmapped columns
-    const unmappedColumns = csvHeaders.filter(col => !usedColumns.has(col));
+    const unmappedColumns = cellHeaders.filter(col => !usedColumns.has(col));
 
     return {
         mappings,
@@ -181,7 +181,7 @@ export function validateRecipeConfiguration(
     const errors: string[] = [];
     const mappedIngredients = new Set(
         mappings
-            .filter(m => m.csvColumn !== null)
+            .filter(m => m.cellColumn !== null)
             .map(m => m.ingredientId)
     );
 
@@ -192,7 +192,7 @@ export function validateRecipeConfiguration(
     for (const [id, ingredient] of Object.entries(ingredients)) {
         if (ingredient.setup.required && !mappedIngredients.has(id)) {
             errors.push(
-                `Required ingredient "${ingredient.setup.name || id}" is not mapped to a CSV column`
+                `Required ingredient "${ingredient.setup.name || id}" is not mapped to a Cell column`
             );
         }
     }
@@ -234,7 +234,7 @@ export function updateFieldMapping(
         const updatedMappings = [...currentMappings];
         updatedMappings[existingIndex] = {
             ...updatedMappings[existingIndex],
-            csvColumn: newColumn,
+            cellColumn: newColumn,
             isAutoMapped: false, // User manually changed it
         };
         return { mappings: updatedMappings };
@@ -242,7 +242,7 @@ export function updateFieldMapping(
         // Add new mapping
         const newMapping: RecipeFieldMapping = {
             ingredientId,
-            csvColumn: newColumn,
+            cellColumn: newColumn,
             isAutoMapped: false,
             order: 0,
         };
@@ -251,14 +251,14 @@ export function updateFieldMapping(
 }
 
 /**
- * Gets the mapped CSV column for a specific element
+ * Gets the mapped Cell column for a specific element
  */
 export function getMappedColumn(
     mappings: RecipeFieldMapping[],
     elementId: string
 ): string | null {
     const mapping = mappings.find(m => m.ingredientId === elementId);
-    return mapping?.csvColumn ?? null;
+    return mapping?.cellColumn ?? null;
 }
 
 /**
@@ -269,7 +269,7 @@ export function getMappedColumns(
     elementId: string
 ): string[] {
     return mappings
-        .filter(m => m.ingredientId === elementId && m.csvColumn !== null)
+        .filter(m => m.ingredientId === elementId && m.cellColumn !== null)
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-        .map(m => m.csvColumn!);
+        .map(m => m.cellColumn!);
 }

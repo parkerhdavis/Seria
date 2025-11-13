@@ -1,7 +1,7 @@
 /**
  * Default Corkboard Recipe
  *
- * Displays CSV rows as draggable index cards, like a corkboard for planning
+ * Displays Cell rows as draggable index cards, like a corkboard for planning
  * and organizing scenes or story beats.
  */
 
@@ -47,7 +47,7 @@ export interface CorkboardRecipe extends PrintRecipe {
 export const CORKBOARD_RECIPE: CorkboardRecipe = {
     id: "corkboard",
     name: "Corkboard Print",
-    description: "Display CSV rows as draggable index cards, like a corkboard for planning and organizing scenes or story beats.",
+    description: "Display Cell rows as draggable index cards, like a corkboard for planning and organizing scenes or story beats.",
     type: "corkboard",
     documentSettings: {
         cardWidth: 280,
@@ -101,7 +101,7 @@ export const CORKBOARD_RECIPE: CorkboardRecipe = {
         content: {
             setup: {
                 name: "Content",
-                description: "The main body text of the card. Multiple CSV columns can be mapped here.",
+                description: "The main body text of the card. Multiple Cell columns can be mapped here.",
                 required: false,
                 autoMapKeywords: ["content", "description", "body", "text", "notes", "details", "action"],
                 multipleAllowed: true,

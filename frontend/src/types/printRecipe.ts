@@ -1,9 +1,9 @@
 /**
  * Print Recipe Types
  *
- * Print Recipes define how CSV data should be visualized in different
+ * Print Recipes define how Cell Data should be visualized in different
  * print formats. Each recipe has "ingredients" (required/optional fields)
- * that map to CSV columns, along with rendering rules.
+ * that map to Cell columns, along with rendering rules.
  */
 
 /** Text transformation functions */
@@ -15,7 +15,7 @@ export type FontFamily = "Courier" | "Times New Roman" | "Arial" | "Helvetica" |
 
 /**
  * Recipe ingredient definition
- * Represents a field that needs to be mapped from the CSV
+ * Represents a field that needs to be mapped from the Cell
  */
 export interface RecipeIngredient {
     setup: {
@@ -23,7 +23,7 @@ export interface RecipeIngredient {
         description: string;            // Description of what this field represents
         required: boolean;              // Whether this ingredient is required for the recipe
         autoMapKeywords: string[];      // Keywords to use for automatic field matching (case-insensitive)
-        multipleAllowed?: boolean;      // Whether multiple CSV columns can map to this ingredient (e.g., for "Content")
+        multipleAllowed?: boolean;      // Whether multiple Cell columns can map to this ingredient (e.g., for "Content")
     };
     style: {
         fontFamily: FontFamily;
@@ -89,16 +89,16 @@ export type RecipeType = "corkboard" | "screenplay" | "dialogue" | "custom";
 
 
 /**
- * Field mapping from CSV column to recipe ingredient
+ * Field mapping from Cell column to recipe ingredient
  */
 export interface RecipeFieldMapping {
     ingredientId: string;           // Which ingredient this maps to
-    csvColumn: string | null;       // Which CSV column to use (null if unmapped)
+    cellColumn: string | null;       // Which Cell column to use (null if unmapped)
     isAutoMapped: boolean;          // Whether this was automatically mapped or manually set
     order?: number;                 // For ingredients that allow multiple mappings, the display order
 }
 /**
- * Recipe configuration (links a recipe to specific CSV field mappings)
+ * Recipe configuration (links a recipe to specific Cell field mappings)
  */
 export interface RecipeConfiguration {
     recipeId: string;               // Which recipe this configuration is for
@@ -109,12 +109,12 @@ export interface RecipeConfiguration {
 
 /**
  * Auto-mapping result
- * Contains the results of attempting to auto-map CSV columns to recipe ingredients
+ * Contains the results of attempting to auto-map Cell columns to recipe ingredients
  */
 export interface AutoMapResult {
     mappings: RecipeFieldMapping[]; // Successfully auto-mapped fields
     unmappedIngredients: string[];  // Ingredient IDs that couldn't be auto-mapped
-    unmappedColumns: string[];      // CSV column names that weren't used in mapping
+    unmappedColumns: string[];      // Cell column names that weren't used in mapping
     confidence: number;             // Overall confidence score (0-1) for the auto-mapping
 }
 
@@ -135,9 +135,9 @@ export interface RenderedElement {
  */
 export interface RecipeRenderer {
     /**
-     * Renders CSV data according to the recipe configuration
-     * @param data - CSV data rows
-     * @param headers - CSV column headers
+     * Renders Cell Data according to the recipe configuration
+     * @param data - Cell Data rows
+     * @param headers - Cell column headers
      * @param recipe - The recipe to use
      * @param configuration - The field mapping configuration
      * @returns Array of rendered elements

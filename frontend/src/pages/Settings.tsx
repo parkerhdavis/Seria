@@ -13,7 +13,7 @@ function Settings() {
             <div className="mb-6">
                 <h1 className="text-3xl font-bold text-base-content">Settings</h1>
                 <p className="text-base-content/60 mt-2">
-                    Configure your Juniper preferences
+                    Configure your Seria preferences
                 </p>
             </div>
 
@@ -54,7 +54,7 @@ function Settings() {
                                 <option>Game Design</option>
                             </select>
                             <label className="label">
-                                <span className="label-text-alt">Template to use when opening CSV files</span>
+                                <span className="label-text-alt">Template to use when opening Cell files</span>
                             </label>
                         </div>
 
@@ -64,7 +64,7 @@ function Settings() {
                                 <div>
                                     <span className="label-text font-semibold block">Enable virtualization</span>
                                     <span className="label-text-alt block text-base-content/60">
-                                        Improve performance for large CSV files (1000+ rows)
+                                        Improve performance for large Cell files (1000+ rows)
                                     </span>
                                 </div>
                             </label>
@@ -101,7 +101,7 @@ function Settings() {
                             <p><span className="font-semibold">Version:</span> 0.1.0</p>
                             <p><span className="font-semibold">Build:</span> Development</p>
                             <p className="text-base-content/60">
-                                Juniper is a specialized CSV editor for writers and designers.
+                                Seria is a specialized Cell editor for writers and designers.
                             </p>
                         </div>
                     </div>

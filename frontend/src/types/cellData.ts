@@ -1,15 +1,15 @@
 /**
- * CSV Data Types
+ * Cell Data Types
  *
- * Type definitions for CSV data structures, filtering, and sorting.
+ * Type definitions for Cell Data structures, filtering, and sorting.
  */
 
 /**
- * CSV data structure
+ * Cell Data structure
  * - headers: Column names from the first row
  * - data: 2D array of cell values
  */
-export interface CSVData {
+export interface CellData {
     headers: string[];
     data: string[][];
 }
@@ -56,9 +56,9 @@ export interface SortOrder {
 }
 
 /**
- * CSV file metadata
+ * Cell file metadata
  */
-export interface CSVFileInfo {
+export interface CellFileInfo {
     path: string;
     name: string;
     size: number;

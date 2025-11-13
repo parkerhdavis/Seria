@@ -1,8 +1,8 @@
 /**
  * Print Preview page component
  *
- * Displays CSV data rendered in professional page formats (Screenplay, Dialogue, etc.).
- * Allows users to select different Print templates and preview their CSV data
+ * Displays Cell Data rendered in professional page formats (Screenplay, Dialogue, etc.).
+ * Allows users to select different Print templates and preview their Cell Data
  * in various formatted layouts.
  */
 function PrintPreview() {
@@ -11,7 +11,7 @@ function PrintPreview() {
             <div className="mb-4">
                 <h1 className="text-3xl font-bold text-base-content">Print Preview</h1>
                 <p className="text-base-content/60 mt-2">
-                    View your CSV data in professional formats
+                    View your Cell Data in professional formats
                 </p>
             </div>
 
@@ -36,7 +36,7 @@ function PrintPreview() {
                         No Print to Preview
                     </h2>
                     <p className="text-base-content/50 mb-6">
-                        Open a CSV file in the Editor to preview it here
+                        Open a Cell file in the Editor to preview it here
                     </p>
 
                     <div className="alert alert-info max-w-md mx-auto">

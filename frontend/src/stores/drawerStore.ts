@@ -2,7 +2,7 @@
  * Drawer Store
  *
  * Zustand store for managing Print drawer state (position, size, and visibility).
- * This allows the CSV grid to adjust its viewport based on the drawer position.
+ * This allows the Cell Grid to adjust its viewport based on the drawer position.
  */
 
 import { create } from "zustand";

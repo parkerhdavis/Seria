@@ -1,15 +1,15 @@
 /**
  * Card Print Component
  *
- * Renders CSV data as draggable index cards, like a corkboard for planning.
- * Each CSV row becomes a card with Title, Subtitle, and Content.
+ * Renders Cell Data as draggable index cards, like a corkboard for planning.
+ * Each Cell row becomes a card with Title, Subtitle, and Content.
  * Cards can be dragged to reorder them.
  */
 
 import { useState, useEffect, useRef } from "react";
 import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 import { getMappedColumn, getMappedColumns } from "@/utils/printRecipeMapper";
-import { useCSVStore } from "@/stores/csvStore";
+import { useCellStore } from "@stores/cellStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 
 interface CardPrintProps {
@@ -219,10 +219,10 @@ function Card({
                 </div>
             )}
 
-            {/* "Editing from CSV" overlay indicator */}
+            {/* "Editing from Cell" overlay indicator */}
             {hasAnyEditing && !isEditingFromPrint && (
                 <div className="absolute -top-6 left-4 text-xs text-primary/70 italic bg-base-100/90 px-2 py-0.5 rounded shadow-sm border border-primary/20">
-                    (editing from CSV)
+                    (editing from Cell)
                 </div>
             )}
 
@@ -367,8 +367,8 @@ function CardPrint({
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
-    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell, clearSelection } = useCSVStore();
-    const { printFollowsCsvEdit } = useSettingsStore();
+    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell, clearSelection } = useCellStore();
+    const { printFollowsCellEdit } = useSettingsStore();
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
     // State for Print view selection and editing
@@ -402,7 +402,7 @@ function CardPrint({
 
     // Scroll to card when editing cell changes
     useEffect(() => {
-        if (editingCell && containerRef && printFollowsCsvEdit) {
+        if (editingCell && containerRef && printFollowsCellEdit) {
             // Find the card that contains the editing cell
             const card = cardRefs.current.get(editingCell.row);
 
@@ -415,33 +415,33 @@ function CardPrint({
                 });
             }
         }
-    }, [editingCell, containerRef, printFollowsCsvEdit]);
+    }, [editingCell, containerRef, printFollowsCellEdit]);
 
-    // Clear Print selection when editing cell from CSV grid changes
+    // Clear Print selection when editing cell from Cell Grid changes
     useEffect(() => {
         if (editingCell && !isEditingFromPrint) {
-            // Clear Print selection since user is editing from CSV grid
+            // Clear Print selection since user is editing from Cell Grid
             setSelectedField(null);
         }
     }, [editingCell, isEditingFromPrint]);
 
-    // Clear Print selection when CSV cell is selected
-    const { selectedCell, selectedRange } = useCSVStore();
+    // Clear Print selection when Cell cell is selected
+    const { selectedCell, selectedRange } = useCellStore();
     useEffect(() => {
         if ((selectedCell || selectedRange) && selectedField && !isEditingFromPrint) {
-            // User clicked in CSV grid, clear Print selection
+            // User clicked in Cell Grid, clear Print selection
             setSelectedField(null);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing isEditingFromPrint, selectedField dependencies. Adding these would create an infinite loop - the effect clears selectedField, which would trigger the effect again, clearing it again, etc. Alternative: Restructure logic to use a ref for tracking state or separate the concerns.
     }, [selectedCell, selectedRange]);
 
-    // Clear Print selection when clicking anywhere in CSV grid area (including background)
+    // Clear Print selection when clicking anywhere in Cell Grid area (including background)
     useEffect(() => {
         const handleDocumentClick = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
-            // Check if click is within CSV grid container
-            const csvGrid = document.querySelector(".csv-grid-container");
-            if (csvGrid && csvGrid.contains(target) && selectedField && !isEditingFromPrint) {
+            // Check if click is within Cell Grid container
+            const cellGrid = document.querySelector(".cell-grid-container");
+            if (cellGrid && cellGrid.contains(target) && selectedField && !isEditingFromPrint) {
                 setSelectedField(null);
             }
         };
@@ -553,7 +553,7 @@ function CardPrint({
             columnName,
         });
 
-        // Clear CSV selection so CSV grid doesn't compete for keyboard input
+        // Clear Cell selection so Cell Grid doesn't compete for keyboard input
         clearSelection();
 
         // Focus the Print container so keyboard events work
@@ -636,7 +636,7 @@ function CardPrint({
         return data[rowIndex]?.[colIndex] || "";
     };
 
-    // Transform CSV data into card data
+    // Transform Cell Data into card data
     const cards: CardData[] = data.map((row, index) => {
         const titleIdx = titleColumn ? headers.indexOf(titleColumn) : -1;
         const subtitleIdx = subtitleColumn ? headers.indexOf(subtitleColumn) : -1;
@@ -729,7 +729,7 @@ function CardPrint({
             className="card-print-container w-full h-full overflow-scroll bg-black/30 outline-none"
             tabIndex={0}
             onClick={(e) => {
-                // Clear CSV selection when clicking anywhere in Print view
+                // Clear Cell selection when clicking anywhere in Print view
                 // Only if we didn't click on a card (which handles its own selection)
                 const target = e.target as HTMLElement;
                 if (!target.closest(".bg-base-100")) {  // Cards have bg-base-100

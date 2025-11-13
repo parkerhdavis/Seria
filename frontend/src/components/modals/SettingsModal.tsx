@@ -20,14 +20,14 @@ interface SettingsModalProps {
  */
 function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const {
-        showNonCsvFiles,
-        setShowNonCsvFiles,
+        showIncompatibleFiles,
+        setShowIncompatibleFiles,
         theme,
         setTheme,
-        printFollowsCsvEdit,
-        setPrintFollowsCsvEdit,
-        csvFollowsPrintEdit,
-        setCsvFollowsPrintEdit,
+        printFollowsCellEdit,
+        setPrintFollowsCellEdit,
+        cellFollowsPrintEdit,
+        setCellFollowsPrintEdit,
         hoverHighlightMode,
         setHoverHighlightMode,
         autosaveEnabled,
@@ -44,7 +44,7 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             const filePath = await save({
                 filters: [{ name: "JSON Files", extensions: ["json"] }],
                 title: "Export File Configurations",
-                defaultPath: "juniper-configs.json",
+                defaultPath: "seria-configs.json",
             });
 
             if (filePath) {
@@ -98,7 +98,7 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     <div>
                         <h2 className="text-2xl font-bold text-base-content">Settings</h2>
                         <p className="text-base-content/60 mt-1">
-                            Configure your Juniper preferences
+                            Configure your Seria preferences
                         </p>
                     </div>
                     <button
@@ -162,7 +162,7 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     <option>Game Design</option>
                                 </select>
                                 <label className="label">
-                                    <span className="label-text-alt">Template to use when opening CSV files</span>
+                                    <span className="label-text-alt">Template to use when opening Cell files</span>
                                 </label>
                             </div>
 
@@ -172,7 +172,7 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     <div>
                                         <span className="label-text font-semibold block">Enable virtualization</span>
                                         <span className="label-text-alt block text-base-content/60">
-                                            Improve performance for large CSV files (1000+ rows)
+                                            Improve performance for large Cell files (1000+ rows)
                                         </span>
                                     </div>
                                 </label>
@@ -183,13 +183,13 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     <input
                                         type="checkbox"
                                         className="checkbox checkbox-primary"
-                                        checked={showNonCsvFiles}
-                                        onChange={(e) => setShowNonCsvFiles(e.target.checked)}
+                                        checked={showIncompatibleFiles}
+                                        onChange={(e) => setShowIncompatibleFiles(e.target.checked)}
                                     />
                                     <div>
-                                        <span className="label-text font-semibold block">Show non-CSV files</span>
+                                        <span className="label-text font-semibold block">Show non-Cell files</span>
                                         <span className="label-text-alt block text-base-content/60">
-                                            Display non-CSV files in the file tree (greyed out and non-clickable)
+                                            Display non-Cell files in the file tree (greyed out and non-clickable)
                                         </span>
                                     </div>
                                 </label>
@@ -210,7 +210,7 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     <option value="row-and-column">Row and Column</option>
                                 </select>
                                 <label className="label">
-                                    <span className="label-text-alt">Choose which parts of the CSV grid to highlight when hovering over a cell</span>
+                                    <span className="label-text-alt">Choose which parts of the Cell Grid to highlight when hovering over a cell</span>
                                 </label>
                             </div>
 
@@ -221,13 +221,13 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     <input
                                         type="checkbox"
                                         className="checkbox checkbox-primary"
-                                        checked={printFollowsCsvEdit}
-                                        onChange={(e) => setPrintFollowsCsvEdit(e.target.checked)}
+                                        checked={printFollowsCellEdit}
+                                        onChange={(e) => setPrintFollowsCellEdit(e.target.checked)}
                                     />
                                     <div>
-                                        <span className="label-text font-semibold block">Print follows CSV edit</span>
+                                        <span className="label-text font-semibold block">Print follows Cell edit</span>
                                         <span className="label-text-alt block text-base-content/60">
-                                            Automatically scroll Print view to show the element being edited from CSV
+                                            Automatically scroll Print view to show the element being edited from Cell
                                         </span>
                                     </div>
                                 </label>
@@ -238,13 +238,13 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     <input
                                         type="checkbox"
                                         className="checkbox checkbox-primary"
-                                        checked={csvFollowsPrintEdit}
-                                        onChange={(e) => setCsvFollowsPrintEdit(e.target.checked)}
+                                        checked={cellFollowsPrintEdit}
+                                        onChange={(e) => setCellFollowsPrintEdit(e.target.checked)}
                                     />
                                     <div>
-                                        <span className="label-text font-semibold block">CSV follows Print edit</span>
+                                        <span className="label-text font-semibold block">Cell follows Print edit</span>
                                         <span className="label-text-alt block text-base-content/60">
-                                            Automatically scroll CSV view to show the row being edited from Print
+                                            Automatically scroll Cell view to show the row being edited from Print
                                         </span>
                                     </div>
                                 </label>
@@ -499,7 +499,7 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                 <p><span className="font-semibold">Version:</span> 0.1.0</p>
                                 <p><span className="font-semibold">Build:</span> Development</p>
                                 <p className="text-base-content/60">
-                                    Juniper is a specialized CSV editor for writers and designers.
+                                    Seria is a specialized Cell editor for writers and designers.
                                 </p>
                             </div>
                         </div>

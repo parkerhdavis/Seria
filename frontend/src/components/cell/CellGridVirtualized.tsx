@@ -1,23 +1,23 @@
 /**
- * Virtualized CSV Grid Component
+ * Virtualized Cell Grid Component
  *
- * Performance-optimized version of CSVGrid using virtualization
- * for handling large CSV files (1000+ rows) efficiently.
+ * Performance-optimized version of CellGrid using virtualization
+ * for handling large Cell files (1000+ rows) efficiently.
  */
 
 import { useState, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCSVStore } from "@stores/csvStore";
+import { useCellStore } from "@stores/cellStore";
 
-interface CSVGridVirtualizedProps {
+interface CellGridVirtualizedProps {
     onCellEdit?: (row: number, col: number, value: string) => void;
 }
 
 /**
- * Virtualized CSV Grid - only renders visible rows for performance
+ * Virtualized Cell Grid - only renders visible rows for performance
  */
-function CSVGridVirtualized({ onCellEdit }: CSVGridVirtualizedProps) {
-    const { headers, data, updateCell } = useCSVStore();
+function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
+    const { headers, data, updateCell } = useCellStore();
     const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
     const [editValue, setEditValue] = useState("");
 
@@ -95,7 +95,7 @@ function CSVGridVirtualized({ onCellEdit }: CSVGridVirtualizedProps) {
     const totalSize = rowVirtualizer.getTotalSize();
 
     return (
-        <div ref={parentRef} className="csv-grid-virtualized overflow-auto w-full h-full pr-32 pb-32">
+        <div ref={parentRef} className="cell-grid-virtualized overflow-auto w-full h-full pr-32 pb-32">
             {/* Header (sticky) */}
             <div className="sticky top-0 z-10 bg-base-300 border-b-2 border-base-300">
                 <div className="flex">
@@ -197,4 +197,4 @@ function CSVGridVirtualized({ onCellEdit }: CSVGridVirtualizedProps) {
     );
 }
 
-export default CSVGridVirtualized;
+export default CellGridVirtualized;

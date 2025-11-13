@@ -1,21 +1,21 @@
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useCSVStore } from "@stores/csvStore";
-import CSVGrid from "@components/csv/CSVGrid";
-import CSVGridVirtualized from "@components/csv/CSVGridVirtualized";
+import { useCellStore } from "@stores/cellStore";
+import CellGrid from "@components/cell/CellGrid";
+import CellGridVirtualized from "@components/cell/CellGridVirtualized";
 
 // Threshold for enabling virtualization (rows)
 const VIRTUALIZATION_THRESHOLD = 1000;
 
 /**
- * CSV Editor page component
+ * Cell Editor page component
  *
- * Main editing interface for CSV files. Provides a spreadsheet-like grid
- * for viewing and editing CSV data with filtering, sorting, and bulk operations.
+ * Main editing interface for Cell files. Provides a spreadsheet-like grid
+ * for viewing and editing Cell Data with filtering, sorting, and bulk operations.
  * Toolbar controls have been moved to the Header component.
  */
 function Editor() {
-    const { headers, data, error, loadCSV } = useCSVStore();
+    const { headers, data, error, loadCells } = useCellStore();
     const [isDraggingOver, setIsDraggingOver] = useState(false);
 
     // Check if we have data loaded
@@ -29,13 +29,13 @@ function Editor() {
             const filePath = await open({
                 multiple: false,
                 filters: [
-                    { name: "CSV Files", extensions: ["csv"] },
+                    { name: "Cell Files", extensions: ["cell"] },
                     { name: "All Files", extensions: ["*"] },
                 ],
             });
 
             if (filePath && typeof filePath === "string") {
-                await loadCSV(filePath);
+                await loadCells(filePath);
             }
         } catch (error) {
             console.error("Failed to open file:", error);
@@ -81,13 +81,13 @@ function Editor() {
 
         if (files.length > 0) {
             const file = files[0];
-            // Check if it's a CSV file
-            if (file.name.endsWith(".csv")) {
+            // Check if it's a Cell file
+            if (file.name.endsWith(".cell")) {
                 // Tauri adds a 'path' property to dropped files with the full file path
                 const fileWithPath = file as File & { path?: string };
                 const filePath = fileWithPath.path || file.name;
                 try {
-                    await loadCSV(filePath);
+                    await loadCells(filePath);
                 } catch (error) {
                     console.error("Failed to load dropped file:", error);
                 }
@@ -121,9 +121,9 @@ function Editor() {
             <div className="flex-1 overflow-hidden bg-base-100 min-w-0">
                 {hasData ? (
                     data.length >= VIRTUALIZATION_THRESHOLD ? (
-                        <CSVGridVirtualized />
+                        <CellGridVirtualized />
                     ) : (
-                        <CSVGrid />
+                        <CellGrid />
                     )
                 ) : (
                     <div
@@ -158,12 +158,12 @@ function Editor() {
                                 />
                             </svg>
                             <h2 className="text-xl font-semibold text-base-content/60 mb-2">
-                                {isDraggingOver ? "Drop CSV File Here" : "No CSV File Open"}
+                                {isDraggingOver ? "Drop Cell File Here" : "No Cell File Open"}
                             </h2>
                             <p className="text-base-content/50">
                                 {isDraggingOver
                                     ? "Release to open"
-                                    : "Click here, drag and drop a CSV file, or use \"Open File\" in the header"
+                                    : "Click here, drag and drop a Cell file, or use \"Open File\" in the header"
                                 }
                             </p>
                         </div>

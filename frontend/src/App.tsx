@@ -4,7 +4,7 @@ import Editor from "./pages/Editor";
 import PrintDrawer from "@components/prints/PrintDrawer";
 import SettingsModal from "@components/modals/SettingsModal";
 import FindReplaceModal from "@components/modals/FindReplaceModal";
-import { useCSVStore } from "./stores/csvStore";
+import { useCellStore } from "@stores/cellStore";
 import { useFindReplaceStore } from "./stores/findReplaceStore";
 import { useDrawerStore } from "./stores/drawerStore";
 import { useFileConfigStore } from "./stores/fileConfigStore";
@@ -23,7 +23,7 @@ function App() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(100);
-    const { saveCSV, loadCSV, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile } = useCSVStore();
+    const { saveCells, loadCells, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile } = useCellStore();
     const { openFind, openReplace } = useFindReplaceStore();
     const { position: printPreviewPosition, togglePosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
     const { loadConfigs } = useFileConfigStore();
@@ -79,13 +79,13 @@ function App() {
                     const filePath = await open({
                         multiple: false,
                         filters: [
-                            { name: "CSV Files", extensions: ["csv"] },
+                            { name: "Cell Files", extensions: ["cell"] },
                             { name: "All Files", extensions: ["*"] },
                         ],
-                        title: "Open CSV File",
+                        title: "Open Cell File",
                     });
                     if (filePath) {
-                        await loadCSV(filePath);
+                        await loadCells(filePath);
                         // Blur the active element so keyboard shortcuts continue to work
                         if (document.activeElement instanceof HTMLElement) {
                             document.activeElement.blur();
@@ -99,7 +99,7 @@ function App() {
             else if (e.ctrlKey && e.key === "s") {
                 e.preventDefault();
                 try {
-                    await saveCSV();
+                    await saveCells();
                 } catch (error) {
                     console.error("Save failed:", error);
                 }
@@ -167,7 +167,7 @@ function App() {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [saveCSV, loadCSV, openFind, openReplace, undo, redo, canUndo, canRedo, togglePosition]);
+    }, [saveCells, loadCells, openFind, openReplace, undo, redo, canUndo, canRedo, togglePosition]);
 
     return (
         <DragProvider>
