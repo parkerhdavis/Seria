@@ -116,23 +116,11 @@ The killer feature: **edit in any view, changes sync everywhere.**
 > The first packaged release will drop later this month. Stay tuned!
 
 
-Download from [GitLab Releases](https://gitlab.com/parkerhdavis/Juniper/-/releases):
+Formats available on [GitLab Releases](https://gitlab.com/parkerhdavis/Juniper/-/releases):
 
 - **Linux:** `.AppImage` (universal), `.deb` (Debian/Ubuntu), `.rpm` (Fedora/RHEL)
 - **Windows:** `.msi` or `_setup.exe`
 - **macOS:** `.dmg`
-
-**Quick install:**
-```bash
-# Linux (AppImage)
-chmod +x Juniper-*.AppImage && ./Juniper-*.AppImage
-
-# Linux (deb)
-sudo dpkg -i juniper_*_amd64.deb
-
-# Linux (rpm)
-sudo rpm -i juniper-*.rpm
-```
 
 → [Detailed installation instructions for all platforms](wiki/00-Introduction/00.03%20-%20Installation.md)
 
@@ -162,8 +150,8 @@ sudo rpm -i juniper-*.rpm
 
 ## Links
 
-- **GitLab:** [https://gitlab.com/parkerhdavis/Juniper](https://gitlab.com/parkerhdavis/Juniper)
-- **GitHub Mirror:** [https://github.com/parkerhdavis/Juniper](https://github.com/parkerhdavis/Juniper)
+- **GitLab (main repo):** [https://gitlab.com/parkerhdavis/Juniper](https://gitlab.com/parkerhdavis/Juniper)
+- **GitHub (mirror repo):** [https://github.com/parkerhdavis/Juniper](https://github.com/parkerhdavis/Juniper)
 - **Issues:** [GitLab Issues](https://gitlab.com/parkerhdavis/Juniper/-/issues)
 - **Releases:** [GitLab Releases](https://gitlab.com/parkerhdavis/Juniper/-/releases)
 
@@ -183,4 +171,21 @@ Juniper was inspired by tools like [Obsidian](https://obsidian.md/) that demonst
 
 ## License
 
-[License information to be added]
+Covered under the GPL License, see [[LICENSE]]
+
+---
+
+## Financial Support
+
+If you have some cash to spare and want to help out, that's very kind. I'm doing alright, so rather than sharing that kindness with me, I encourage you to share it with your charity of choice. Mine is the [GiveWell top charities fund](https://www.givewell.org/top-charities-fund) , which does excellent research to figure out which causes can save the most human lives for the money, and put their funds there.
+
+For example: their grant to the Against Malaria Foundation was shown to save lives at a rate of just $1,700 per life saved.
+
+```embed
+title: "Top Charities Fund"
+image: "https://in.getclicky.com/78566ns.gif"
+description: "Published: June 2021; Last updated: November 2025 (April 2021 version)"
+url: "https://www.givewell.org/top-charities-fund"
+favicon: ""
+aspectRatio: "100"
+```

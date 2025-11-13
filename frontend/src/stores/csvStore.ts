@@ -64,6 +64,7 @@ interface CSVStore {
     isDirty: boolean;
     isLoading: boolean;
     error: string | null;
+    lastSavedAt: number | null;  // Timestamp of last successful save
 
     // Cell editing state (shared between CSV grid and Print preview)
     editingCell: EditingCell | null;
@@ -93,6 +94,7 @@ interface CSVStore {
 
     // Actions
     loadCSV: (path: string) => Promise<void>;
+    reloadCSV: () => Promise<void>;
     saveCSV: () => Promise<void>;
     saveCSVAs: (path: string) => Promise<void>;
     updateCell: (row: number, col: number, value: string) => void;
@@ -160,6 +162,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     isDirty: false,
     isLoading: false,
     error: null,
+    lastSavedAt: null,
     editingCell: null,
     editingValue: "",
     editingSource: null,
@@ -330,6 +333,19 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
         }
     },
 
+    // Reload current CSV from disk
+    reloadCSV: async () => {
+        const { currentFile } = get();
+
+        if (!currentFile) {
+            set({ error: "No file is currently open" });
+            return;
+        }
+
+        // Simply reload the current file
+        await get().loadCSV(currentFile);
+    },
+
     // Save current CSV to disk
     saveCSV: async () => {
         const { currentFile, headers, data } = get();
@@ -355,6 +371,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                 isDirty: false,
                 isLoading: false,
                 error: null,
+                lastSavedAt: Date.now(),
             });
         } catch (error) {
             set({
@@ -394,6 +411,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                 isDirty: false,
                 isLoading: false,
                 error: null,
+                lastSavedAt: Date.now(),
             });
         } catch (error) {
             set({
