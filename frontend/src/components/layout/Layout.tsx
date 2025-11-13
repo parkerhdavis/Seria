@@ -69,8 +69,8 @@ function Layout({ children, isSidebarOpen, onTogglePrintPreview, onToggleSidebar
                     {/* Sidebar header with close button */}
                     <div className="p-4 border-b border-base-300 flex items-center justify-between">
                         <div>
-                            <h1 className="text-2xl font-bold text-primary">Juniper</h1>
-                            <p className="text-sm text-base-content/60">CSV Editor</p>
+                            <h1 className="text-2xl font-bold text-primary">Seria</h1>
+                            <p className="text-sm text-base-content/60">Cell Editor</p>
                         </div>
                         <button
                             className="btn btn-sm btn-ghost btn-circle"

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { useCSVStore } from "@stores/csvStore";
+import { useCellStore } from "@stores/cellStore";
 import { useFileTreeStore } from "@stores/fileTreeStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import RowColoringDropdown from "../toolbar/RowColoringDropdown";
@@ -22,8 +22,8 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
     const [showSaveSuccess, setShowSaveSuccess] = useState(false);
     const [showReloadConfirm, setShowReloadConfirm] = useState(false);
 
-    // Get CSV store state and actions
-    const { headers, fileInfo, isDirty, isLoading, lastSavedAt, loadCSV, reloadCSV, saveCSV, clearData, addRow } = useCSVStore();
+    // Get Cell Store state and actions
+    const { headers, fileInfo, isDirty, isLoading, lastSavedAt, loadCells, reloadCells, saveCells, clearData, addRow } = useCellStore();
 
     // Get settings store state and actions
     const { wrapText, setWrapText, showColumnSeparators, setShowColumnSeparators, autoFitColumns, setAutoFitColumns } = useSettingsStore();
@@ -46,19 +46,19 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
         }
     }, [lastSavedAt]);
 
-    // Open file dialog and load selected CSV
+    // Open file dialog and load selected file
     const handleOpen = async () => {
         try {
             const filePath = await open({
                 multiple: false,
                 filters: [
-                    { name: "CSV Files", extensions: ["csv"] },
+                    { name: "Compatible Files", extensions: ["cell", "csv", "tsv"] },
                     { name: "All Files", extensions: ["*"] },
                 ],
-                title: "Open CSV File",
+                title: "Open Cell File",
             });
             if (filePath) {
-                await loadCSV(filePath);
+                await loadCells(filePath);
                 // Blur the active element (Open button) so keyboard shortcuts work
                 if (document.activeElement instanceof HTMLElement) {
                     document.activeElement.blur();
@@ -72,7 +72,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
     // Save current file
     const handleSave = async () => {
         try {
-            await saveCSV();
+            await saveCells();
         } catch (error) {
             console.error("Failed to save file:", error);
         }
@@ -82,7 +82,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
     const handleReload = async () => {
         setShowReloadConfirm(false);
         try {
-            await reloadCSV();
+            await reloadCells();
         } catch (error) {
             console.error("Failed to reload file:", error);
         }
@@ -91,15 +91,20 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
     // Save as - show save dialog and save to new location
     const handleSaveAs = async () => {
         try {
-            const fileName = fileInfo?.name || "untitled.csv";
+            const fileName = fileInfo?.name || "untitled.cell";
             const filePath = await save({
-                filters: [{ name: "CSV Files", extensions: ["csv"] }],
-                title: "Save CSV File",
+                filters: [
+                    { name: "Cell Files", extensions: ["cell"] },
+                    { name: "CSV Files", extensions: ["csv"] },
+                    { name: "TSV Files", extensions: ["tsv"] },
+                    { name: "All Files", extensions: ["*"] },
+                ],
+                title: "Save Cell File",
                 defaultPath: fileName,
             });
             if (filePath) {
-                const { saveCSVAs } = useCSVStore.getState();
-                await saveCSVAs(filePath);
+                const { saveCellAs } = useCellStore.getState();
+                await saveCellAs(filePath);
             }
         } catch (error) {
             console.error("Failed to save file:", error);
@@ -186,7 +191,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                     <button
                         className="btn btn-sm btn-ghost"
                         onClick={handleOpen}
-                        title="Open CSV file (Ctrl+O)"
+                        title="Open Cell file (Ctrl+O)"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />

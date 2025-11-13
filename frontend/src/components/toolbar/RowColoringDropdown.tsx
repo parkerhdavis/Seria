@@ -6,15 +6,15 @@
  */
 
 import { useState, useRef, useEffect } from "react";
-import { useCSVStore } from "@stores/csvStore";
+import { useCellStore } from "@stores/cellStore";
 import { useSettingsStore, RowColoringMode, FilterOperation } from "@stores/settingsStore";
-import FilterComparison from "../csv/FilterComparison";
+import FilterComparison from "../cell/FilterComparison";
 
 /**
  * RowColoringDropdown - Dropdown for row coloring configuration
  */
 function RowColoringDropdown() {
-    const { headers } = useCSVStore();
+    const { headers } = useCellStore();
     const {
         rowColoringMode,
         rowColorFilter,

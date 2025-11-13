@@ -1,14 +1,14 @@
 /**
  * Autosave Hook
  *
- * React hook for managing automatic saving of CSV files.
+ * React hook for managing automatic saving of Cell files.
  * Provides a timer-based autosave that triggers after a configurable interval,
  * and can be manually triggered to reset the timer.
  */
 
 import { useEffect, useRef, useCallback } from "react";
-import { useCSVStore } from "@stores/csvStore";
-import { useSettingsStore } from "@stores/settingsStore";
+import { useCellStore } from "@/stores/cellStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 /**
  * Custom hook for autosave functionality
@@ -22,7 +22,7 @@ import { useSettingsStore } from "@stores/settingsStore";
  * @returns Object with triggerAutosave function for manual autosave triggering
  */
 export function useAutosave() {
-    const { currentFile, isDirty, saveCSV } = useCSVStore();
+    const { currentFile, isDirty, saveCells } = useCellStore();
     const { autosaveEnabled, autosaveIntervalSeconds } = useSettingsStore();
 
     // Timer ref to track the autosave timeout
@@ -54,13 +54,13 @@ export function useAutosave() {
         timerRef.current = setTimeout(async () => {
             try {
                 console.log("[Autosave] Timer expired, saving...");
-                await saveCSV();
+                await saveCells();
                 console.log("[Autosave] Save completed");
             } catch (error) {
                 console.error("[Autosave] Save failed:", error);
             }
         }, autosaveIntervalSeconds * 1000);
-    }, [autosaveEnabled, currentFile, isDirty, autosaveIntervalSeconds, saveCSV, clearTimer]);
+    }, [autosaveEnabled, currentFile, isDirty, autosaveIntervalSeconds, saveCells, clearTimer]);
 
     /**
      * Manually trigger autosave immediately and reset timer
@@ -77,7 +77,7 @@ export function useAutosave() {
 
         try {
             console.log("[Autosave] Manual trigger, saving...");
-            await saveCSV();
+            await saveCells();
             console.log("[Autosave] Save completed");
         } catch (error) {
             console.error("[Autosave] Save failed:", error);
@@ -85,7 +85,7 @@ export function useAutosave() {
 
         // Restart timer after manual save
         startTimer();
-    }, [autosaveEnabled, currentFile, isDirty, saveCSV, clearTimer, startTimer]);
+    }, [autosaveEnabled, currentFile, isDirty, saveCells, clearTimer, startTimer]);
 
     /**
      * Effect to manage the autosave timer

@@ -1,14 +1,14 @@
 /**
- * CSV Store
+ * Cell Store
  *
- * Zustand store for managing CSV data state, file operations,
+ * Zustand store for managing Cell data state, file operations,
  * and edit history with undo/redo support.
  */
 
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import { CSVFileInfo } from "@/types/csv";
-import { parseCSV, serializeCSV, validateCSV } from "@utils/csvParser";
+import { CellFileInfo } from "@/types/cellData";
+import { parseCells, serializeCell, validateCell, getDelimiterFromPath } from "@utils/cellParser";
 import { useFileConfigStore, type FileIdentifiers } from "./fileConfigStore";
 import { useSettingsStore } from "./settingsStore";
 import { useDrawerStore } from "./drawerStore";
@@ -19,7 +19,7 @@ interface DataSnapshot {
     headers: string[];
 }
 
-// Cell editing state for coordinating between CSV grid and Print preview
+// Cell editing state for coordinating between Cell Grid and Print preview
 interface EditingCell {
     row: number;
     col: number;
@@ -55,21 +55,22 @@ interface ColumnFilter {
 // Summary types
 type SummaryType = "count" | "unique" | "mode" | "average" | "min" | "max" | "sum";
 
-interface CSVStore {
+interface CellStore {
     // State
     data: string[][];
     headers: string[];
     currentFile: string | null;
-    fileInfo: CSVFileInfo | null;
+    fileInfo: CellFileInfo | null;
+    delimiter: string;  // Delimiter used in the current file ("," for CSV, "\t" for TSV, etc.)
     isDirty: boolean;
     isLoading: boolean;
     error: string | null;
     lastSavedAt: number | null;  // Timestamp of last successful save
 
-    // Cell editing state (shared between CSV grid and Print preview)
+    // Cell editing state (shared between Cell Grid and Print preview)
     editingCell: EditingCell | null;
     editingValue: string;
-    editingSource: "csv" | "print" | null;  // Track where the editing originated
+    editingSource: "cell" | "print" | null;  // Track where the editing originated
 
     // Selection state
     selectedCell: CellSelection | null;
@@ -93,10 +94,10 @@ interface CSVStore {
     redoStack: DataSnapshot[];
 
     // Actions
-    loadCSV: (path: string) => Promise<void>;
-    reloadCSV: () => Promise<void>;
-    saveCSV: () => Promise<void>;
-    saveCSVAs: (path: string) => Promise<void>;
+    loadCells: (path: string) => Promise<void>;
+    reloadCells: () => Promise<void>;
+    saveCells: () => Promise<void>;
+    saveCellAs: (path: string) => Promise<void>;
     updateCell: (row: number, col: number, value: string) => void;
     updateCells: (cells: Array<{ row: number; col: number; value: string }>) => void;
     updateRow: (rowIndex: number, newRow: string[]) => void;
@@ -114,7 +115,7 @@ interface CSVStore {
     canRedo: () => boolean;
 
     // Cell editing actions
-    setEditingCell: (row: number, col: number, initialValue: string, source?: "csv" | "print") => void;
+    setEditingCell: (row: number, col: number, initialValue: string, source?: "cell" | "print") => void;
     updateEditingValue: (value: string) => void;
     clearEditingCell: () => void;
 
@@ -143,7 +144,7 @@ const createSnapshot = (data: string[][], headers: string[]): DataSnapshot => ({
 });
 
 // Helper function to push current state to undo stack before mutation
-const pushToUndoStack = (get: () => CSVStore, set: (state: Partial<CSVStore>) => void) => {
+const pushToUndoStack = (get: () => CellStore, set: (state: Partial<CellStore>) => void) => {
     const { data, headers, undoStack } = get();
     const snapshot = createSnapshot(data, headers);
 
@@ -153,12 +154,13 @@ const pushToUndoStack = (get: () => CSVStore, set: (state: Partial<CSVStore>) =>
     set({ undoStack: newUndoStack, redoStack: [] }); // Clear redo stack on new action
 };
 
-export const useCSVStore = create<CSVStore>((set, get) => ({
+export const useCellStore = create<CellStore>((set, get) => ({
     // Initial state
     data: [],
     headers: [],
     currentFile: null,
     fileInfo: null,
+    delimiter: ",",  // Default to comma-separated (CSV)
     isDirty: false,
     isLoading: false,
     error: null,
@@ -176,22 +178,22 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
     undoStack: [],
     redoStack: [],
 
-    // Load CSV file from disk
-    loadCSV: async (path: string) => {
+    // Load Cell file from disk
+    loadCells: async (path: string) => {
         set({ isLoading: true, error: null });
 
         try {
             // Call Tauri command to read file
-            const fileContent = await invoke<string>("open_csv_file", { path });
+            const fileContent = await invoke<string>("open_cell_file", { path });
 
-            // Parse CSV content
-            const csvData = parseCSV(fileContent);
+            // Parse Cell content
+            const cellData = parseCells(fileContent);
 
-            // Validate CSV
-            const validation = validateCSV(csvData);
+            // Validate Cell
+            const validation = validateCell(cellData);
             if (!validation.valid) {
                 set({
-                    error: `CSV validation failed: ${validation.errors.join(", ")}`,
+                    error: `Cell validation failed: ${validation.errors.join(", ")}`,
                     isLoading: false,
                 });
                 return;
@@ -199,25 +201,26 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
 
             // Initialize column summaries with "count" for all columns
             const initialSummaries: Record<string, SummaryType> = {};
-            csvData.headers.forEach((header) => {
+            cellData.headers.forEach((header) => {
                 initialSummaries[header] = "count";
             });
 
             // Initialize default column order [0, 1, 2, ...]
-            const defaultColumnOrder = csvData.headers.map((_, index) => index);
+            const defaultColumnOrder = cellData.headers.map((_, index) => index);
 
             // Update state (initial load before applying config)
             set({
-                headers: csvData.headers,
-                data: csvData.data,
+                headers: cellData.headers,
+                data: cellData.data,
+                delimiter: cellData.delimiter,  // Store the detected delimiter
                 currentFile: path,
                 fileInfo: {
                     path,
-                    name: path.split("/").pop() || path.split("\\").pop() || "unknown.csv",
+                    name: path.split("/").pop() || path.split("\\").pop() || "unknown.cell",
                     size: fileContent.length,
                     lastModified: new Date(),
-                    rowCount: csvData.data.length,
-                    columnCount: csvData.headers.length,
+                    rowCount: cellData.data.length,
+                    columnCount: cellData.headers.length,
                 },
                 columnSummaries: initialSummaries,
                 columnOrder: defaultColumnOrder,
@@ -235,7 +238,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                 const fileConfig = useFileConfigStore.getState().findConfigForFile(identifiers);
 
                 if (fileConfig && fileConfig.config) {
-                    // Apply config to CSV store
+                    // Apply config to Cell Store
                     if (fileConfig.config.columnWidths) {
                         set({ columnWidths: fileConfig.config.columnWidths });
                     }
@@ -243,8 +246,8 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
                     // Apply saved column order if it exists and is valid
                     if (fileConfig.config.columnOrder && Array.isArray(fileConfig.config.columnOrder)) {
                         const savedOrder = fileConfig.config.columnOrder;
-                        // Validate that column order matches current CSV structure
-                        if (savedOrder.length === csvData.headers.length) {
+                        // Validate that column order matches current Cell structure
+                        if (savedOrder.length === cellData.headers.length) {
                             set({ columnOrder: savedOrder });
                         }
                     }
@@ -327,14 +330,14 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
             }
         } catch (error) {
             set({
-                error: `Failed to load CSV: ${error}`,
+                error: `Failed to load Cell: ${error}`,
                 isLoading: false,
             });
         }
     },
 
-    // Reload current CSV from disk
-    reloadCSV: async () => {
+    // Reload current Cell from disk
+    reloadCells: async () => {
         const { currentFile } = get();
 
         if (!currentFile) {
@@ -343,12 +346,12 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
         }
 
         // Simply reload the current file
-        await get().loadCSV(currentFile);
+        await get().loadCells(currentFile);
     },
 
-    // Save current CSV to disk
-    saveCSV: async () => {
-        const { currentFile, headers, data } = get();
+    // Save current Cell to disk
+    saveCells: async () => {
+        const { currentFile, headers, data, delimiter } = get();
 
         if (!currentFile) {
             set({ error: "No file is currently open" });
@@ -358,13 +361,13 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
         set({ isLoading: true, error: null });
 
         try {
-            // Serialize CSV data
-            const csvContent = serializeCSV({ headers, data });
+            // Serialize Cell Data using the original delimiter
+            const cellContent = serializeCell({ headers, data }, delimiter);
 
             // Call Tauri command to write file
-            await invoke("save_csv_file", {
+            await invoke("save_cell_file", {
                 path: currentFile,
-                content: csvContent,
+                content: cellContent,
             });
 
             set({
@@ -375,35 +378,39 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
             });
         } catch (error) {
             set({
-                error: `Failed to save CSV: ${error}`,
+                error: `Failed to save Cell: ${error}`,
                 isLoading: false,
             });
         }
     },
 
-    // Save CSV to a new location
-    saveCSVAs: async (path: string) => {
+    // Save Cell to a new location
+    saveCellAs: async (path: string) => {
         const { headers, data } = get();
 
         set({ isLoading: true, error: null });
 
         try {
-            // Serialize CSV data
-            const csvContent = serializeCSV({ headers, data });
+            // Determine delimiter based on file extension
+            const newDelimiter = getDelimiterFromPath(path);
+
+            // Serialize Cell Data using the appropriate delimiter for the file type
+            const cellContent = serializeCell({ headers, data }, newDelimiter);
 
             // Call Tauri command to write file
-            await invoke("save_csv_file", {
+            await invoke("save_cell_file", {
                 path,
-                content: csvContent,
+                content: cellContent,
             });
 
-            // Update current file path
+            // Update current file path and delimiter
             set({
                 currentFile: path,
+                delimiter: newDelimiter,  // Update delimiter to match the new file type
                 fileInfo: {
                     path,
-                    name: path.split("/").pop() || path.split("\\").pop() || "unknown.csv",
-                    size: csvContent.length,
+                    name: path.split("/").pop() || path.split("\\").pop() || "unknown.cell",
+                    size: cellContent.length,
                     lastModified: new Date(),
                     rowCount: data.length,
                     columnCount: headers.length,
@@ -415,7 +422,7 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
             });
         } catch (error) {
             set({
-                error: `Failed to save CSV: ${error}`,
+                error: `Failed to save Cell: ${error}`,
                 isLoading: false,
             });
         }
@@ -667,8 +674,8 @@ export const useCSVStore = create<CSVStore>((set, get) => ({
         return get().redoStack.length > 0;
     },
 
-    // Set cell being edited (for coordinating between CSV grid and Print preview)
-    setEditingCell: (row: number, col: number, initialValue: string, source: "csv" | "print" = "csv") => {
+    // Set cell being edited (for coordinating between Cell Grid and Print preview)
+    setEditingCell: (row: number, col: number, initialValue: string, source: "cell" | "print" = "cell") => {
         set({
             editingCell: { row, col },
             editingValue: initialValue,

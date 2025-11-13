@@ -1,7 +1,7 @@
 /**
  * Find and Replace Modal Component
  *
- * Modal for finding and replacing text in the current CSV file.
+ * Modal for finding and replacing text in the current Cell file.
  * Opens with Ctrl+F (find mode) or Ctrl+R (replace mode).
  * Supports case-sensitive search, whole cell matching, column-specific search, and wildcard patterns.
  * Wildcard patterns support: * (any chars), ? (single char), and capture groups for replacements.
@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
-import { useCSVStore } from "@stores/csvStore";
+import { useCellStore } from "@stores/cellStore";
 
 /**
  * Convert a wildcard pattern to a regular expression
@@ -88,7 +88,7 @@ function FindReplaceModal() {
         clearSearch,
     } = useFindReplaceStore();
 
-    const { headers, data, updateCell } = useCSVStore();
+    const { headers, data, updateCell } = useCellStore();
     const searchInputRef = useRef<HTMLInputElement>(null);
     const [showWildcardHelp, setShowWildcardHelp] = useState(false);
     const [isDragging, setIsDragging] = useState(false);

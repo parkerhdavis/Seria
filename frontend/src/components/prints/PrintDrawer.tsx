@@ -1,14 +1,14 @@
 /**
  * Print Preview Drawer Component
  *
- * Drawer that displays print preview of the current CSV data.
+ * Drawer that displays print preview of the current Cell Data.
  * Can be positioned on the right (Ctrl+\) or bottom (Ctrl+/).
  * Opening one position automatically closes the other.
  * Supports resizing via draggable edge.
  */
 
 import { useState, useRef, useEffect } from "react";
-import { useCSVStore } from "@stores/csvStore";
+import { useCellStore } from "@stores/cellStore";
 import { useDrag } from "@/contexts/DragContext";
 import { useDrawerStore } from "@stores/drawerStore";
 import { usePrintRecipeStore } from "@stores/printRecipeStore";
@@ -24,7 +24,7 @@ interface PrintPreviewDrawerProps {
  * PrintDrawer - Flexible drawer for print preview
  */
 function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
-    const { headers, data, fileInfo } = useCSVStore();
+    const { headers, data, fileInfo } = useCellStore();
     const {
         rightDrawerSize,
         bottomDrawerSize,
@@ -46,17 +46,17 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
         selectedRecipeId,
         configurations,
         loadBundledRecipes,
-        setCSVHeaders,
+        setCellHeaders,
         selectRecipe,
     } = usePrintRecipeStore();
 
-    // Load recipes and set CSV headers on mount/update
+    // Load recipes and set Cell headers on mount/update
     useEffect(() => {
         loadBundledRecipes();
         if (headers.length > 0) {
-            setCSVHeaders(headers);
+            setCellHeaders(headers);
         }
-    }, [loadBundledRecipes, setCSVHeaders, headers]);
+    }, [loadBundledRecipes, setCellHeaders, headers]);
 
     // Auto-select first recipe if none selected
     useEffect(() => {
@@ -147,7 +147,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
                             <p className="text-center">
-                                Open a CSV file in the Editor to preview it here
+                                Open a Cell file in the Editor to preview it here
                             </p>
                         </div>
                     ) : (
@@ -273,7 +273,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                         </svg>
                         <p className="text-center">
-                            Open a CSV file in the Editor to preview it here
+                            Open a Cell file in the Editor to preview it here
                         </p>
                     </div>
                 ) : (

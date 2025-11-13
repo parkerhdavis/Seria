@@ -2,13 +2,13 @@
  * File Tree Component
  *
  * Displays a directory tree in the left sidebar.
- * Allows users to open a directory and browse/open CSV files within it.
+ * Allows users to open a directory and browse/open Cell files within it.
  */
 
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readDir } from "@tauri-apps/plugin-fs";
-import { useCSVStore } from "@stores/csvStore";
+import { useCellStore } from "@stores/cellStore";
 import { useFileTreeStore } from "@stores/fileTreeStore";
 import { useSettingsStore } from "@stores/settingsStore";
 
@@ -19,15 +19,15 @@ interface FileEntry {
 }
 
 /**
- * FileTree - Directory browser for CSV files
+ * FileTree - Directory browser for Cell files
  */
 function FileTree() {
     const [files, setFiles] = useState<FileEntry[]>([]);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- expandedDirs is assigned a value but never used. This is intentional - the state tracks expanded directories for future features (collapsible tree). Alternative: Remove the state entirely if directory expansion UI is not planned, or implement the UI to actually use expandedDirs for rendering collapsed/expanded states.
     const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
-    const { loadCSV, fileInfo } = useCSVStore();
+    const { loadCells, fileInfo } = useCellStore();
     const { rootDirectory, setRootDirectory } = useFileTreeStore();
-    const { showNonCsvFiles } = useSettingsStore();
+    const { showIncompatibleFiles } = useSettingsStore();
 
     // Handle opening a directory
     const handleOpenDirectory = async () => {
@@ -87,15 +87,15 @@ function FileTree() {
         }
     };
 
-    // Check if file is CSV
-    const isCsvFile = (fileName: string) => {
-        return fileName.toLowerCase().endsWith(".csv");
+    // Check if file is Cell
+    const isCellFile = (fileName: string) => {
+        return fileName.toLowerCase().endsWith(".cell");
     };
 
     // Handle file click
     const handleFileClick = async (file: FileEntry) => {
-        // Don't allow clicking non-CSV files
-        if (!file.isDirectory && !isCsvFile(file.name)) {
+        // Don't allow clicking non-Cell files
+        if (!file.isDirectory && !isCellFile(file.name)) {
             return;
         }
 
@@ -110,10 +110,10 @@ function FileTree() {
                 }
                 return newSet;
             });
-        } else if (isCsvFile(file.name)) {
-            // Open CSV file
+        } else if (isCellFile(file.name)) {
+            // Open Cell file
             try {
-                await loadCSV(file.path);
+                await loadCells(file.path);
             } catch (error) {
                 console.error("Failed to open file:", error);
             }
@@ -157,14 +157,14 @@ function FileTree() {
                             .filter((file) => {
                                 // Always show directories
                                 if (file.isDirectory) return true;
-                                // Always show CSV files
-                                if (isCsvFile(file.name)) return true;
-                                // Show non-CSV files only if setting is enabled
-                                return showNonCsvFiles;
+                                // Always show Cell files
+                                if (isCellFile(file.name)) return true;
+                                // Show non-Cell files only if setting is enabled
+                                return showIncompatibleFiles;
                             })
                             .map((file) => {
-                                const isNonCsvFile = !file.isDirectory && !isCsvFile(file.name);
-                                const isClickable = file.isDirectory || isCsvFile(file.name);
+                                const isNonCellFile = !file.isDirectory && !isCellFile(file.name);
+                                const isClickable = file.isDirectory || isCellFile(file.name);
 
                                 return (
                                     <li key={file.path}>
@@ -173,7 +173,7 @@ function FileTree() {
                                             className={`flex items-center gap-2 ${
                                                 isCurrentFile(file.path)
                                                     ? "active bg-primary text-primary-content"
-                                                    : isNonCsvFile
+                                                    : isNonCellFile
                                                         ? "opacity-40 cursor-default"
                                                         : ""
                                             } ${isClickable ? "" : "pointer-events-none"}`}
