@@ -4,6 +4,7 @@
  * Tauri commands for persistent storage:
  * - User preferences (JSON)
  * - Custom Print templates (JSON files)
+ * - Per-file configuration storage
  *
  * Storage location is platform-specific:
  * - Windows: %APPDATA%\juniper

@@ -1,7 +1,7 @@
 [package]
 name = "juniper"
 version = "0.1.0"
-description = "A specialized desktop CSV editor for writers and designers"
+description = "A specialized desktop Cell file editor (CSV, TSV, JSON) for writers and designers"
 authors = ["Parker H. Davis"]
 license = ""
 repository = ""

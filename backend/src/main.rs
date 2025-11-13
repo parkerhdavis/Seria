@@ -9,7 +9,7 @@
  *
  * Most business logic lives in the frontend (React + TypeScript).
  * This backend handles only:
- * - File system operations (open, save, dialogs)
+ * - File system operations (open, save, dialogs) for Cell files (CSV, TSV, JSON)
  * - File identifiers and content hashing for config matching
  * - User preferences storage
  * - Custom Print template storage
@@ -27,9 +27,9 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
-            // File operations
-            file_ops::open_csv_file,
-            file_ops::save_csv_file,
+            // File operations for Cell files (CSV, TSV, JSON)
+            file_ops::open_cell_file,
+            file_ops::save_cell_file,
             file_ops::get_file_identifiers,
             // Storage operations
             storage::load_preferences,

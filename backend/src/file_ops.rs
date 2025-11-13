@@ -2,8 +2,8 @@
  * File Operations Module
  *
  * Tauri commands for file I/O operations:
- * - Open and read CSV files
- * - Save CSV files
+ * - Open and read Cell files (CSV, TSV, JSON)
+ * - Save Cell files
  * - Get file identifiers for config matching
  * - Calculate partial content hashes
  *
@@ -17,16 +17,16 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use std::io::Read;
 
-/// Read a CSV file from disk and return its contents as a string
+/// Read a Cell file (CSV, TSV, or JSON) from disk and return its contents as a string
 #[tauri::command]
-pub fn open_csv_file(path: String) -> Result<String, String> {
+pub fn open_cell_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read file: {}", e))
 }
 
-/// Write CSV content to a file on disk
+/// Write Cell file content (CSV, TSV, or JSON) to a file on disk
 #[tauri::command]
-pub fn save_csv_file(path: String, content: String) -> Result<(), String> {
+pub fn save_cell_file(path: String, content: String) -> Result<(), String> {
     fs::write(&path, content)
         .map_err(|e| format!("Failed to write file: {}", e))
 }
