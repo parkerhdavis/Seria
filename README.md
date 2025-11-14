@@ -10,7 +10,8 @@
 
 ---
 
-![[wiki-internal/00-Metafiles/00.01 - Attachments/general_screenshot_2025-11-13.png]]
+![Screenshot from dev build 2025-11-13](./wiki-internal/00-Metafiles/00.01%20-%20Attachments/general_screenshot_2025-11-13.png)
+
 *Screenshot from dev build 2025-11-13*
 
 ---
