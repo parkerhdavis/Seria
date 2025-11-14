@@ -6,7 +6,8 @@
  * capitalization, and element positioning.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
 import { getMappedColumn } from "@/utils/printRecipeMapper";
 import { useCellStore } from "@stores/cellStore";
@@ -839,120 +840,110 @@ function ScreenplayPrint({
 
     // Transform Cell Data into screenplay elements
     // Use editingValue for real-time preview if a cell is being edited
-    const elements: ScreenplayElement[] = [];
-    let sceneCounter = 0; // Counter for scene numbering
+    // PERFORMANCE: Memoize to avoid recalculating on every render (expensive with large files)
+    const elements = useMemo(() => {
+        const result: ScreenplayElement[] = [];
+        let sceneCounter = 0; // Counter for scene numbering
 
-    // Helper to get cell value (either from data or editingValue if being edited)
-    const getCellValue = (rowIndex: number, colIndex: number): string => {
-        if (editingCell && editingCell.row === rowIndex && editingCell.col === colIndex) {
-            return editingValue;
-        }
-        return data[rowIndex]?.[colIndex] || "";
-    };
-
-    data.forEach((row, rowIndex) => {
-        // Determine element type and content based on which columns have data
-        // Priority order: transition > scene_heading > character > parenthetical > dialogue > action
-
-        const sceneHeadingIdx = sceneHeadingColumn ? headers.indexOf(sceneHeadingColumn) : -1;
-        const actionIdx = actionColumn ? headers.indexOf(actionColumn) : -1;
-        const characterIdx = characterColumn ? headers.indexOf(characterColumn) : -1;
-        const dialogueIdx = dialogueColumn ? headers.indexOf(dialogueColumn) : -1;
-        const parentheticalIdx = parentheticalColumn ? headers.indexOf(parentheticalColumn) : -1;
-        const transitionIdx = transitionColumn ? headers.indexOf(transitionColumn) : -1;
-
-        // Check for transition (appears before scene heading)
-        if (transitionIdx >= 0) {
-            const content = getCellValue(rowIndex, transitionIdx);
-            if (content.trim()) {
-                elements.push({
-                    type: "transition",
-                    content,
-                    rowIndex,
-                    columnName: headers[transitionIdx],
-                });
+        // Helper to get cell value (either from data or editingValue if being edited)
+        const getCellValue = (rowIndex: number, colIndex: number): string => {
+            if (editingCell && editingCell.row === rowIndex && editingCell.col === colIndex) {
+                return editingValue;
             }
-        }
+            return data[rowIndex]?.[colIndex] || "";
+        };
 
-        // Check for scene heading
-        if (sceneHeadingIdx >= 0) {
-            const content = getCellValue(rowIndex, sceneHeadingIdx);
-            if (content.trim()) {
-                sceneCounter++; // Increment scene number
-                elements.push({
-                    type: "scene_heading",
-                    content,
-                    rowIndex,
-                    columnName: headers[sceneHeadingIdx],
-                    sceneNumber: sceneCounter,
-                });
-            }
-        }
+        data.forEach((row, rowIndex) => {
+            // Determine element type and content based on which columns have data
+            // Priority order: transition > scene_heading > character > parenthetical > dialogue > action
 
-        // Check for character (if we have dialogue, we need a character)
-        if (characterIdx >= 0 && dialogueIdx >= 0) {
-            const characterContent = getCellValue(rowIndex, characterIdx);
-            const dialogueContent = getCellValue(rowIndex, dialogueIdx);
+            const sceneHeadingIdx = sceneHeadingColumn ? headers.indexOf(sceneHeadingColumn) : -1;
+            const actionIdx = actionColumn ? headers.indexOf(actionColumn) : -1;
+            const characterIdx = characterColumn ? headers.indexOf(characterColumn) : -1;
+            const dialogueIdx = dialogueColumn ? headers.indexOf(dialogueColumn) : -1;
+            const parentheticalIdx = parentheticalColumn ? headers.indexOf(parentheticalColumn) : -1;
+            const transitionIdx = transitionColumn ? headers.indexOf(transitionColumn) : -1;
 
-            if (characterContent.trim() && dialogueContent.trim()) {
-                elements.push({
-                    type: "character",
-                    content: characterContent,
-                    rowIndex,
-                    columnName: headers[characterIdx],
-                });
-
-                // Check for parenthetical
-                if (parentheticalIdx >= 0) {
-                    const parentheticalContent = getCellValue(rowIndex, parentheticalIdx);
-                    if (parentheticalContent.trim()) {
-                        elements.push({
-                            type: "parenthetical",
-                            content: parentheticalContent,
-                            rowIndex,
-                            columnName: headers[parentheticalIdx],
-                        });
-                    }
+            // Check for transition (appears before scene heading)
+            if (transitionIdx >= 0) {
+                const content = getCellValue(rowIndex, transitionIdx);
+                if (content.trim()) {
+                    result.push({
+                        type: "transition",
+                        content,
+                        rowIndex,
+                        columnName: headers[transitionIdx],
+                    });
                 }
-
-                // Add dialogue
-                elements.push({
-                    type: "dialogue",
-                    content: dialogueContent,
-                    rowIndex,
-                    columnName: headers[dialogueIdx],
-                });
             }
-        }
 
-        // Check for action
-        if (actionIdx >= 0) {
-            const content = getCellValue(rowIndex, actionIdx);
-            if (content.trim()) {
-                elements.push({
-                    type: "action",
-                    content,
-                    rowIndex,
-                    columnName: headers[actionIdx],
-                });
+            // Check for scene heading
+            if (sceneHeadingIdx >= 0) {
+                const content = getCellValue(rowIndex, sceneHeadingIdx);
+                if (content.trim()) {
+                    sceneCounter++; // Increment scene number
+                    result.push({
+                        type: "scene_heading",
+                        content,
+                        rowIndex,
+                        columnName: headers[sceneHeadingIdx],
+                        sceneNumber: sceneCounter,
+                    });
+                }
             }
-        }
-    });
 
-    // Show message if no elements
-    if (elements.length === 0) {
-        return (
-            <div className="flex items-center justify-center h-full text-base-content/50">
-                <div className="text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <p className="mb-2">No screenplay elements to display</p>
-                    <p className="text-xs">Make sure your Cell columns are mapped to screenplay elements</p>
-                </div>
-            </div>
-        );
-    }
+            // Check for character (if we have dialogue, we need a character)
+            if (characterIdx >= 0 && dialogueIdx >= 0) {
+                const characterContent = getCellValue(rowIndex, characterIdx);
+                const dialogueContent = getCellValue(rowIndex, dialogueIdx);
+
+                if (characterContent.trim() && dialogueContent.trim()) {
+                    result.push({
+                        type: "character",
+                        content: characterContent,
+                        rowIndex,
+                        columnName: headers[characterIdx],
+                    });
+
+                    // Check for parenthetical
+                    if (parentheticalIdx >= 0) {
+                        const parentheticalContent = getCellValue(rowIndex, parentheticalIdx);
+                        if (parentheticalContent.trim()) {
+                            result.push({
+                                type: "parenthetical",
+                                content: parentheticalContent,
+                                rowIndex,
+                                columnName: headers[parentheticalIdx],
+                            });
+                        }
+                    }
+
+                    // Add dialogue
+                    result.push({
+                        type: "dialogue",
+                        content: dialogueContent,
+                        rowIndex,
+                        columnName: headers[dialogueIdx],
+                    });
+                }
+            }
+
+            // Check for action
+            if (actionIdx >= 0) {
+                const content = getCellValue(rowIndex, actionIdx);
+                if (content.trim()) {
+                    result.push({
+                        type: "action",
+                        content,
+                        rowIndex,
+                        columnName: headers[actionIdx],
+                    });
+                }
+            }
+        });
+
+        return result;
+    }, [data, headers, editingCell, editingValue, sceneHeadingColumn, actionColumn, characterColumn, dialogueColumn, parentheticalColumn, transitionColumn]);
 
     /**
      * Calculate approximate height of a screenplay element in inches
@@ -1051,54 +1042,79 @@ function ScreenplayPrint({
         pageNumber: number;
     }
 
-    const splitIntoPages = (): PageWithElements[] => {
-        const pages: PageWithElements[] = [];
-        const usableHeight = pageHeight - marginTop - marginBottom;
-        const blocks = groupIntoBlocks();
-
-        let currentPage: ScreenplayElement[] = [];
-        let currentPageHeight = 0;
-        let pageNumber = 1;
-
-        blocks.forEach((block, index) => {
-            // Check if adding this block would exceed page height
-            if (currentPageHeight + block.totalHeight > usableHeight && currentPage.length > 0) {
-                // Save current page and start new one
-                pages.push({
-                    elements: currentPage,
-                    pageNumber: pageNumber,
-                });
-                pageNumber++;
-                currentPage = [];
-                currentPageHeight = 0;
-            }
-
-            // Add all elements from this block to current page
-            currentPage.push(...block.elements);
-            currentPageHeight += block.totalHeight;
-
-            // If this is the last block, save the current page
-            if (index === blocks.length - 1) {
-                pages.push({
-                    elements: currentPage,
-                    pageNumber: pageNumber,
-                });
-            }
-        });
-
-        // Handle edge case: if no pages were created, create one empty page
-        if (pages.length === 0) {
-            pages.push({
-                elements: [],
-                pageNumber: 1,
-            });
-        }
-
-        return pages;
-    };
-
     // Split elements into pages
-    const pages = splitIntoPages();
+    // PERFORMANCE: Memoize to avoid recalculating on every render
+    const pages = useMemo(() => {
+        const splitIntoPages = (): PageWithElements[] => {
+            const pagesResult: PageWithElements[] = [];
+            const usableHeight = pageHeight - marginTop - marginBottom;
+            const blocks = groupIntoBlocks();
+
+            let currentPage: ScreenplayElement[] = [];
+            let currentPageHeight = 0;
+            let pageNumber = 1;
+
+            blocks.forEach((block, index) => {
+                // Check if adding this block would exceed page height
+                if (currentPageHeight + block.totalHeight > usableHeight && currentPage.length > 0) {
+                    // Save current page and start new one
+                    pagesResult.push({
+                        elements: currentPage,
+                        pageNumber: pageNumber,
+                    });
+                    pageNumber++;
+                    currentPage = [];
+                    currentPageHeight = 0;
+                }
+
+                // Add all elements from this block to current page
+                currentPage.push(...block.elements);
+                currentPageHeight += block.totalHeight;
+
+                // If this is the last block, save the current page
+                if (index === blocks.length - 1) {
+                    pagesResult.push({
+                        elements: currentPage,
+                        pageNumber: pageNumber,
+                    });
+                }
+            });
+
+            // Handle edge case: if no pages were created, create one empty page
+            if (pagesResult.length === 0) {
+                pagesResult.push({
+                    elements: [],
+                    pageNumber: 1,
+                });
+            }
+
+            return pagesResult;
+        };
+
+        return splitIntoPages();
+    }, [elements, pageHeight, marginTop, marginBottom, recipe, continuous]);
+
+    // ===== PAGE VIRTUALIZATION =====
+    /**
+     * Performance optimization: Only render visible pages
+     * For large files (50k+ rows), this can be hundreds of pages
+     * Virtualization prevents rendering all pages at once, which blocks UI
+     */
+    const pageVirtualizer = useVirtualizer({
+        count: pages.length,
+        getScrollElement: () => printContainerRef.current,
+        estimateSize: () => {
+            // Estimate full page height including margins and scale
+            const pageGap = continuous ? 0 : 32;
+            const scaledHeight = pageHeightPx * scale;
+            const marginCompensation = (1 - scale) * pageHeightPx;
+            return scaledHeight - marginCompensation + pageGap;
+        },
+        overscan: 2, // Pre-render 2 pages above/below for smooth scrolling
+    });
+
+    const virtualPages = pageVirtualizer.getVirtualItems();
+    const totalSize = pageVirtualizer.getTotalSize();
 
     // Calculate page dimensions and transform
     // For right drawer, align left; for bottom drawer, center
@@ -1145,19 +1161,48 @@ function ScreenplayPrint({
                 }
             }}
         >
-            {/* Render all pages */}
-            {pages.map((page) => {
-                // Calculate page number to display (accounting for startPageNumber offset)
-                const displayPageNumber = startPageNumber + page.pageNumber - 1;
-                // Determine if this page should show page number
-                const shouldShowPageNumber = !continuous && showPageNumbers && (firstPageNumbered || page.pageNumber > 1);
+            {/* Show empty state if no elements */}
+            {elements.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-base-content/50">
+                    <div className="text-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p className="mb-2">No screenplay elements to display</p>
+                        <p className="text-xs">Make sure your Cell columns are mapped to screenplay elements</p>
+                    </div>
+                </div>
+            ) : (
+                /* Virtualized pages container */
+                <div
+                    style={{
+                        height: `${totalSize}px`,
+                        width: "100%",
+                        position: "relative",
+                    }}
+                >
+                    {/* Render only visible pages (virtualized) */}
+                    {virtualPages.map((virtualPage) => {
+                    const page = pages[virtualPage.index];
+                    // Calculate page number to display (accounting for startPageNumber offset)
+                    const displayPageNumber = startPageNumber + page.pageNumber - 1;
+                    // Determine if this page should show page number
+                    const shouldShowPageNumber = !continuous && showPageNumbers && (firstPageNumbered || page.pageNumber > 1);
 
-                return (
-                    <div
-                        key={page.pageNumber}
-                        className={`screenplay-page ${backgroundColor} text-grey-50 relative ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
-                        style={pageStyle}
-                    >
+                    return (
+                        <div
+                            key={virtualPage.key}
+                            data-index={virtualPage.index}
+                            className={`screenplay-page ${backgroundColor} text-grey-50 ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
+                            style={{
+                                ...pageStyle,
+                                position: "absolute",
+                                top: 0,
+                                left: 0,
+                                width: `${pageWidth}in`,
+                                transform: `translateY(${virtualPage.start}px) scale(${scale})`,
+                            }}
+                        >
                         {/* Page number (top right, only if enabled) */}
                         {shouldShowPageNumber && (
                             <div
@@ -1239,6 +1284,8 @@ function ScreenplayPrint({
                     </div>
                 );
             })}
+                </div>
+            )}
 
             {/* Context menu */}
             {contextMenu && (

@@ -6,7 +6,8 @@
  * Cards can be dragged to reorder them.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 import { getMappedColumn, getMappedColumns } from "@/utils/printRecipeMapper";
 import { useCellStore } from "@stores/cellStore";
@@ -656,32 +657,35 @@ function CardPrint({
         });
     };
 
-    // Helper to get cell value (either from data or editingValue if being edited)
-    const getCellValue = (rowIndex: number, colIndex: number): string => {
-        if (editingCell && editingCell.row === rowIndex && editingCell.col === colIndex) {
-            return editingValue;
-        }
-        return data[rowIndex]?.[colIndex] || "";
-    };
-
     // Transform Cell Data into card data
-    const cards: CardData[] = data.map((row, index) => {
-        const titleIdx = titleColumn ? headers.indexOf(titleColumn) : -1;
-        const subtitleIdx = subtitleColumn ? headers.indexOf(subtitleColumn) : -1;
-        const contentIndices = contentColumns
-            .map(col => headers.indexOf(col))
-            .filter(idx => idx >= 0);
-
-        return {
-            index,
-            title: titleIdx >= 0 ? getCellValue(index, titleIdx) : "",
-            subtitle: subtitleIdx >= 0 ? getCellValue(index, subtitleIdx) : "",
-            content: contentIndices.map(idx => getCellValue(index, idx)).filter(text => text && text.trim()),
-            titleColumnName: titleColumn ?? undefined,
-            subtitleColumnName: subtitleColumn ?? undefined,
-            contentColumnNames: contentColumns,
+    // PERFORMANCE: Memoize to avoid recalculating on every render (expensive with large files)
+    const cards: CardData[] = useMemo(() => {
+        // Helper to get cell value (either from data or editingValue if being edited)
+        const getCellValue = (rowIndex: number, colIndex: number): string => {
+            if (editingCell && editingCell.row === rowIndex && editingCell.col === colIndex) {
+                return editingValue;
+            }
+            return data[rowIndex]?.[colIndex] || "";
         };
-    });
+
+        return data.map((row, index) => {
+            const titleIdx = titleColumn ? headers.indexOf(titleColumn) : -1;
+            const subtitleIdx = subtitleColumn ? headers.indexOf(subtitleColumn) : -1;
+            const contentIndices = contentColumns
+                .map(col => headers.indexOf(col))
+                .filter(idx => idx >= 0);
+
+            return {
+                index,
+                title: titleIdx >= 0 ? getCellValue(index, titleIdx) : "",
+                subtitle: subtitleIdx >= 0 ? getCellValue(index, subtitleIdx) : "",
+                content: contentIndices.map(idx => getCellValue(index, idx)).filter(text => text && text.trim()),
+                titleColumnName: titleColumn ?? undefined,
+                subtitleColumnName: subtitleColumn ?? undefined,
+                contentColumnNames: contentColumns,
+            };
+        });
+    }, [data, headers, editingCell, editingValue, titleColumn, subtitleColumn, contentColumns]);
 
     // Calculate how many cards fit based on drawer orientation
     let columns: number;
@@ -716,6 +720,25 @@ function CardPrint({
         setHoverIndex(null);
     };
 
+    // ===== CARD VIRTUALIZATION =====
+    /**
+     * Performance optimization: Virtualize cards in grid layout
+     * For large files (50k+ rows = 50k+ cards), rendering all at once blocks UI
+     * We virtualize by rows (each row contains `columns` cards)
+     */
+    const rowCount = Math.ceil(cards.length / columns);
+    const rowHeight = cardHeight + cardSpacing;
+
+    const cardVirtualizer = useVirtualizer({
+        count: rowCount,
+        getScrollElement: () => printContainerRef.current,
+        estimateSize: () => rowHeight,
+        overscan: 2, // Pre-render 2 rows above/below
+    });
+
+    const virtualRows = cardVirtualizer.getVirtualItems();
+    const totalSize = cardVirtualizer.getTotalSize();
+
     // Calculate grid layout
     const gridStyle = {
         display: "grid",
@@ -731,20 +754,6 @@ function CardPrint({
         minHeight: `${cardHeight}px`,
         position: "relative" as const,
     };
-
-    // Show message if no data
-    if (cards.length === 0) {
-        return (
-            <div className="flex items-center justify-center h-full text-base-content/50">
-                <div className="text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
-                    <p>No data to display</p>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div
@@ -769,40 +778,85 @@ function CardPrint({
                 }
             }}
         >
-            <div style={gridStyle}>
-                {cards.map((card) => {
-                    // Create ref callback to store card ref
-                    const setRef = (el: HTMLDivElement | null) => {
-                        if (el) {
-                            cardRefs.current.set(card.index, el);
-                        } else {
-                            cardRefs.current.delete(card.index);
-                        }
-                    };
+            {/* Show empty state if no cards */}
+            {cards.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-base-content/50">
+                    <div className="text-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        <p>No data to display</p>
+                    </div>
+                </div>
+            ) : (
+                /* Virtualized container */
+                <div
+                    style={{
+                        height: `${totalSize + (cardSpacing * 2)}px`,
+                        width: "100%",
+                        position: "relative",
+                        padding: `${cardSpacing}px`,
+                    }}
+                >
+                    {/* Render only visible rows */}
+                    {virtualRows.map((virtualRow) => {
+                    const startCardIndex = virtualRow.index * columns;
+                    const endCardIndex = Math.min(startCardIndex + columns, cards.length);
+                    const rowCards = cards.slice(startCardIndex, endCardIndex);
 
                     return (
-                        <div key={card.index} style={cardStyle}>
-                            <Card
-                                card={card}
-                                onDragStart={handleDragStart}
-                                onDragOver={handleDragOver}
-                                onDrop={handleDrop}
-                                isDragging={draggedIndex === card.index}
-                                editingCell={editingCell}
-                                headers={headers}
-                                selectedField={selectedField}
-                                isEditingFromPrint={isEditingFromPrint}
-                                editingValue={editingValue}
-                                onEditingValueChange={updateEditingValue}
-                                onFieldClick={(fieldType, contentIndex) => handleFieldClick(card.index, fieldType, contentIndex)}
-                                onFieldDoubleClick={(fieldType, contentIndex) => handleFieldDoubleClick(card.index, fieldType, contentIndex)}
-                                onFieldContextMenu={(e, fieldType, contentIndex) => handleFieldContextMenu(e, card.index, fieldType, contentIndex)}
-                                setRef={setRef}
-                            />
+                        <div
+                            key={virtualRow.key}
+                            data-index={virtualRow.index}
+                            style={{
+                                position: "absolute",
+                                top: 0,
+                                left: 0,
+                                width: "100%",
+                                transform: `translateY(${virtualRow.start}px)`,
+                                display: "grid",
+                                gridTemplateColumns: `repeat(${columns}, ${cardWidth}px)`,
+                                gap: `${cardSpacing}px`,
+                                justifyContent: drawerPosition === "right" ? "start" : "center",
+                            }}
+                        >
+                            {rowCards.map((card) => {
+                                // Create ref callback to store card ref
+                                const setRef = (el: HTMLDivElement | null) => {
+                                    if (el) {
+                                        cardRefs.current.set(card.index, el);
+                                    } else {
+                                        cardRefs.current.delete(card.index);
+                                    }
+                                };
+
+                                return (
+                                    <div key={card.index} style={cardStyle}>
+                                        <Card
+                                            card={card}
+                                            onDragStart={handleDragStart}
+                                            onDragOver={handleDragOver}
+                                            onDrop={handleDrop}
+                                            isDragging={draggedIndex === card.index}
+                                            editingCell={editingCell}
+                                            headers={headers}
+                                            selectedField={selectedField}
+                                            isEditingFromPrint={isEditingFromPrint}
+                                            editingValue={editingValue}
+                                            onEditingValueChange={updateEditingValue}
+                                            onFieldClick={(fieldType, contentIndex) => handleFieldClick(card.index, fieldType, contentIndex)}
+                                            onFieldDoubleClick={(fieldType, contentIndex) => handleFieldDoubleClick(card.index, fieldType, contentIndex)}
+                                            onFieldContextMenu={(e, fieldType, contentIndex) => handleFieldContextMenu(e, card.index, fieldType, contentIndex)}
+                                            setRef={setRef}
+                                        />
+                                    </div>
+                                );
+                            })}
                         </div>
                     );
                 })}
-            </div>
+                </div>
+            )}
 
             {/* Instructions */}
             {cards.length > 1 && (

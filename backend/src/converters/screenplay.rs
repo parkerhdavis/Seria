@@ -27,19 +27,6 @@ pub enum ElementType {
     Transition,
 }
 
-impl ElementType {
-    /// Convert element type to string for CSV output
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            ElementType::Scene => "Scene",
-            ElementType::Action => "Action",
-            ElementType::Character => "Character",
-            ElementType::Parenthetical => "Parenthetical",
-            ElementType::Dialogue => "Dialogue",
-            ElementType::Transition => "Transition",
-        }
-    }
-}
 
 /// A parsed screenplay element
 #[derive(Debug, Clone)]
@@ -56,13 +43,16 @@ struct ScreenplayElement {
 /// # Returns
 /// * `Result<String, String>` - CSV-formatted string or error message
 ///
+/// # CSV Format
+/// The output has 6 columns: Transition, Scene, Action, Character, Parenthetical, Dialogue
+///
 /// # Example CSV Output
 /// ```csv
-/// Type,Content
-/// Scene,"INT. OFFICE - DAY"
-/// Action,"John enters the room."
-/// Character,JOHN
-/// Dialogue,"Hello, everyone!"
+/// Transition,Scene,Action,Character,Parenthetical,Dialogue
+/// FADE IN,INT. OFFICE - DAY,,,,
+/// ,,John enters the room.,,,
+/// ,,,JOHN,,"Hello, everyone!"
+/// ,,,MARY,(smiling),"Hi, John."
 /// ```
 #[tauri::command]
 pub fn convert_screenplay_to_csv(content: String) -> Result<String, String> {
@@ -239,25 +229,161 @@ fn is_all_caps(text: &str) -> bool {
     letters.iter().all(|c| c.is_uppercase())
 }
 
-/// Convert parsed elements to CSV format
+/// Convert parsed elements to CSV format with columns for each element type
+///
+/// The CSV has 6 columns: Transition, Scene, Action, Character, Parenthetical, Dialogue
+///
+/// Grouping rules:
+/// - Transition + Scene go on the same row (one of each)
+/// - Each Action gets its own row
+/// - Character + Parenthetical + Dialogue go on the same row (Character starts new dialogue group)
 fn elements_to_csv(elements: &[ScreenplayElement]) -> String {
-    let mut csv = String::from("Type,Content\n");
+    #[derive(Debug, Clone)]
+    struct CsvRow {
+        transition: String,
+        scene: String,
+        action: String,
+        character: String,
+        parenthetical: String,
+        dialogue: String,
+    }
+
+    impl CsvRow {
+        fn new() -> Self {
+            Self {
+                transition: String::new(),
+                scene: String::new(),
+                action: String::new(),
+                character: String::new(),
+                parenthetical: String::new(),
+                dialogue: String::new(),
+            }
+        }
+
+        fn is_empty(&self) -> bool {
+            self.transition.is_empty()
+                && self.scene.is_empty()
+                && self.action.is_empty()
+                && self.character.is_empty()
+                && self.parenthetical.is_empty()
+                && self.dialogue.is_empty()
+        }
+
+        fn has_dialogue_group(&self) -> bool {
+            !self.character.is_empty()
+                || !self.parenthetical.is_empty()
+                || !self.dialogue.is_empty()
+        }
+
+        fn has_scene_group(&self) -> bool {
+            !self.transition.is_empty() || !self.scene.is_empty()
+        }
+
+        fn has_action(&self) -> bool {
+            !self.action.is_empty()
+        }
+
+        fn to_csv_line(&self) -> String {
+            // Escape and quote if needed
+            let escape = |s: &str| {
+                if s.contains(',') || s.contains('"') || s.contains('\n') {
+                    format!("\"{}\"", s.replace('"', "\"\""))
+                } else {
+                    s.to_string()
+                }
+            };
+
+            format!(
+                "{},{},{},{},{},{}",
+                escape(&self.transition),
+                escape(&self.scene),
+                escape(&self.action),
+                escape(&self.character),
+                escape(&self.parenthetical),
+                escape(&self.dialogue)
+            )
+        }
+    }
+
+    let mut rows: Vec<CsvRow> = Vec::new();
+    let mut current_row = CsvRow::new();
 
     for elem in elements {
-        // Escape quotes in content for CSV
-        let escaped_content = elem.content.replace('"', "\"\"");
+        match elem.element_type {
+            ElementType::Transition => {
+                // Finish current row if it has action or dialogue
+                if current_row.has_action() || current_row.has_dialogue_group() {
+                    if !current_row.is_empty() {
+                        rows.push(current_row);
+                    }
+                    current_row = CsvRow::new();
+                }
+                current_row.transition = elem.content.clone();
+            }
+            ElementType::Scene => {
+                // Finish current row if it has action or dialogue
+                if current_row.has_action() || current_row.has_dialogue_group() {
+                    if !current_row.is_empty() {
+                        rows.push(current_row);
+                    }
+                    current_row = CsvRow::new();
+                }
+                current_row.scene = elem.content.clone();
+            }
+            ElementType::Action => {
+                // Finish current row
+                if !current_row.is_empty() {
+                    rows.push(current_row);
+                }
+                // Add action to new row and immediately finish it
+                current_row = CsvRow::new();
+                current_row.action = elem.content.clone();
+                rows.push(current_row);
+                current_row = CsvRow::new();
+            }
+            ElementType::Character => {
+                // Finish current row (Character always starts new dialogue group)
+                if !current_row.is_empty() {
+                    rows.push(current_row);
+                }
+                current_row = CsvRow::new();
+                current_row.character = elem.content.clone();
+            }
+            ElementType::Parenthetical => {
+                // If current row has scene/action, finish it
+                if current_row.has_scene_group() || current_row.has_action() {
+                    if !current_row.is_empty() {
+                        rows.push(current_row);
+                    }
+                    current_row = CsvRow::new();
+                }
+                // Add to current row (should have Character, but handle gracefully if not)
+                current_row.parenthetical = elem.content.clone();
+            }
+            ElementType::Dialogue => {
+                // If current row has scene/action, finish it
+                if current_row.has_scene_group() || current_row.has_action() {
+                    if !current_row.is_empty() {
+                        rows.push(current_row);
+                    }
+                    current_row = CsvRow::new();
+                }
+                // Add to current row (should have Character, but handle gracefully if not)
+                current_row.dialogue = elem.content.clone();
+            }
+        }
+    }
 
-        // Quote content if it contains commas, quotes, or newlines
-        let quoted_content = if escaped_content.contains(',')
-            || escaped_content.contains('"')
-            || escaped_content.contains('\n')
-        {
-            format!("\"{}\"", escaped_content)
-        } else {
-            escaped_content
-        };
+    // Push final row if not empty
+    if !current_row.is_empty() {
+        rows.push(current_row);
+    }
 
-        csv.push_str(&format!("{},{}\n", elem.element_type.as_str(), quoted_content));
+    // Build CSV
+    let mut csv = String::from("Transition,Scene,Action,Character,Parenthetical,Dialogue\n");
+    for row in rows {
+        csv.push_str(&row.to_csv_line());
+        csv.push('\n');
     }
 
     csv
@@ -316,13 +442,22 @@ mod tests {
 
         let csv = result.unwrap();
         println!("Generated CSV:\n{}", csv);
-        assert!(csv.contains("Scene,INT. OFFICE - DAY"));
-        assert!(csv.contains("Action,John enters the room."));
-        assert!(csv.contains("Character,JOHN"));
-        assert!(csv.contains("Dialogue,\"Hello, everyone!\""));  // Quotes added by CSV escaping
-        assert!(csv.contains("Character,MARY"));
-        assert!(csv.contains("Dialogue,\"Hi, John.\""));  // Quotes added by CSV escaping
-        assert!(csv.contains("Transition,FADE OUT."));
+
+        // Check header
+        assert!(csv.starts_with("Transition,Scene,Action,Character,Parenthetical,Dialogue\n"));
+
+        // Check scene row
+        assert!(csv.contains(",INT. OFFICE - DAY,,,,"));
+
+        // Check action row
+        assert!(csv.contains(",,John enters the room.,,,"));
+
+        // Check dialogue rows (Character + Dialogue on same row)
+        assert!(csv.contains(",,,JOHN,,\"Hello, everyone!\""));
+        assert!(csv.contains(",,,MARY,,\"Hi, John.\""));
+
+        // Check transition (should be on its own row or with scene)
+        assert!(csv.contains("FADE OUT."));
     }
 
     #[test]
@@ -338,9 +473,9 @@ mod tests {
 
         let csv = result.unwrap();
         println!("Parenthetical test CSV:\n{}", csv);
-        assert!(csv.contains("Character,JOHN"));
-        assert!(csv.contains("Parenthetical,(nervously)"));
-        assert!(csv.contains("Dialogue,I don't know what to say."));
+
+        // Character, Parenthetical, and Dialogue should all be on the same row
+        assert!(csv.contains(",,,JOHN,(nervously),I don't know what to say."));
     }
 
     #[test]
@@ -353,8 +488,8 @@ The streets are empty."#;
         assert!(result.is_ok());
 
         let csv = result.unwrap();
-        // Multi-line action should be combined
-        assert!(csv.contains("Action,John walks to the window. He looks outside at the rain. The streets are empty."));
+        // Multi-line action should be combined into one row with Action column filled
+        assert!(csv.contains(",,John walks to the window. He looks outside at the rain. The streets are empty.,,,"));
     }
 
     #[test]
@@ -364,7 +499,7 @@ The streets are empty."#;
         // It's marked as ignored because it requires the file to exist
         use std::fs;
 
-        let screenplay = fs::read_to_string("../resources/screenplay_sample_all_about_eve.txt")
+        let screenplay = fs::read_to_string("../resources/sample_aae_fulltext.txt")
             .expect("Failed to read All About Eve sample file");
 
         let result = convert_screenplay_to_csv(screenplay);
@@ -372,13 +507,16 @@ The streets are empty."#;
 
         let csv = result.unwrap();
 
+        // Verify header
+        assert!(csv.starts_with("Transition,Scene,Action,Character,Parenthetical,Dialogue\n"));
+
         // Verify some key elements are detected
-        assert!(csv.contains("Scene,INT. EVE'S HOTEL APARTMENT - NIGHT"));
-        assert!(csv.contains("Character,EVE"));
-        assert!(csv.contains("Character,GIRL"));
-        assert!(csv.contains("Character,ADDISON"));
-        assert!(csv.contains("Character,PHOEBE"));
-        assert!(csv.contains("Transition,FADE OUT."));
-        assert!(csv.contains("Parenthetical,"));  // Should have at least one parenthetical
+        assert!(csv.contains("INT. EVE'S HOTEL APARTMENT - NIGHT"));
+        assert!(csv.contains(",,,EVE,"));  // Character EVE
+        assert!(csv.contains(",,,GIRL,"));  // Character GIRL
+        assert!(csv.contains(",,,ADDISON,"));  // Character ADDISON
+        assert!(csv.contains(",,,PHOEBE,"));  // Character PHOEBE
+        assert!(csv.contains("FADE OUT."));  // Transition
+        assert!(csv.contains(",(pauses),"));  // At least one parenthetical
     }
 }
