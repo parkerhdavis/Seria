@@ -6,7 +6,7 @@
 - **GitLab (main repo):** [https://gitlab.com/parkerhdavis/Seria](https://gitlab.com/parkerhdavis/Seria)
 - **GitHub (mirror repo):** [https://github.com/parkerhdavis/Seria](https://github.com/parkerhdavis/Seria)
 - **Issues:** [GitLab Issues](https://gitlab.com/parkerhdavis/Seria/-/issues)
-- **Releases:** [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/releases)
+- **Releases:** [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/releases) (coming later this month)
 
 ---
 
