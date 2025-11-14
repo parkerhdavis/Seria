@@ -195,7 +195,7 @@ Beyond that, I only have one rule: **First, do no harm. Then, help where you can
 
 ## Financial Support
 
-If you have some cash to spare and want to help out, that's very kind. I'm doing alright, though, so rather than sharing that kindness with me, I encourage you to share it with your charity of choice. 
+If you have some cash to spare and are inspired to share, that's very kind. Rather than sharing that kindness with me, I encourage you to share it with your charity of choice. 
 
 Mine is the [GiveWell top charities fund](https://www.givewell.org/top-charities-fund) , which does excellent research to figure out which causes can save the most human lives for the money, and put their funds there.
 
