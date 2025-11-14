@@ -12,7 +12,7 @@
  */
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use std::io::Read;

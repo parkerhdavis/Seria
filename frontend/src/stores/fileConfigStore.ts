@@ -24,6 +24,13 @@ export interface FileIdentifiers {
     osFileId?: string;
 }
 
+// Per-recipe display settings
+export interface RecipeDisplaySettings {
+    continuous?: boolean;      // If false, shows gaps between pages
+    followCell?: boolean;      // If false, won't scroll to element when Cell is edited
+    theme?: string;            // Theme name (coming soon)
+}
+
 // Per-file configuration data
 export interface FileConfig {
     id: string;  // UUID for this config
@@ -66,6 +73,10 @@ export interface FileConfig {
         drawerPosition?: "right" | "bottom" | null;
         rightDrawerSize?: number;
         bottomDrawerSize?: number;
+
+        // Print recipe settings
+        selectedRecipeId?: string;  // Currently selected recipe for this file
+        recipeSettings?: Record<string, RecipeDisplaySettings>;  // Settings per recipe ID
     };
 }
 

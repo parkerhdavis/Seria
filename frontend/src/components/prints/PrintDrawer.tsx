@@ -12,8 +12,11 @@ import { useCellStore } from "@stores/cellStore";
 import { useDrag } from "@/contexts/DragContext";
 import { useDrawerStore } from "@stores/drawerStore";
 import { usePrintRecipeStore } from "@stores/printRecipeStore";
+import { useFileConfigStore, type RecipeDisplaySettings } from "@stores/fileConfigStore";
 import CardPrint from "@components/prints/CardPrint";
 import ScreenplayPrint from "@components/prints/ScreenplayPrint";
+import PrintToolbar from "@components/prints/PrintToolbar";
+import MappingModal from "@components/prints/MappingModal";
 
 interface PrintPreviewDrawerProps {
     isOpen: boolean;
@@ -32,8 +35,10 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
         setBottomDrawerSize,
         setPosition,
     } = useDrawerStore();
+    const { findConfigForFile, saveConfigForFile } = useFileConfigStore();
     const [isResizing, setIsResizing] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
     const drawerRef = useRef<HTMLDivElement>(null);
     const { startDrag, endDrag } = useDrag();
 
@@ -48,7 +53,64 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
         loadBundledRecipes,
         setCellHeaders,
         selectRecipe,
+        updateMapping,
     } = usePrintRecipeStore();
+
+    // Get recipe display settings from file config
+    const getRecipeSettings = (): RecipeDisplaySettings => {
+        if (!fileInfo || !selectedRecipeId) {
+            return { continuous: true, followCell: true };
+        }
+
+        // Build file identifiers
+        const identifiers = {
+            absolutePath: fileInfo.path,
+            filename: fileInfo.path.split("/").pop() || "",
+            parentDir: fileInfo.path.substring(0, fileInfo.path.lastIndexOf("/")),
+            fileSize: 0, // TODO: Get actual file size if needed
+        };
+
+        const fileConfig = findConfigForFile(identifiers);
+        const recipeSettings = fileConfig?.config.recipeSettings?.[selectedRecipeId];
+
+        return {
+            continuous: recipeSettings?.continuous ?? true,
+            followCell: recipeSettings?.followCell ?? true,
+            theme: recipeSettings?.theme,
+        };
+    };
+
+    // Save recipe display settings to file config
+    const saveRecipeSettings = async (settings: RecipeDisplaySettings) => {
+        if (!fileInfo || !selectedRecipeId) return;
+
+        // Build file identifiers
+        const identifiers = {
+            absolutePath: fileInfo.path,
+            filename: fileInfo.path.split("/").pop() || "",
+            parentDir: fileInfo.path.substring(0, fileInfo.path.lastIndexOf("/")),
+            fileSize: 0, // TODO: Get actual file size if needed
+        };
+
+        const fileConfig = findConfigForFile(identifiers);
+        const currentConfig = fileConfig?.config || {};
+        const currentRecipeSettings = currentConfig.recipeSettings || {};
+
+        // Update recipe settings
+        const updatedRecipeSettings = {
+            ...currentRecipeSettings,
+            [selectedRecipeId]: settings,
+        };
+
+        // Save to file config
+        await saveConfigForFile(identifiers, {
+            ...currentConfig,
+            selectedRecipeId,
+            recipeSettings: updatedRecipeSettings,
+        });
+    };
+
+    const recipeSettings = getRecipeSettings();
 
     // Load recipes and set Cell headers on mount/update
     useEffect(() => {
@@ -180,6 +242,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                                 drawerPosition="bottom"
                                                 containerWidth={containerWidth}
                                                 containerHeight={containerHeight}
+                                                followCell={recipeSettings.followCell}
                                             />
                                         );
                                     case "screenplay":
@@ -192,6 +255,8 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                                 drawerPosition="bottom"
                                                 containerWidth={containerWidth}
                                                 containerHeight={containerHeight}
+                                                continuous={recipeSettings.continuous}
+                                                followCell={recipeSettings.followCell}
                                             />
                                         );
                                     case "graph":
@@ -237,48 +302,66 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                 }}
             />
             {/* Header */}
-            <div className={`flex items-center gap-4 p-4 ${position === "right" ? "border-b" : "border-r"} border-base-300 ${position === "bottom" ? "min-w-[200px]" : ""}`}>
-                {/* Close button (left) */}
-                <button
-                    className="btn btn-sm btn-ghost btn-circle"
-                    onClick={() => setPosition(null)}
-                    title={`Close Print Preview (Ctrl+${position === "right" ? "\\" : "/"})`}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-
-                {/* Recipe selector (center) */}
-                <div className="flex items-center justify-center flex-1">
-                    <select
-                        className="select select-bordered select-md"
-                        style={{ textAlign: "center", textAlignLast: "center", minWidth: "200px" }}
-                        value={selectedRecipeId ?? ""}
-                        onChange={(e) => selectRecipe(e.target.value)}
+            <div className={`flex flex-col ${position === "right" ? "border-b" : "border-r"} border-base-300`}>
+                {/* Top row: Close, Recipe Selector, Fullscreen */}
+                <div className={`flex items-center gap-4 p-4 ${position === "bottom" ? "min-w-[200px]" : ""}`}>
+                    {/* Close button (left) */}
+                    <button
+                        className="btn btn-sm btn-ghost btn-circle"
+                        onClick={() => setPosition(null)}
+                        title={`Close Print Preview (Ctrl+${position === "right" ? "\\" : "/"})`}
                     >
-                        {recipes.map((recipe) => (
-                            <option key={recipe.id} value={recipe.id}>
-                                {recipe.name}
-                            </option>
-                        ))}
-                    </select>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+
+                    {/* Recipe selector (center) */}
+                    <div className="flex items-center justify-center flex-1">
+                        <select
+                            className="select select-bordered select-md"
+                            style={{ textAlign: "center", textAlignLast: "center", minWidth: "200px" }}
+                            value={selectedRecipeId ?? ""}
+                            onChange={(e) => selectRecipe(e.target.value)}
+                        >
+                            {recipes.map((recipe) => (
+                                <option key={recipe.id} value={recipe.id}>
+                                    {recipe.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Fullscreen button (right) */}
+                    <button
+                        className="btn btn-sm btn-ghost btn-circle"
+                        onClick={() => setIsFullscreen(true)}
+                        title="Fullscreen (F11)"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                        </svg>
+                    </button>
                 </div>
 
-                {/* Fullscreen button (right) */}
-                <button
-                    className="btn btn-sm btn-ghost btn-circle"
-                    onClick={() => setIsFullscreen(true)}
-                    title="Fullscreen (F11)"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                    </svg>
-                </button>
+                {/* Print Toolbar */}
+                {selectedRecipeId && (() => {
+                    const recipe = recipes.find(r => r.id === selectedRecipeId);
+                    if (!recipe) return null;
+
+                    return (
+                        <PrintToolbar
+                            recipe={recipe}
+                            settings={recipeSettings}
+                            onSettingsChange={saveRecipeSettings}
+                            onMappingClick={() => setIsMappingModalOpen(true)}
+                        />
+                    );
+                })()}
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-auto">
+            <div className="print-drawer-content flex-1 overflow-auto">
                 {!fileInfo ? (
                     <div className="flex flex-col items-center justify-center h-full text-base-content/50">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -333,6 +416,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                                 drawerPosition={position}
                                                 containerWidth={containerWidth}
                                                 containerHeight={containerHeight}
+                                                followCell={recipeSettings.followCell}
                                             />
                                         );
                                     case "screenplay":
@@ -345,6 +429,8 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                                 drawerPosition={position}
                                                 containerWidth={containerWidth}
                                                 containerHeight={containerHeight}
+                                                continuous={recipeSettings.continuous}
+                                                followCell={recipeSettings.followCell}
                                             />
                                         );
                                     case "graph":
@@ -371,6 +457,66 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                     </div>
                 )}
             </div>
+
+            {/* Mapping Modal */}
+            {selectedRecipeId && (() => {
+                const recipe = recipes.find(r => r.id === selectedRecipeId);
+                const config = configurations[selectedRecipeId];
+                if (!recipe || !config) return null;
+
+                return (
+                    <MappingModal
+                        isOpen={isMappingModalOpen}
+                        onClose={() => setIsMappingModalOpen(false)}
+                        recipe={recipe}
+                        cellHeaders={headers}
+                        fieldMappings={config.fieldMappings}
+                        onUpdateMapping={(ingredientId, cellColumn) => {
+                            updateMapping(selectedRecipeId, ingredientId, cellColumn);
+                        }}
+                    />
+                );
+            })()}
+
+            {/* Scrollbar styling - matches Cell grid */}
+            <style>{`
+                .print-drawer-content {
+                    scrollbar-width: thin;
+                    scrollbar-gutter: stable both-edges;
+                    -webkit-overflow-scrolling: touch;
+                }
+
+                .print-drawer-content::-webkit-scrollbar {
+                    -webkit-appearance: none;
+                    width: 14px;
+                    height: 14px;
+                }
+
+                .print-drawer-content::-webkit-scrollbar-track {
+                    background: oklch(var(--b2));
+                    border: 1px solid oklch(var(--bc) / 0.1);
+                }
+
+                .print-drawer-content::-webkit-scrollbar-thumb {
+                    background: oklch(var(--bc) / 0.4);
+                    border-radius: 7px;
+                    border: 2px solid oklch(var(--b2));
+                    min-height: 30px;
+                    min-width: 30px;
+                }
+
+                .print-drawer-content::-webkit-scrollbar-thumb:hover {
+                    background: oklch(var(--bc) / 0.6);
+                }
+
+                .print-drawer-content::-webkit-scrollbar-thumb:active {
+                    background: oklch(var(--bc) / 0.7);
+                }
+
+                .print-drawer-content::-webkit-scrollbar-corner {
+                    background: oklch(var(--b2));
+                }
+            `}</style>
         </div>
     );
 }

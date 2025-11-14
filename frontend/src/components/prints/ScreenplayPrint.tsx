@@ -10,7 +10,6 @@ import { useState, useEffect, useRef } from "react";
 import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
 import { getMappedColumn } from "@/utils/printRecipeMapper";
 import { useCellStore } from "@stores/cellStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 
 interface ScreenplayPrintProps {
     data: string[][];
@@ -20,6 +19,8 @@ interface ScreenplayPrintProps {
     drawerPosition?: "right" | "bottom";  // Drawer orientation
     containerWidth?: number;               // Available width in pixels
     containerHeight?: number;              // Available height in pixels
+    continuous?: boolean;                  // If false, shows gaps between pages (default: true)
+    followCell?: boolean;                  // If false, won't scroll when Cell is edited (default: true)
 }
 
 /**
@@ -115,6 +116,9 @@ function ScreenplayElementView({
     const inputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+    // Hover state for element highlighting
+    const [isHovered, setIsHovered] = useState(false);
+
     // Check if this element should be multi-line
     const isMultiLine = isMultiLineElement(element.type);
 
@@ -175,17 +179,32 @@ function ScreenplayElementView({
             onClick={onClick}
             onDoubleClick={onDoubleClick}
             onContextMenu={onContextMenu}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
         >
+            {/* Full-width hover background */}
+            {isHovered && !isBeingEdited && !isSelected && !isCut && (
+                <div
+                    className="absolute inset-y-0 bg-base-200/70 rounded pointer-events-none transition-colors"
+                    style={{
+                        left: "calc(-1 * var(--page-padding-left, 1.5in) + 0.25in)",
+                        right: "calc(-1 * var(--page-padding-right, 1in) + 0.25in)",
+                        top: "-0.25rem",
+                        bottom: "-0.25rem"
+                    }}
+                />
+            )}
+
             {/* Optional row number indicator */}
             {showRowNumbers && (
-                <span className="absolute -left-12 text-xs text-base-content/30 font-mono">
+                <span className="absolute -left-12 text-xs text-base-content/30 font-mono z-10">
                     {element.rowIndex + 1}
                 </span>
             )}
 
             {/* Editing cursor indicator */}
             {isBeingEdited && (
-                <div className="absolute -left-6 top-0 text-primary animate-pulse">
+                <div className="absolute -left-6 top-0 text-primary animate-pulse z-10">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
@@ -194,14 +213,14 @@ function ScreenplayElementView({
 
             {/* "Editing from Cell" overlay indicator */}
             {isBeingEdited && !isEditingFromPrint && (
-                <div className="absolute -top-5 left-0 text-xs text-primary/70 italic bg-base-100/90 px-2 py-0.5 rounded shadow-sm border border-primary/20">
+                <div className="absolute -top-5 left-0 text-xs text-primary/70 italic bg-base-100/90 px-2 py-0.5 rounded shadow-sm border border-primary/20 z-10">
                     (editing from Cell)
                 </div>
             )}
 
             {/* Selection indicator */}
             {isSelected && !isEditingFromPrint && (
-                <div className="absolute -left-6 top-0 text-secondary">
+                <div className="absolute -left-6 top-0 text-secondary z-10">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
@@ -226,7 +245,7 @@ function ScreenplayElementView({
                 isMultiLine ? (
                     <textarea
                         ref={textareaRef}
-                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary/40 ring-offset-2 ring-offset-white rounded px-2 py-1 resize-none overflow-hidden"
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 py-1 resize-none overflow-hidden relative z-10"
                         style={{
                             ...style as React.CSSProperties,
                             minHeight: "1.5rem",
@@ -246,21 +265,23 @@ function ScreenplayElementView({
                             target.style.height = "auto";
                             target.style.height = `${target.scrollHeight}px`;
                         }}
+                        onMouseEnter={() => setIsHovered(false)}
                     />
                 ) : (
                     <input
                         ref={inputRef}
                         type="text"
-                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary/40 ring-offset-2 ring-offset-white rounded px-2 py-1"
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 py-1 relative z-10"
                         style={style as React.CSSProperties}
                         value={editingValue}
                         onChange={(e) => onEditingValueChange(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
+                        onMouseEnter={() => setIsHovered(false)}
                     />
                 )
             ) : (
                 <p
-                    className={`font-mono text-base leading-tight ${isBeingEdited ? "ring-2 ring-primary/40 ring-offset-2 ring-offset-white rounded px-2 py-1" : ""} ${isSelected ? "ring-2 ring-secondary ring-offset-2 ring-offset-white rounded px-2 py-1" : ""} ${isCut ? "ring-2 ring-dashed ring-warning/50 ring-offset-2 ring-offset-white rounded px-2 py-1 opacity-60" : ""}`}
+                    className={`font-mono text-base leading-tight rounded px-2 py-1 transition-colors relative z-10 ${isBeingEdited ? "ring-2 ring-primary ring-inset bg-primary/10" : ""} ${isSelected ? "bg-primary/20" : ""} ${isCut ? "ring-2 ring-dashed ring-primary ring-inset opacity-60" : ""}`}
                     style={style as React.CSSProperties}
                 >
                     {formatContent(element.content)}
@@ -281,10 +302,11 @@ function ScreenplayPrint({
     drawerPosition = "right",
     containerWidth,
     containerHeight,
+    continuous = true,
+    followCell = true,
 }: ScreenplayPrintProps) {
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
     const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell, clearSelection } = useCellStore();
-    const { printFollowsCellEdit } = useSettingsStore();
     const elementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     // State for Print view selection and editing
@@ -319,7 +341,8 @@ function ScreenplayPrint({
     const pageWidth = recipe.documentSettings.pageWidth ?? 8.5;
     const pageHeight = recipe.documentSettings.pageHeight ?? 11;
     const marginTop = recipe.documentSettings.marginTop ?? 1;
-    const marginBottom = recipe.documentSettings.marginBottom ?? 1;
+    // In continuous mode, use 0 bottom margin so content flows seamlessly
+    const marginBottom = continuous ? 0 : (recipe.documentSettings.marginBottom ?? 1);
     const marginLeft = recipe.documentSettings.marginLeft ?? 1.5;
     const marginRight = recipe.documentSettings.marginRight ?? 1;
     const backgroundColor = recipe.documentSettings.backgroundColor ?? "bg-white";
@@ -356,7 +379,7 @@ function ScreenplayPrint({
 
     // Scroll to element when editing cell changes
     useEffect(() => {
-        if (editingCell && containerRef && printFollowsCellEdit) {
+        if (editingCell && containerRef && followCell) {
             // Create a unique key for the editing cell
             const editingKey = `${editingCell.row}-${headers[editingCell.col]}`;
             const element = elementRefs.current.get(editingKey);
@@ -370,7 +393,7 @@ function ScreenplayPrint({
                 });
             }
         }
-    }, [editingCell, headers, containerRef, printFollowsCellEdit]);
+    }, [editingCell, headers, containerRef, followCell]);
 
     // Clear Print selection when editing cell from Cell Grid changes
     useEffect(() => {
@@ -926,9 +949,160 @@ function ScreenplayPrint({
         );
     }
 
+    /**
+     * Calculate approximate height of a screenplay element in inches
+     * Based on font size, line spacing, and content length
+     */
+    const calculateElementHeight = (element: ScreenplayElement): number => {
+        const elementConfig = getElementStyle(recipe, element.type);
+        const fontSize = elementConfig.fontSize || 12; // in points
+        const lineSpaceBefore = elementConfig.lineSpaceBefore || 0;
+        const lineSpaceAfter = elementConfig.lineSpaceAfter || 0;
+
+        // Calculate base line height
+        // Courier 12pt has ~6 lines per inch in screenplay format
+        const lineHeightInches = (fontSize / 72) * 1.2; // Convert points to inches with 1.2 line height multiplier
+
+        // Estimate number of lines based on content length and element type
+        // For multi-line elements (action, dialogue), estimate based on character width
+        let numLines = 1;
+        if (isMultiLineElement(element.type)) {
+            // Courier 12pt at 6in width = ~60 characters per line
+            const maxWidth = ("maxWidth" in elementConfig ? (elementConfig as {maxWidth?: string}).maxWidth : undefined) || "6in";
+            const widthInches = parseFloat(maxWidth.replace("in", ""));
+            const charsPerLine = Math.floor(widthInches * 10); // Approximation: ~10 chars per inch in Courier 12pt
+            numLines = Math.max(1, Math.ceil(element.content.length / charsPerLine));
+        }
+
+        // Total height = spacing before + (lines * line height) + spacing after
+        const spacingBeforeInches = lineSpaceBefore * lineHeightInches;
+        const spacingAfterInches = lineSpaceAfter * lineHeightInches;
+        const contentHeight = numLines * lineHeightInches;
+
+        return spacingBeforeInches + contentHeight + spacingAfterInches;
+    };
+
+    /**
+     * Group elements into blocks that should stay together across page breaks
+     * Dialogue blocks (Character + Parenthetical + Dialogue from same row) must not be split
+     */
+    interface ElementBlock {
+        elements: ScreenplayElement[];
+        totalHeight: number;
+    }
+
+    const groupIntoBlocks = (): ElementBlock[] => {
+        const blocks: ElementBlock[] = [];
+        let i = 0;
+
+        while (i < elements.length) {
+            const element = elements[i];
+
+            // Check if this is the start of a dialogue block (Character element)
+            if (element.type === "character") {
+                // Collect all elements from this dialogue block (same rowIndex)
+                const blockElements: ScreenplayElement[] = [element];
+                let blockHeight = calculateElementHeight(element);
+                let j = i + 1;
+
+                // Look ahead for Parenthetical and/or Dialogue from same row
+                while (j < elements.length && elements[j].rowIndex === element.rowIndex) {
+                    const nextElement = elements[j];
+                    if (nextElement.type === "parenthetical" || nextElement.type === "dialogue") {
+                        blockElements.push(nextElement);
+                        blockHeight += calculateElementHeight(nextElement);
+                        j++;
+                    } else {
+                        break;
+                    }
+                }
+
+                blocks.push({
+                    elements: blockElements,
+                    totalHeight: blockHeight,
+                });
+
+                // Skip past the elements we just added to the block
+                i = j;
+            } else {
+                // Non-dialogue element - create a single-element block
+                blocks.push({
+                    elements: [element],
+                    totalHeight: calculateElementHeight(element),
+                });
+                i++;
+            }
+        }
+
+        return blocks;
+    };
+
+    /**
+     * Split screenplay element blocks into pages based on pageHeight
+     * Returns array of pages, each containing elements that fit within the page
+     */
+    interface PageWithElements {
+        elements: ScreenplayElement[];
+        pageNumber: number;
+    }
+
+    const splitIntoPages = (): PageWithElements[] => {
+        const pages: PageWithElements[] = [];
+        const usableHeight = pageHeight - marginTop - marginBottom;
+        const blocks = groupIntoBlocks();
+
+        let currentPage: ScreenplayElement[] = [];
+        let currentPageHeight = 0;
+        let pageNumber = 1;
+
+        blocks.forEach((block, index) => {
+            // Check if adding this block would exceed page height
+            if (currentPageHeight + block.totalHeight > usableHeight && currentPage.length > 0) {
+                // Save current page and start new one
+                pages.push({
+                    elements: currentPage,
+                    pageNumber: pageNumber,
+                });
+                pageNumber++;
+                currentPage = [];
+                currentPageHeight = 0;
+            }
+
+            // Add all elements from this block to current page
+            currentPage.push(...block.elements);
+            currentPageHeight += block.totalHeight;
+
+            // If this is the last block, save the current page
+            if (index === blocks.length - 1) {
+                pages.push({
+                    elements: currentPage,
+                    pageNumber: pageNumber,
+                });
+            }
+        });
+
+        // Handle edge case: if no pages were created, create one empty page
+        if (pages.length === 0) {
+            pages.push({
+                elements: [],
+                pageNumber: 1,
+            });
+        }
+
+        return pages;
+    };
+
+    // Split elements into pages
+    const pages = splitIntoPages();
+
     // Calculate page dimensions and transform
     // For right drawer, align left; for bottom drawer, center
     const transformOrigin = drawerPosition === "right" ? "top left" : "top center";
+
+    // Calculate margin bottom based on continuous mode
+    // When using transform: scale(), the element shrinks visually but still occupies its original layout space.
+    // We need negative margin to compensate. The formula subtracts the "wasted" space from the desired gap.
+    const pageGap = continuous ? 0 : 32; // 32px gap when not continuous
 
     const pageStyle = {
         width: `${pageWidth}in`,
@@ -939,7 +1113,9 @@ function ScreenplayPrint({
         paddingRight: `${marginRight}in`,
         transform: `scale(${scale})`,
         transformOrigin,
-        marginBottom: `${(1 - scale) * pageHeightPx}px`, // Adjust for scaled height
+        // Negative margin compensates for scaled element's layout space
+        // pageGap adds the desired visual gap between pages
+        marginBottom: `${pageGap - (1 - scale) * pageHeightPx}px`,
     };
 
     return (
@@ -950,7 +1126,7 @@ function ScreenplayPrint({
                     (printContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
                 }
             }}
-            className="screenplay-print-container w-full h-full overflow-scroll p-2 outline-none"
+            className="screenplay-print-container w-full h-full p-2 outline-none"
             tabIndex={0}
             onClick={(e) => {
                 // Clear Cell selection when clicking anywhere in Print view
@@ -964,126 +1140,100 @@ function ScreenplayPrint({
                 }
             }}
         >
-            {/* Force scrollbars to always be visible */}
-            <style>{`
-                .screenplay-print-container {
-                    overflow: scroll !important;
-                    scrollbar-width: thin; /* Firefox - always show */
-                    -webkit-overflow-scrolling: touch;
-                }
+            {/* Render all pages */}
+            {pages.map((page) => {
+                // Calculate page number to display (accounting for startPageNumber offset)
+                const displayPageNumber = startPageNumber + page.pageNumber - 1;
+                // Determine if this page should show page number
+                const shouldShowPageNumber = !continuous && showPageNumbers && (firstPageNumbered || page.pageNumber > 1);
 
-                /* Force scrollbar to always be visible in Webkit browsers */
-                .screenplay-print-container::-webkit-scrollbar {
-                    -webkit-appearance: none;
-                    width: 14px;
-                    height: 14px;
-                }
-
-                .screenplay-print-container::-webkit-scrollbar-track {
-                    background: oklch(var(--b3));
-                    border: 1px solid oklch(var(--bc) / 0.1);
-                }
-
-                .screenplay-print-container::-webkit-scrollbar-thumb {
-                    background: oklch(var(--bc) / 0.4);
-                    border-radius: 7px;
-                    border: 2px solid oklch(var(--b3));
-                    min-height: 30px;
-                    min-width: 30px;
-                }
-
-                .screenplay-print-container::-webkit-scrollbar-thumb:hover {
-                    background: oklch(var(--bc) / 0.6);
-                }
-
-                .screenplay-print-container::-webkit-scrollbar-thumb:active {
-                    background: oklch(var(--bc) / 0.7);
-                }
-
-                .screenplay-print-container::-webkit-scrollbar-corner {
-                    background: oklch(var(--b3));
-                }
-            `}</style>
-
-            {/* Screenplay page */}
-            <div
-                className={`screenplay-page ${backgroundColor} text-grey-50 mb-8 relative ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
-                style={pageStyle}
-            >
-                {/* Page number (top right, only if enabled) */}
-                {showPageNumbers && firstPageNumbered && (
+                return (
                     <div
-                        className="absolute right-10 text-sm font-mono"
-                        style={{ top: `${pageNumberMarginTop}in` }}
+                        key={page.pageNumber}
+                        className={`screenplay-page ${backgroundColor} text-grey-50 relative ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
+                        style={pageStyle}
                     >
-                        {startPageNumber}
+                        {/* Page number (top right, only if enabled) */}
+                        {shouldShowPageNumber && (
+                            <div
+                                className="absolute right-10 text-sm font-mono"
+                                style={{ top: `${pageNumberMarginTop}in` }}
+                            >
+                                {displayPageNumber}
+                            </div>
+                        )}
+
+                        {/* Screenplay elements for this page */}
+                        <div className="screenplay-content relative">
+                            {page.elements.map((element) => {
+                                // Find the global index of this element in the full elements array
+                                const globalIndex = elements.findIndex(
+                                    (e) => e.rowIndex === element.rowIndex && e.columnName === element.columnName
+                                );
+
+                                // Check if this element corresponds to the cell being edited
+                                const isBeingEdited = editingCell !== null &&
+                                    editingCell.row === element.rowIndex &&
+                                    headers[editingCell.col] === element.columnName;
+
+                                // Check if this element is selected (in primary or additional selection)
+                                const isSelected =
+                                    (printSelection.primary !== null &&
+                                        printSelection.primary.rowIndex === element.rowIndex &&
+                                        printSelection.primary.columnName === element.columnName) ||
+                                    printSelection.additional.some(sel =>
+                                        sel.rowIndex === element.rowIndex &&
+                                        sel.columnName === element.columnName
+                                    );
+
+                                // Check if this element is cut
+                                const isCut = cutElements.some(sel =>
+                                    sel.rowIndex === element.rowIndex &&
+                                    sel.columnName === element.columnName
+                                );
+
+                                // Check if this element is being edited from Print view
+                                const isEditingThisFromPrint = isEditingFromPrint &&
+                                    editingCell !== null &&
+                                    editingCell.row === element.rowIndex &&
+                                    headers[editingCell.col] === element.columnName;
+
+                                // Create a unique key for this element
+                                const elementKey = `${element.rowIndex}-${element.columnName}`;
+
+                                // Create ref callback to store element ref
+                                const setRef = (el: HTMLDivElement | null) => {
+                                    if (el) {
+                                        elementRefs.current.set(elementKey, el);
+                                    } else {
+                                        elementRefs.current.delete(elementKey);
+                                    }
+                                };
+
+                                return (
+                                    <ScreenplayElementView
+                                        key={`${page.pageNumber}-${globalIndex}`}
+                                        element={element}
+                                        recipe={recipe}
+                                        showRowNumbers={false}
+                                        showSceneNumbers={sceneNumbering}
+                                        isBeingEdited={isBeingEdited}
+                                        isSelected={isSelected}
+                                        isCut={isCut}
+                                        isEditingFromPrint={isEditingThisFromPrint}
+                                        editingValue={editingValue}
+                                        onEditingValueChange={updateEditingValue}
+                                        onClick={(e) => handleElementClick(e, element, globalIndex)}
+                                        onDoubleClick={() => handleElementDoubleClick(element, globalIndex)}
+                                        onContextMenu={(e) => handleElementContextMenu(e, element, globalIndex)}
+                                        setRef={setRef}
+                                    />
+                                );
+                            })}
+                        </div>
                     </div>
-                )}
-
-                {/* Screenplay elements */}
-                <div className="screenplay-content relative">
-                    {elements.map((element, index) => {
-                        // Check if this element corresponds to the cell being edited
-                        const isBeingEdited = editingCell !== null &&
-                            editingCell.row === element.rowIndex &&
-                            headers[editingCell.col] === element.columnName;
-
-                        // Check if this element is selected (in primary or additional selection)
-                        const isSelected =
-                            (printSelection.primary !== null &&
-                                printSelection.primary.rowIndex === element.rowIndex &&
-                                printSelection.primary.columnName === element.columnName) ||
-                            printSelection.additional.some(sel =>
-                                sel.rowIndex === element.rowIndex &&
-                                sel.columnName === element.columnName
-                            );
-
-                        // Check if this element is cut
-                        const isCut = cutElements.some(sel =>
-                            sel.rowIndex === element.rowIndex &&
-                            sel.columnName === element.columnName
-                        );
-
-                        // Check if this element is being edited from Print view
-                        const isEditingThisFromPrint = isEditingFromPrint &&
-                            editingCell !== null &&
-                            editingCell.row === element.rowIndex &&
-                            headers[editingCell.col] === element.columnName;
-
-                        // Create a unique key for this element
-                        const elementKey = `${element.rowIndex}-${element.columnName}`;
-
-                        // Create ref callback to store element ref
-                        const setRef = (el: HTMLDivElement | null) => {
-                            if (el) {
-                                elementRefs.current.set(elementKey, el);
-                            } else {
-                                elementRefs.current.delete(elementKey);
-                            }
-                        };
-
-                        return (
-                            <ScreenplayElementView
-                                key={index}
-                                element={element}
-                                recipe={recipe}
-                                showRowNumbers={false}
-                                showSceneNumbers={sceneNumbering}
-                                isBeingEdited={isBeingEdited}
-                                isSelected={isSelected}
-                                isCut={isCut}
-                                isEditingFromPrint={isEditingThisFromPrint}
-                                editingValue={editingValue}
-                                onEditingValueChange={updateEditingValue}
-                                onClick={(e) => handleElementClick(e, element, index)}
-                                onDoubleClick={() => handleElementDoubleClick(element, index)}
-                                onContextMenu={(e) => handleElementContextMenu(e, element, index)}
-                                setRef={setRef}
-                            />
-                        );
-                    })}
-                </div>
-            </div>
+                );
+            })}
 
             {/* Context menu */}
             {contextMenu && (

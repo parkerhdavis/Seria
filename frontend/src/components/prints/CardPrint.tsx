@@ -10,7 +10,6 @@ import { useState, useEffect, useRef } from "react";
 import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 import { getMappedColumn, getMappedColumns } from "@/utils/printRecipeMapper";
 import { useCellStore } from "@stores/cellStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 
 interface CardPrintProps {
     data: string[][];
@@ -21,6 +20,7 @@ interface CardPrintProps {
     drawerPosition?: "right" | "bottom";  // Drawer orientation
     containerWidth?: number;               // Available width in pixels
     containerHeight?: number;              // Available height in pixels
+    followCell?: boolean;                  // If false, won't scroll when Cell is edited (default: true)
 }
 
 interface CardData {
@@ -80,6 +80,7 @@ function Card({
     setRef?: (el: HTMLDivElement | null) => void;
 }) {
     const [isHovered, setIsHovered] = useState(false);
+    const [hoveredField, setHoveredField] = useState<{ type: "title" | "subtitle" | "content"; index?: number } | null>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
     const subtitleInputRef = useRef<HTMLInputElement>(null);
     const contentTextareaRefs = useRef<Map<number, HTMLTextAreaElement>>(new Map());
@@ -203,12 +204,12 @@ function Card({
                 ${!isEditingFromPrint ? "cursor-move" : ""}
                 transition-all duration-200
                 ${isDragging ? "opacity-50 scale-95" : ""}
-                ${hasAnyEditing ? "border-primary ring-2 ring-primary ring-offset-2" : hasAnySelection ? "border-secondary ring-2 ring-secondary ring-offset-2" : "border-base-300"}
-                ${isHovered ? "shadow-xl border-primary" : ""}
-                ${!isEditingFromPrint ? "hover:shadow-xl hover:border-primary" : ""}
+                ${hasAnyEditing ? "border-primary" : hasAnySelection ? "border-base-300" : "border-base-300"}
+                ${isHovered && !hasAnyEditing && !hasAnySelection ? "shadow-lg border-base-content/20" : ""}
+                ${!isEditingFromPrint ? "hover:shadow-lg hover:border-base-content/20" : ""}
             `}
             onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
+            onMouseLeave={() => { setIsHovered(false); setHoveredField(null); }}
         >
             {/* Editing indicator icon */}
             {hasAnyEditing && (
@@ -237,19 +238,27 @@ function Card({
                     onClick={(e) => { e.stopPropagation(); onFieldClick("title"); }}
                     onDoubleClick={(e) => { e.stopPropagation(); onFieldDoubleClick("title"); }}
                     onContextMenu={(e) => { e.stopPropagation(); onFieldContextMenu(e, "title"); }}
-                    className="cursor-text"
+                    onMouseEnter={() => setHoveredField({ type: "title" })}
+                    onMouseLeave={() => setHoveredField(null)}
+                    className="cursor-text relative -mx-4 px-4"
                 >
+                    {/* Full-width hover background */}
+                    {hoveredField?.type === "title" && !isTitleEditing && !isTitleSelected && (
+                        <div className="absolute bg-base-200/70 rounded pointer-events-none transition-colors" style={{ inset: "0 0.5rem" }} />
+                    )}
+
                     {isTitleEditingFromPrint ? (
                         <input
                             ref={titleInputRef}
                             type="text"
-                            className="text-base font-bold text-base-content mb-2 pr-8 w-full bg-transparent border-none outline-none ring-2 ring-primary/40 ring-offset-2 rounded px-2 py-1"
+                            className="text-base font-bold text-base-content mb-2 pr-8 w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 py-1 relative z-10"
                             value={editingValue}
                             onChange={(e) => onEditingValueChange(e.target.value)}
                             onClick={(e) => e.stopPropagation()}
+                            onMouseEnter={() => setHoveredField(null)}
                         />
                     ) : (
-                        <h3 className={`text-base font-bold text-base-content mb-2 pr-8 ${isTitleEditing ? "ring-2 ring-primary/40 ring-offset-2 rounded px-2 py-1" : isTitleSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-2 py-1" : ""}`}>
+                        <h3 className={`text-base font-bold text-base-content mb-2 pr-8 rounded px-2 py-1 transition-colors relative z-10 ${isTitleEditing ? "ring-2 ring-primary ring-inset bg-primary/10" : isTitleSelected ? "bg-primary/20" : ""}`}>
                             {card.title || <span className="text-base-content/30 italic">Click to add title</span>}
                         </h3>
                     )}
@@ -262,19 +271,27 @@ function Card({
                     onClick={(e) => { e.stopPropagation(); onFieldClick("subtitle"); }}
                     onDoubleClick={(e) => { e.stopPropagation(); onFieldDoubleClick("subtitle"); }}
                     onContextMenu={(e) => { e.stopPropagation(); onFieldContextMenu(e, "subtitle"); }}
-                    className="cursor-text"
+                    onMouseEnter={() => setHoveredField({ type: "subtitle" })}
+                    onMouseLeave={() => setHoveredField(null)}
+                    className="cursor-text relative -mx-4 px-4"
                 >
+                    {/* Full-width hover background */}
+                    {hoveredField?.type === "subtitle" && !isSubtitleEditing && !isSubtitleSelected && (
+                        <div className="absolute bg-base-200/70 rounded pointer-events-none transition-colors" style={{ inset: "0 0.5rem" }} />
+                    )}
+
                     {isSubtitleEditingFromPrint ? (
                         <input
                             ref={subtitleInputRef}
                             type="text"
-                            className="text-sm italic text-base-content/70 mb-3 w-full bg-transparent border-none outline-none ring-2 ring-primary/40 ring-offset-2 rounded px-2 py-1"
+                            className="text-sm italic text-base-content/70 mb-3 w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 py-1 relative z-10"
                             value={editingValue}
                             onChange={(e) => onEditingValueChange(e.target.value)}
                             onClick={(e) => e.stopPropagation()}
+                            onMouseEnter={() => setHoveredField(null)}
                         />
                     ) : (
-                        <p className={`text-sm italic text-base-content/70 mb-3 ${isSubtitleEditing ? "ring-2 ring-primary/40 ring-offset-2 rounded px-2 py-1" : isSubtitleSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-2 py-1" : ""}`}>
+                        <p className={`text-sm italic text-base-content/70 mb-3 rounded px-2 py-1 transition-colors relative z-10 ${isSubtitleEditing ? "ring-2 ring-primary ring-inset bg-primary/10" : isSubtitleSelected ? "bg-primary/20" : ""}`}>
                             {card.subtitle || <span className="text-base-content/30">Click to add subtitle</span>}
                         </p>
                     )}
@@ -301,8 +318,15 @@ function Card({
                                 onClick={(e) => { e.stopPropagation(); onFieldClick("content", idx); }}
                                 onDoubleClick={(e) => { e.stopPropagation(); onFieldDoubleClick("content", idx); }}
                                 onContextMenu={(e) => { e.stopPropagation(); onFieldContextMenu(e, "content", idx); }}
-                                className="cursor-text"
+                                onMouseEnter={() => setHoveredField({ type: "content", index: idx })}
+                                onMouseLeave={() => setHoveredField(null)}
+                                className="cursor-text relative -mx-4 px-4"
                             >
+                                {/* Full-width hover background */}
+                                {hoveredField?.type === "content" && hoveredField?.index === idx && !isContentEditing && !isContentSelected && (
+                                    <div className="absolute bg-base-200/70 rounded pointer-events-none transition-colors" style={{ inset: "0 0.5rem" }} />
+                                )}
+
                                 {isContentEditingFromPrint ? (
                                     <textarea
                                         ref={(el) => {
@@ -310,7 +334,7 @@ function Card({
                                                 contentTextareaRefs.current.set(idx, el);
                                             }
                                         }}
-                                        className="w-full bg-transparent border-none outline-none ring-2 ring-primary/40 ring-offset-2 rounded px-2 py-1 resize-none overflow-hidden"
+                                        className="w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 py-1 resize-none overflow-hidden relative z-10"
                                         style={{
                                             minHeight: "1.5rem",
                                             height: "auto",
@@ -329,9 +353,10 @@ function Card({
                                             target.style.height = "auto";
                                             target.style.height = `${target.scrollHeight}px`;
                                         }}
+                                        onMouseEnter={() => setHoveredField(null)}
                                     />
                                 ) : (
-                                    <p className={`line-clamp-3 ${isContentEditing ? "ring-2 ring-primary/40 ring-offset-2 rounded px-2 py-1" : isContentSelected ? "ring-2 ring-secondary ring-offset-2 rounded px-2 py-1" : ""}`}>
+                                    <p className={`line-clamp-3 rounded px-2 py-1 transition-colors relative z-10 ${isContentEditing ? "ring-2 ring-primary ring-inset bg-primary/10" : isContentSelected ? "bg-primary/20" : ""}`}>
                                         {text}
                                     </p>
                                 )}
@@ -363,12 +388,12 @@ function CardPrint({
     drawerPosition = "right",
     containerWidth,
     containerHeight,
+    followCell = true,
 }: CardPrintProps) {
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
     const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell, clearSelection } = useCellStore();
-    const { printFollowsCellEdit } = useSettingsStore();
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
     // State for Print view selection and editing
@@ -402,7 +427,7 @@ function CardPrint({
 
     // Scroll to card when editing cell changes
     useEffect(() => {
-        if (editingCell && containerRef && printFollowsCellEdit) {
+        if (editingCell && containerRef && followCell) {
             // Find the card that contains the editing cell
             const card = cardRefs.current.get(editingCell.row);
 
@@ -415,7 +440,7 @@ function CardPrint({
                 });
             }
         }
-    }, [editingCell, containerRef, printFollowsCellEdit]);
+    }, [editingCell, containerRef, followCell]);
 
     // Clear Print selection when editing cell from Cell Grid changes
     useEffect(() => {
@@ -726,7 +751,7 @@ function CardPrint({
                     (printContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
                 }
             }}
-            className="card-print-container w-full h-full overflow-scroll bg-black/30 outline-none"
+            className="card-print-container w-full h-full bg-black/30 outline-none"
             tabIndex={0}
             onClick={(e) => {
                 // Clear Cell selection when clicking anywhere in Print view
@@ -741,47 +766,6 @@ function CardPrint({
                 }
             }}
         >
-            {/* Force scrollbars to always be visible */}
-            <style>{`
-                .card-print-container {
-                    overflow: scroll !important;
-                    scrollbar-width: thin; /* Firefox - always show */
-                    -webkit-overflow-scrolling: touch;
-                }
-
-                /* Force scrollbar to always be visible in Webkit browsers */
-                .card-print-container::-webkit-scrollbar {
-                    -webkit-appearance: none;
-                    width: 14px;
-                    height: 14px;
-                }
-
-                .card-print-container::-webkit-scrollbar-track {
-                    background: oklch(var(--b3));
-                    border: 1px solid oklch(var(--bc) / 0.1);
-                }
-
-                .card-print-container::-webkit-scrollbar-thumb {
-                    background: oklch(var(--bc) / 0.4);
-                    border-radius: 7px;
-                    border: 2px solid oklch(var(--b3));
-                    min-height: 30px;
-                    min-width: 30px;
-                }
-
-                .card-print-container::-webkit-scrollbar-thumb:hover {
-                    background: oklch(var(--bc) / 0.6);
-                }
-
-                .card-print-container::-webkit-scrollbar-thumb:active {
-                    background: oklch(var(--bc) / 0.7);
-                }
-
-                .card-print-container::-webkit-scrollbar-corner {
-                    background: oklch(var(--b3));
-                }
-            `}</style>
-
             <div style={gridStyle}>
                 {cards.map((card) => {
                     // Create ref callback to store card ref
