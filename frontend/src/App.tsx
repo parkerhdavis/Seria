@@ -29,7 +29,7 @@ function App() {
     const [zoomLevel, setZoomLevel] = useState(100);
     const [isInitializing, setIsInitializing] = useState(true);
     const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
-    const { saveCells, loadCells, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile, isTempFile, isDirty, data, headers, isLoading } = useCellStore();
+    const { saveCells, loadCells, loadCellsProgressive, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile, isTempFile, isDirty, data, headers, isLoading } = useCellStore();
     const { openFind, openReplace } = useFindReplaceStore();
     const { position: printPreviewPosition, togglePosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
     const { loadConfigs } = useFileConfigStore();
@@ -70,11 +70,11 @@ function App() {
 
         // Only auto-open if enabled and there's a last file and no file is currently open
         if (config.autoReopenLastFile && config.lastOpenedFile && !currentFile) {
-            loadCells(config.lastOpenedFile).catch((error) => {
+            loadCellsProgressive(config.lastOpenedFile).catch((error) => {
                 console.error("Failed to auto-reopen last file:", error);
             });
         }
-    }, [config, loadCells, currentFile]);
+    }, [config, loadCellsProgressive, currentFile]);
 
     // Save config when settings, filters, or drawer state change
     useEffect(() => {
@@ -275,13 +275,11 @@ function App() {
     }, [saveCells, loadCells, openFind, openReplace, undo, redo, canUndo, canRedo, togglePosition]);
 
     // Determine loading state and message
-    const showLoading = isInitializing || isLoading;
+    // Only show blocking LoadingScreen during initialization, not file loading
+    // (file loading uses non-blocking progress banner in CellGridVirtualized)
+    const showLoading = isInitializing;
     const showBlurOverlay = isFilePickerOpen || showLoading;
-    const loadingMessage = isInitializing
-        ? "Initializing Seria..."
-        : isLoading
-            ? "Loading file..."
-            : "Loading...";
+    const loadingMessage = isInitializing ? "Initializing Seria..." : "Loading...";
 
     return (
         <DragProvider>
@@ -290,7 +288,7 @@ function App() {
                 <div className="fixed inset-0 z-[9998] bg-base-100/20 backdrop-blur-sm" />
             )}
 
-            {/* Loading screen card - shown only when actually loading */}
+            {/* Loading screen card - shown only during initialization */}
             {showLoading && <LoadingScreen message={loadingMessage} />}
 
             <Layout

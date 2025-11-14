@@ -25,7 +25,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
     const [showNewConfirm, setShowNewConfirm] = useState(false);
 
     // Get Cell Store state and actions
-    const { headers, fileInfo, isDirty, isLoading, lastSavedAt, loadCells, reloadCells, saveCells, clearData, addRow, createNew, importFromScreenplay } = useCellStore();
+    const { headers, fileInfo, isDirty, isLoading, lastSavedAt, loadCells, loadCellsProgressive, reloadCells, saveCells, clearData, addRow, createNew, importFromScreenplay } = useCellStore();
 
     // Get settings store state and actions
     const { wrapText, setWrapText, showColumnSeparators, setShowColumnSeparators, autoFitColumns, setAutoFitColumns } = useSettingsStore();
@@ -61,8 +61,8 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                 title: "Open Data File",
             });
             if (filePath) {
-                // Keep overlay visible during loading
-                await loadCells(filePath);
+                // Use progressive loading for better UX (shows grid immediately, loads in chunks)
+                await loadCellsProgressive(filePath);
                 // Blur the active element (Open button) so keyboard shortcuts work
                 if (document.activeElement instanceof HTMLElement) {
                     document.activeElement.blur();

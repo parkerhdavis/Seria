@@ -65,6 +65,8 @@ interface CellStore {
     delimiter: string;  // Delimiter used in the current file ("," for CSV, "\t" for TSV, etc.)
     isDirty: boolean;
     isLoading: boolean;
+    loadingProgress: number;  // 0-100 for progressive loading
+    isFullyLoaded: boolean;  // Whether all data has been loaded (for progressive loading)
     error: string | null;
     lastSavedAt: number | null;  // Timestamp of last successful save
     isTempFile: boolean;  // Whether the current file is a temporary file
@@ -97,6 +99,7 @@ interface CellStore {
 
     // Actions
     loadCells: (path: string) => Promise<void>;
+    loadCellsProgressive: (path: string) => Promise<void>;  // Progressive loading with web worker
     reloadCells: () => Promise<void>;
     saveCells: () => Promise<void>;
     saveCellAs: (path: string) => Promise<void>;
@@ -167,6 +170,8 @@ export const useCellStore = create<CellStore>((set, get) => ({
     delimiter: ",",  // Default to comma-separated (CSV)
     isDirty: false,
     isLoading: false,
+    loadingProgress: 0,
+    isFullyLoaded: true,
     error: null,
     lastSavedAt: null,
     isTempFile: false,
@@ -348,6 +353,206 @@ export const useCellStore = create<CellStore>((set, get) => ({
             set({
                 error: `Failed to load Cell: ${error}`,
                 isLoading: false,
+            });
+        }
+    },
+
+    /**
+     * Load Cell file from disk using progressive/chunked parsing (for large files)
+     *
+     * This uses a Web Worker to parse CSV in chunks, providing:
+     * - Non-blocking UI (parsing runs in background thread)
+     * - Progress updates during load
+     * - Immediate header/grid skeleton display
+     * - Incremental row loading
+     *
+     * Recommended for files > 5MB or > 5000 rows.
+     */
+    loadCellsProgressive: async (path: string) => {
+        set({ isLoading: true, loadingProgress: 0, isFullyLoaded: false, error: null });
+
+        try {
+            // Call Tauri command to read file
+            const fileContent = await invoke<string>("open_cell_file", { path });
+
+            // Use the parseCellsProgressive import
+            const { parseCellsProgressive } = await import("@utils/cellParser");
+
+            let allData: string[][] = [];
+            let headers: string[] = [];
+            let delimiter: string = ",";
+            let estimatedRows = 0;
+
+            // Start progressive parsing with callbacks
+            const worker = parseCellsProgressive(fileContent, {
+                // Phase 1: Metadata received - show empty grid with headers
+                onMetadata: (parsedHeaders, estimatedRowCount, detectedDelimiter) => {
+                    headers = parsedHeaders;
+                    delimiter = detectedDelimiter;
+                    estimatedRows = estimatedRowCount;
+
+                    // Initialize column summaries
+                    const initialSummaries: Record<string, SummaryType> = {};
+                    headers.forEach((header) => {
+                        initialSummaries[header] = "count";
+                    });
+
+                    // Initialize default column order
+                    const defaultColumnOrder = headers.map((_, index) => index);
+
+                    // Set initial state with empty data array (skeleton grid)
+                    set({
+                        headers: headers,
+                        data: [], // Will be populated incrementally
+                        delimiter: delimiter,
+                        currentFile: path,
+                        fileInfo: {
+                            path,
+                            name: path.split("/").pop() || path.split("\\").pop() || "unknown.cell",
+                            size: fileContent.length,
+                            lastModified: new Date(),
+                            rowCount: estimatedRowCount,
+                            columnCount: headers.length,
+                        },
+                        columnSummaries: initialSummaries,
+                        columnOrder: defaultColumnOrder,
+                        isDirty: false,
+                        loadingProgress: 5, // Small initial progress to show activity
+                        isFullyLoaded: false,
+                        isTempFile: false,
+                    });
+                },
+
+                // Phase 2: Chunks received - progressively update data
+                onChunk: (chunkData, progress) => {
+                    // Append chunk to accumulated data
+                    allData = allData.concat(chunkData);
+
+                    // Update state with new data and progress
+                    set({
+                        data: allData,
+                        loadingProgress: progress,
+                        fileInfo: {
+                            path,
+                            name: path.split("/").pop() || path.split("\\").pop() || "unknown.cell",
+                            size: fileContent.length,
+                            lastModified: new Date(),
+                            rowCount: allData.length,
+                            columnCount: headers.length,
+                        },
+                    });
+                },
+
+                // Phase 3: Parsing complete
+                onComplete: async () => {
+                    // Validate final data
+                    const { validateCell } = await import("@utils/cellParser");
+                    const validation = validateCell({ headers, data: allData });
+
+                    if (!validation.valid) {
+                        set({
+                            error: `Cell validation failed: ${validation.errors.join(", ")}`,
+                            isLoading: false,
+                            isFullyLoaded: false,
+                            loadingProgress: 0,
+                        });
+                        return;
+                    }
+
+                    // Mark as fully loaded
+                    set({
+                        isLoading: false,
+                        isFullyLoaded: true,
+                        loadingProgress: 100,
+                    });
+
+                    // Load and apply file config (same as synchronous loading)
+                    try {
+                        const identifiers = await invoke<FileIdentifiers>("get_file_identifiers", { path });
+                        const fileConfig = useFileConfigStore.getState().findConfigForFile(identifiers);
+
+                        if (fileConfig && fileConfig.config) {
+                            // Apply config (same logic as loadCells)
+                            if (fileConfig.config.columnWidths) {
+                                set({ columnWidths: fileConfig.config.columnWidths });
+                            }
+
+                            if (fileConfig.config.columnOrder && Array.isArray(fileConfig.config.columnOrder)) {
+                                const savedOrder = fileConfig.config.columnOrder;
+                                if (savedOrder.length === headers.length) {
+                                    set({ columnOrder: savedOrder });
+                                }
+                            }
+
+                            if (fileConfig.config.filters) {
+                                const filters: ColumnFilter[] = fileConfig.config.filters.map(f => ({
+                                    column: f.field,
+                                    operation: f.operation as "contains" | "not-contains" | "equals" | "not-equals",
+                                    value: f.value
+                                }));
+                                set({ columnFilters: filters });
+                            }
+
+                            if (fileConfig.config.columnSummaries) {
+                                const summaries = fileConfig.config.columnSummaries as Record<string, SummaryType>;
+                                set({ columnSummaries: summaries });
+                            }
+
+                            // Apply settings store config
+                            const settingsStore = useSettingsStore.getState();
+
+                            if (fileConfig.config.rowColoringMode !== undefined) {
+                                settingsStore.setRowColoringMode(fileConfig.config.rowColoringMode as "off" | "alternating" | "by-field");
+                            }
+
+                            if (fileConfig.config.rowColorFilter !== undefined) {
+                                const filter = fileConfig.config.rowColorFilter ? {
+                                    field: fileConfig.config.rowColorFilter.field,
+                                    operation: fileConfig.config.rowColorFilter.operation as "contains" | "not-contains" | "equals" | "not-equals",
+                                    value: fileConfig.config.rowColorFilter.value,
+                                    color: fileConfig.config.rowColorFilter.color
+                                } : null;
+                                settingsStore.setRowColorFilter(filter);
+                            }
+
+                            if (fileConfig.config.wrapText !== undefined) {
+                                settingsStore.setWrapText(fileConfig.config.wrapText);
+                            }
+
+                            // Update last seen timestamp
+                            await useFileConfigStore.getState().saveConfigForFile(identifiers, fileConfig.config);
+                        }
+                    } catch (error) {
+                        console.error("Failed to load file config:", error);
+                        // Continue without config - not a fatal error
+                    }
+
+                    // Update global config
+                    try {
+                        const globalConfigStore = useGlobalConfigStore.getState();
+                        await globalConfigStore.setLastOpenedFile(path);
+                        await globalConfigStore.addRecentFile(path);
+                    } catch (error) {
+                        console.error("Failed to update global config:", error);
+                    }
+                },
+
+                // Error handling
+                onError: (errorMessage) => {
+                    set({
+                        error: `Failed to parse Cell: ${errorMessage}`,
+                        isLoading: false,
+                        isFullyLoaded: false,
+                        loadingProgress: 0,
+                    });
+                },
+            });
+        } catch (error) {
+            set({
+                error: `Failed to load Cell: ${error}`,
+                isLoading: false,
+                isFullyLoaded: false,
+                loadingProgress: 0,
             });
         }
     },

@@ -4,13 +4,65 @@
  * Performance-optimized version of CellGrid using virtualization
  * for handling large Cell files efficiently with dynamic row heights.
  *
+ * PHASE HISTORY:
+ * ============================================================================
  * Phase 1 Complete: Selection system, keyboard shortcuts, dynamic sizing
  * Phase 2 Complete: Copy/paste/cut, context menus, multi-cell fill
  * Phase 3 Complete: Column resizing, column filtering UI, column summaries with fixed bottom row
  * Phase 4 Complete: Row/column drag-and-drop reordering
+ * Phase 5 Complete: Performance optimizations for large files (1k-10k rows)
+ *
+ * PHASE 5 PERFORMANCE OPTIMIZATIONS:
+ * ============================================================================
+ * 1. Column Width Memoization (frontend/src/components/cell/CellGridVirtualized.tsx:228-280)
+ *    - Wrapped column width calculation functions in useCallback/useMemo
+ *    - Prevents unnecessary recalculations during resize/render
+ *    - Impact: Faster column resizing and reduced CPU usage
+ *
+ * 2. Web Worker CSV Parsing (frontend/src/utils/cellParser.worker.ts)
+ *    - Offloads CSV parsing to background thread
+ *    - Prevents UI freeze during large file loads
+ *    - Supports chunked parsing with progress updates
+ *    - Impact: Non-blocking file loading for files > 5MB
+ *
+ * 3. Progressive/Incremental Loading (frontend/src/stores/cellStore.ts:360-558)
+ *    - New loadCellsProgressive() function using web worker
+ *    - Three-phase loading strategy:
+ *      a) Phase 1: Parse headers, show empty grid skeleton
+ *      b) Phase 2: Load data in chunks, update grid progressively
+ *      c) Phase 3: Apply config, mark as fully loaded
+ *    - Shows non-blocking progress banner with percentage and row count
+ *    - Impact: Immediate visual feedback, perceived faster load times
+ *
+ * 4. Loading State Management
+ *    - New store fields: loadingProgress (0-100), isFullyLoaded (boolean)
+ *    - Non-blocking progress banner at top of grid (line 1319-1351)
+ *    - App.tsx only shows LoadingScreen during initialization, not file loads
+ *
+ * NOTE: Column resize measurement optimization was reverted due to visual
+ * glitches with wrapped text. Current implementation uses standard dynamic
+ * measurement which works correctly but may be slower with very large files.
+ *
+ * USAGE RECOMMENDATIONS:
+ * ============================================================================
+ * - Use loadCells() for files < 5MB or < 5000 rows (synchronous)
+ * - Use loadCellsProgressive() for files > 5MB or > 5000 rows (async with progress)
+ * - Column resizing performance improved regardless of file size
+ * - Selection dragging uses RAF batching (max 60fps) - already optimized
+ *
+ * TECHNICAL NOTES:
+ * ============================================================================
+ * - Row virtualization: @tanstack/react-virtual (line 165-175)
+ *   Only renders visible rows + 10 overscan rows
+ * - Column width calculations: Memoized with containerWidth dependency
+ *   Recalculates only when container resizes
+ * - Web worker: Vite automatically bundles cellParser.worker.ts
+ *   Worker terminates automatically after parsing completes
+ * - Progress updates: Throttled to prevent excessive re-renders
+ *   Worker sends chunks, main thread batches state updates
  */
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCellStore } from "@stores/cellStore";
 import { useSettingsStore } from "@stores/settingsStore";
@@ -58,6 +110,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         setColumnSummary,
         reorderRows,
         reorderColumns,
+        isLoading,
+        loadingProgress,
+        isFullyLoaded,
     } = useCellStore();
 
     const {
@@ -175,7 +230,8 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     });
 
     // ===== COLUMN WIDTH HELPERS =====
-    const getAvailableWidth = (): number => {
+    // Memoized for performance - prevents recalculation during resize/render
+    const getAvailableWidth = useCallback((): number => {
         if (!parentRef.current) return 800;
         // Use the tracked containerWidth state to ensure re-renders on resize
         const currentWidth = containerWidth || parentRef.current.clientWidth;
@@ -184,9 +240,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         // Note: Drawer width is handled by the container width, not here
         const available = Math.max(currentWidth - rowNumberWidth, 200);
         return available;
-    };
+    }, [containerWidth]);
 
-    const getPixelWidth = (colIndex: number): number => {
+    const getPixelWidth = useCallback((colIndex: number): number => {
         const availableWidth = getAvailableWidth();
         const proportion = columnWidths[colIndex];
 
@@ -196,10 +252,11 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         }
 
         return Math.floor(proportion * availableWidth);
-    };
+    }, [getAvailableWidth, columnWidths, headers.length]);
 
     // Get pixel widths for all columns, ensuring they sum exactly to available width
-    const getAllPixelWidths = (): number[] => {
+    // Memoized to prevent recalculation on every render
+    const getAllPixelWidths = useMemo((): number[] => {
         const availableWidth = getAvailableWidth();
         const widths: number[] = [];
         let totalAllocated = 0;
@@ -216,17 +273,17 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         widths.push(remainingWidth);
 
         return widths;
-    };
+    }, [getAvailableWidth, getPixelWidth, headers.length]);
 
-    const convertPixelsToProportions = (pixelWidths: Record<number, number>): Record<number, number> => {
-        const totalWidth = Object.values(pixelWidths).reduce((sum, w) => sum + w, 0);
+    const convertPixelsToProportions = useCallback((pixelWidths: Record<number, number>): Record<number, number> => {
+        const totalWidth = Object.values(pixelWidths).reduce((sum: number, w: number) => sum + w, 0);
         const proportions: Record<number, number> = {};
         Object.keys(pixelWidths).forEach((key) => {
             const idx = parseInt(key);
             proportions[idx] = pixelWidths[idx] / totalWidth;
         });
         return proportions;
-    };
+    }, []);
 
     // ===== ROW COLORING =====
     const rowMatchesFilter = (row: string[]) => {
@@ -996,11 +1053,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             document.body.style.userSelect = "";
             document.body.style.cursor = "";
         };
-        // Disabled: Missing getPixelWidth, convertPixelsToProportions dependencies
-        // Reason: These are stable helper functions defined in component scope. Adding them would cause the resize effect to re-run unnecessarily, creating performance issues
-        // Alternative: Move these functions outside component scope or wrap in useCallback
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [resizingColumn, resizeStartX, resizeStartWidth, resizeNextStartWidth, resizeAllStartWidths, isShiftResize, autoFitColumns, headers.length, headers, columnWidths, setColumnWidths]);
+    }, [resizingColumn, resizeStartX, resizeStartWidth, resizeNextStartWidth, resizeAllStartWidths, isShiftResize, autoFitColumns, headers.length, headers, columnWidths, setColumnWidths, getPixelWidth, convertPixelsToProportions]);
 
     // Disable text selection during drag operations
     useEffect(() => {
@@ -1192,7 +1245,8 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const totalSize = rowVirtualizer.getTotalSize();
 
     // Get corrected pixel widths that sum exactly to available width
-    const pixelWidths = getAllPixelWidths();
+    // Note: getAllPixelWidths is a memoized value (useMemo), not a function
+    const pixelWidths = getAllPixelWidths;
 
     const isEditingCell = editingCell && editingSource === "cell";
     const summaryRowHeight = 60;
@@ -1303,6 +1357,40 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                     -webkit-user-select: text !important;
                 }
             `}</style>
+
+            {/* ===== LOADING PROGRESS BANNER ===== */}
+            {/*
+                Non-blocking progress banner for progressive file loading.
+                Shows at top of grid without blocking interaction.
+                Allows viewing grid skeleton and watching rows fill in real-time.
+            */}
+            {isLoading && loadingProgress > 0 && !isFullyLoaded && (
+                <div className="absolute top-0 left-0 right-0 z-30 bg-primary/10 border-b-2 border-primary/30 backdrop-blur-sm">
+                    <div className="flex items-center gap-4 px-6 py-3">
+                        {/* Spinner */}
+                        <div className="loading loading-spinner loading-sm text-primary"></div>
+
+                        {/* Progress info */}
+                        <div className="flex-1 flex items-center gap-4">
+                            <span className="text-sm font-medium text-primary">
+                                Loading file... {loadingProgress}%
+                            </span>
+                            <span className="text-xs text-base-content/70">
+                                {data.length.toLocaleString()} rows
+                            </span>
+                        </div>
+
+                        {/* Compact progress bar */}
+                        <div className="w-48">
+                            <progress
+                                className="progress progress-primary w-full h-2"
+                                value={loadingProgress}
+                                max="100"
+                            ></progress>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Header (sticky) */}
             <div className="sticky top-0 z-10 bg-base-300 border-b-2 border-base-300">
@@ -1863,7 +1951,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                         paddingRight: "64px",
                     }}
                 >
-                    <div className="flex items-center h-full" style={{ width: `${pixelWidths.reduce((sum, w) => sum + w, 0)}px` }}>
+                    <div className="flex items-center h-full" style={{ width: `${pixelWidths.reduce((sum: number, w: number) => sum + w, 0)}px` }}>
                         {/* Summary dropdowns for each column */}
                         {headers.map((columnName, colIndex) => {
                             const summaryType = columnSummaries[columnName] || "count";
