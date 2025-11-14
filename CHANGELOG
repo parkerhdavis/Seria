@@ -1,1 +1,82 @@
-Changelog pending first release (coming this month)
+# PENDING⏳ Version 0.0.1 - Initial Development Release
+
+### ✨ Core Features
+
+#### CSV/TSV Editing
+
+- **File Operations**
+    - Open and save CSV/TSV files with native file dialogs
+    - Auto-save functionality with unsaved changes tracking
+    - Recent files list in File menu
+- **Data Grid**
+    - Spreadsheet-style interface with inline cell editing
+    - Add and delete rows
+    - Column resizing and reordering
+    - Single and multi-row selection with visual drag handles
+- **Keyboard Navigation**
+    - Arrow keys for cell navigation
+    - Enter to edit, Escape to cancel edits
+    - Delete key to clear cell contents
+
+#### Print System
+
+- **Live Preview:** Real-time rendering of CSV data in professional page layouts
+- **Bundled Formats:**
+    - _Screenplay_ - Industry-standard formatting (scene headings, action, character, dialogue, parentheticals, transitions)
+    - _Card_ - Compact card-based layout for game design and dialogue trees
+    - _Dialogue_ - Character-focused layout with dialogue and direction columns
+- **Export:** PDF generation from Print previews
+- **Extensibility:** Template architecture in place for custom Print formats (editor UI planned for future release)
+
+#### Filtering, Sorting & Grouping
+
+- Multi-column text filtering with AND/OR logic operators
+- Global search across all columns
+- Single and multi-column sorting (ascending/descending)
+- Group rows by column values with collapsible sections
+- Persistent filter settings between sessions
+
+#### UI & Themes
+
+- Light and dark mode support (dark mode needs additional polish)
+- Theme toggle in settings panel
+- Toast notifications for file operations and error states
+
+---
+
+### 🛠️ Technical Highlights
+
+#### Cross-Platform Desktop App
+
+- Built on Tauri 2.0 framework (lightweight Rust-based alternative to Electron)
+- Native file system integration
+- **Supported Platforms:**
+    - Linux: .deb, .rpm, AppImage
+    - Windows: .exe, .msi (cross-compiled from Linux)
+    - macOS: Planned for future release
+
+#### Performance & Architecture
+
+- PapaParse library for robust CSV/TSV parsing
+- Zustand for state management (csvStore, filterStore, settingsStore)
+- Persistent user preferences via Tauri backend storage
+
+#### Development Infrastructure
+
+- Automated setup script supporting Linux, macOS, and Windows
+- Makefile commands: `dev`, `build`, `build-linux`, `build-windows`, `lint`, `format`, `clean`
+- Hot-reload for both React and Rust during development
+- Centralized version management from `.env` to all build outputs
+
+### ⚠️ Known Limitations
+
+These issues are being addressed in v0.0.2:
+
+- **Large File Performance:** Files with 10,000+ rows experience lag (virtualization coming in v0.0.2)
+
+As well as a host of features currently in our Issues list that should be delivered in the next release.
+
+Thanks for reading!
+-PhD
+
+---
