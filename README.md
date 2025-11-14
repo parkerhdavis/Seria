@@ -10,7 +10,7 @@
 
 ---
 
-![Screenshot from dev build 2025-11-13](./wiki-internal/00-Metafiles/00.01%20-%20Attachments/general_screenshot_2025-11-13.png)
+![Screenshot from dev build 2025-11-13](./wiki/00_Metafiles/00.01_Attachments/general_screenshot_2025-11-13.png)
 
 *Screenshot from dev build 2025-11-13*
 
@@ -88,7 +88,7 @@ Traditional CSV editing with powerful features:
 - Drag-and-drop row/column reordering
 - Full undo/redo support
 
-→ [Complete Cell View Guide](wiki/01%20-%20Cell%20View/01.00%20-%20The%20Cell%20View.md)
+→ [Complete Cell View Guide](wiki/02_Cell%20View/01.00_The%20Cell%20View.md)
 
 ### Print Views (Writer-Friendly Formats)
 View and edit your CSV data in rich formats:
@@ -99,7 +99,7 @@ View and edit your CSV data in rich formats:
 - **Charts** - Visual data representations for relationships and flow
 - **Custom Prints** - Create your own formats specific to your workflow
 
-→ [Print View Guide](wiki/02%20-%20Print%20View/02.00%20-%20The%20Print%20View.md)
+→ [Print View Guide](wiki/03_Print%20View/02.00_The%20Print%20View.md)
 
 ### Bidirectional Editing
 The killer feature: **edit in any view, changes sync everywhere.**
@@ -108,7 +108,7 @@ The killer feature: **edit in any view, changes sync everywhere.**
 - Edit a cell in spreadsheet view → Print views update
 - Always working with the same data, just different views
 
-→ [Bidirectional Editing Explained](wiki/02%20-%20Print%20View/02.01%20-%20Bidirectional%20Editing.md)
+→ [Bidirectional Editing Explained](wiki/03_Print%20View/02.01_Bidirectional%20Editing.md)
 
 ### Multi-Platform & Local-First
 - **Windows, macOS, Linux** - Native desktop app for all platforms
@@ -116,7 +116,7 @@ The killer feature: **edit in any view, changes sync everywhere.**
 - **Fast & lightweight** - Small installer (~10-15MB), native performance
 - **No vendor lock-in** - Plain CSV files you own forever
 
-→ [Installation Guide](wiki/00%20-%20Introduction/00.03%20-%20Installation.md)
+→ [Installation Guide](wiki/01_Introduction/00.03_Installation.md)
 
 
 ---
@@ -134,25 +134,25 @@ Formats available on [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/r
 - **Windows:** `.msi` or `_setup.exe`
 - **macOS:** `.dmg`
 
-→ [Detailed installation instructions for all platforms](wiki/00%20-%20Introduction/00.03%20-%20Installation.md)
+→ [Detailed installation instructions for all platforms](wiki/01_Introduction/00.03_Installation.md)
 
 ---
 
 ## Documentation
 
 **Getting Started:**
-- [Installation](wiki/00%20-%20Introduction/00.03%20-%20Installation.md) - Install on Windows, macOS, or Linux
-- [Is This App for You?](wiki/00%20-%20Introduction/00.02%20-%20Is%20This%20App%20for%20You.md) - See if Seria fits your workflow
+- [Installation](wiki/01_Introduction/00.03_Installation.md) - Install on Windows, macOS, or Linux
+- [Is This App for You?](wiki/01_Introduction/00.02_Is%20This%20App%20for%20You.md) - See if Seria fits your workflow
 
 **Using Seria:**
-- [Cell View Guide](wiki/01%20-%20Cell%20View/01.00%20-%20The%20Cell%20View.md) - CSV editing features
-- [Print View Guide](wiki/02%20-%20Print%20View/02.00%20-%20The%20Print%20View.md) - Using Print views
-- [Print Recipes](wiki/02%20-%20Print%20View/02.02%20-%20Print%20Recipes.md) - Creating custom formats
+- [Cell View Guide](wiki/02_Cell%20View/01.00_The%20Cell%20View.md) - CSV editing features
+- [Print View Guide](wiki/03_Print%20View/02.00_The%20Print%20View.md) - Using Print views
+- [Print Recipes](wiki/03_Print%20View/02.02_Print%20Recipes.md) - Creating custom formats
 
 **Reference:**
-- [Keyboard Shortcuts](wiki/03%20-%20Customization/03.02%20-%20Keyboard%20Shortcuts.md) - All shortcuts
-- [FAQ](wiki/04%20-%20FAQ%20and%20Support/04.00%20-%20FAQ.md) - Frequently asked questions
-- [Current Limitations](wiki/04%20-%20FAQ%20and%20Support/04.01%20-%20Current%20Limitations.md) - Known issues and missing features
+- [Keyboard Shortcuts](wiki/04_Customization/03.02_Keyboard%20Shortcuts.md) - All shortcuts
+- [FAQ](wiki/05_FAQ%20and%20Support/04.00_FAQ.md) - Frequently asked questions
+- [Current Limitations](wiki/05_FAQ%20and%20Support/04.01_Current%20Limitations.md) - Known issues and missing features
 
 **Developer Docs:**
 - [Developer Guide](wiki-internal/Developer-Guide.md) - Development setup
@@ -195,4 +195,4 @@ If you have some cash to spare and want to help out, that's very kind. I'm doing
 
 For example: their grant to the [Against Malaria Foundation](https://www.againstmalaria.com) delivered outcomes at a cost of just $1,700 per life saved.
 
-![GiveWell Logo](https://blog.givewell.org/wp-content/themes/givewell2015/images/logo.png)
+![GiveWell Logo](./wiki/00_Metafiles/00.01_Attachments/givewell_logo.png)
