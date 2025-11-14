@@ -84,7 +84,7 @@ export interface PrintRecipe {
 /**
  * Recipe type enum
  */
-export type RecipeType = "corkboard" | "screenplay" | "dialogue" | "custom";
+export type RecipeType = "corkboard" | "screenplay" | "dialogue" | "graph" | "record" | "custom";
 
 
 

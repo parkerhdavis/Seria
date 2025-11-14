@@ -21,6 +21,14 @@ body {
     padding: 0;
     min-width: 320px;
     min-height: 100vh;
+    background-color: #ffffff;
+}
+
+/* Dark mode background */
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #1f2937;
+    }
 }
 
 #root {

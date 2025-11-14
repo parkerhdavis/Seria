@@ -68,9 +68,9 @@ export const SCREENPLAY_RECIPE: ScreenplayRecipe = {
 
         // Screenplay-specific settings
         showPageNumbers: true,
-        startPageNumber: 2,             // First numbered page is "2" (title page doesn't count)
-        pageNumberMarginTop: 0.5,       // Page number position: 0.5" from top
-        firstPageNumbered: false,       // First page is unnumbered
+        startPageNumber: 1,
+        pageNumberMarginTop: 0.25,
+        firstPageNumbered: true,
         sceneNumbering: true,
     },
     // Ingredient definitions (keyed by ID)

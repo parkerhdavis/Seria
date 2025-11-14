@@ -184,12 +184,12 @@ function CellGrid({ onCellEdit }: CellGridProps) {
 
     /**
      * Helper: Get available width for columns
-     * Calculates container width minus row number column (64px)
+     * Calculates container width minus row number columns (64px left + 64px right = 128px)
      */
     const getAvailableWidth = (): number => {
         if (!tableContainerRef.current) return 800; // Default fallback
         const containerWidth = tableContainerRef.current.clientWidth;
-        const rowNumberWidth = 64;
+        const rowNumberWidth = 128; // 64px left handle + 64px right handle
         return Math.max(containerWidth - rowNumberWidth, 200);
     };
 
@@ -1349,7 +1349,7 @@ function CellGrid({ onCellEdit }: CellGridProps) {
                 className="table table-xs"
                 style={{
                     tableLayout: "fixed",
-                    width: `${64 + getTotalPixelWidth()}px`
+                    width: `${128 + getTotalPixelWidth()}px` // 64px left handle + columns + 64px right handle
                 }}
             >
                 <thead>
@@ -1424,6 +1424,9 @@ function CellGrid({ onCellEdit }: CellGridProps) {
                                 </th>
                             );
                         })}
+
+                        {/* Row number header (right edge) */}
+                        <th className="bg-base-300 text-center sticky right-0 top-0 z-30" style={{ width: "64px", minWidth: "64px", maxWidth: "64px" }}>#</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1657,6 +1660,32 @@ function CellGrid({ onCellEdit }: CellGridProps) {
                                         </td>
                                     );
                                 })}
+
+                                {/* Row number (right edge) */}
+                                <td
+                                    className={`bg-base-200 text-center font-mono text-sm border-l-2 ${showColumnSeparators ? "border-base-300" : "border-transparent"} sticky right-0 z-10 cursor-move`}
+                                    style={{ width: "64px", minWidth: "64px", maxWidth: "64px", userSelect: "none", WebkitUserSelect: "none" }}
+                                    draggable={true}
+                                    onMouseDown={(e) => {
+                                        // Only allow left-click to initiate drag
+                                        if (e.button !== 0) {
+                                            e.preventDefault();
+                                            return;
+                                        }
+                                        e.stopPropagation();
+                                        // Don't preventDefault - it blocks drag start
+                                    }}
+                                    onDragStart={(e) => handleRowDragStart(e, rowIndex)}
+                                    onDragEnd={handleRowDragEnd}
+                                    onContextMenu={(e) => handleContextMenu(e, rowIndex, undefined)}
+                                >
+                                    <div className="flex items-center justify-center gap-1" style={{ pointerEvents: "none" }}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-base-content/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                        </svg>
+                                        {rowIndex + 1}
+                                    </div>
+                                </td>
                             </tr>
                         );
                     })}
@@ -1675,8 +1704,11 @@ function CellGrid({ onCellEdit }: CellGridProps) {
                     overflow: "hidden"
                 }}
             >
-                {/* Row number column placeholder - sticky */}
+                {/* Row number column placeholder (left) - sticky */}
                 <div className="absolute left-0 h-full bg-base-300 border-r-2 border-base-300 z-10" style={{ width: "64px" }}></div>
+
+                {/* Row number column placeholder (right) - sticky */}
+                <div className="absolute right-0 h-full bg-base-300 border-l-2 border-base-300 z-10" style={{ width: "64px" }}></div>
 
                 <div
                     ref={summaryRowContentRef}
@@ -1686,7 +1718,8 @@ function CellGrid({ onCellEdit }: CellGridProps) {
                         overflowY: "hidden",
                         scrollbarWidth: "none", /* Firefox */
                         msOverflowStyle: "none", /* IE and Edge */
-                        paddingLeft: "64px"
+                        paddingLeft: "64px",
+                        paddingRight: "64px"
                     }}
                 >
                     <div className="flex items-center h-full" style={{ width: `${getTotalPixelWidth()}px` }}>

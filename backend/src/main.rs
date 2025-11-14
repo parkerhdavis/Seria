@@ -30,6 +30,7 @@ fn main() {
             // File operations for Cell files (CSV, TSV, JSON)
             file_ops::open_cell_file,
             file_ops::save_cell_file,
+            file_ops::create_temp_file,
             file_ops::get_file_identifiers,
             // Storage operations
             storage::load_preferences,

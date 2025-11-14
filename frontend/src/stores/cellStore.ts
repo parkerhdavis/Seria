@@ -12,6 +12,7 @@ import { parseCells, serializeCell, validateCell, getDelimiterFromPath } from "@
 import { useFileConfigStore, type FileIdentifiers } from "./fileConfigStore";
 import { useSettingsStore } from "./settingsStore";
 import { useDrawerStore } from "./drawerStore";
+import { useGlobalConfigStore } from "./globalConfigStore";
 
 // Snapshot of data state for undo/redo
 interface DataSnapshot {
@@ -66,6 +67,7 @@ interface CellStore {
     isLoading: boolean;
     error: string | null;
     lastSavedAt: number | null;  // Timestamp of last successful save
+    isTempFile: boolean;  // Whether the current file is a temporary file
 
     // Cell editing state (shared between Cell Grid and Print preview)
     editingCell: EditingCell | null;
@@ -98,6 +100,7 @@ interface CellStore {
     reloadCells: () => Promise<void>;
     saveCells: () => Promise<void>;
     saveCellAs: (path: string) => Promise<void>;
+    createNew: () => Promise<void>;
     updateCell: (row: number, col: number, value: string) => void;
     updateCells: (cells: Array<{ row: number; col: number; value: string }>) => void;
     updateRow: (rowIndex: number, newRow: string[]) => void;
@@ -165,6 +168,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
     isLoading: false,
     error: null,
     lastSavedAt: null,
+    isTempFile: false,
     editingCell: null,
     editingValue: "",
     editingSource: null,
@@ -227,6 +231,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 isDirty: false,
                 isLoading: false,
                 error: null,
+                isTempFile: false,  // Reset temp file flag when loading a file from disk
             });
 
             // Load and apply file config
@@ -328,6 +333,16 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 console.error("Failed to load file config:", error);
                 // Continue without config - not a fatal error
             }
+
+            // Update global config with last opened file
+            try {
+                const globalConfigStore = useGlobalConfigStore.getState();
+                await globalConfigStore.setLastOpenedFile(path);
+                await globalConfigStore.addRecentFile(path);
+            } catch (error) {
+                console.error("Failed to update global config:", error);
+                // Non-fatal error, continue
+            }
         } catch (error) {
             set({
                 error: `Failed to load Cell: ${error}`,
@@ -351,11 +366,18 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
     // Save current Cell to disk
     saveCells: async () => {
-        const { currentFile, headers, data, delimiter } = get();
+        const { currentFile, headers, data, delimiter, isTempFile } = get();
 
         if (!currentFile) {
             set({ error: "No file is currently open" });
             return;
+        }
+
+        // If this is a temp file, redirect to "Save As" to let user choose permanent location
+        if (isTempFile) {
+            // This will be handled by the UI showing the save dialog
+            // The saveCellAs function will be called from the UI
+            throw new Error("TEMP_FILE_NEEDS_LOCATION");
         }
 
         set({ isLoading: true, error: null });
@@ -419,10 +441,44 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 isLoading: false,
                 error: null,
                 lastSavedAt: Date.now(),
+                isTempFile: false,  // Clear temp file flag when saving to permanent location
             });
+
+            // Update global config with new file path
+            try {
+                const globalConfigStore = useGlobalConfigStore.getState();
+                await globalConfigStore.setLastOpenedFile(path);
+                await globalConfigStore.addRecentFile(path);
+            } catch (error) {
+                console.error("Failed to update global config:", error);
+            }
         } catch (error) {
             set({
                 error: `Failed to save Cell: ${error}`,
+                isLoading: false,
+            });
+        }
+    },
+
+    // Create a new temporary file
+    createNew: async () => {
+        set({ isLoading: true, error: null });
+
+        try {
+            // Call Tauri command to create temp file
+            const tempFilePath = await invoke<string>("create_temp_file");
+
+            // Load the temp file (it comes with default headers)
+            await get().loadCells(tempFilePath);
+
+            // Mark as temp file and set as dirty (so it prompts to save)
+            set({
+                isTempFile: true,
+                isDirty: true,
+            });
+        } catch (error) {
+            set({
+                error: `Failed to create new file: ${error}`,
                 isLoading: false,
             });
         }
@@ -593,7 +649,16 @@ export const useCellStore = create<CellStore>((set, get) => ({
             fileInfo: null,
             isDirty: false,
             error: null,
+            isTempFile: false,
         });
+
+        // Clear last opened file from global config
+        try {
+            const globalConfigStore = useGlobalConfigStore.getState();
+            globalConfigStore.setLastOpenedFile(null);
+        } catch (error) {
+            console.error("Failed to clear last opened file from global config:", error);
+        }
     },
 
     // Set error message

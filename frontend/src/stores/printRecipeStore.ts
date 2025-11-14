@@ -60,7 +60,41 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
              * Loads bundled recipes into the store
              */
             loadBundledRecipes: () => {
-                const bundledRecipes = [CORKBOARD_RECIPE, SCREENPLAY_RECIPE];
+                // Placeholder recipes for upcoming features
+                const graphRecipe: PrintRecipe = {
+                    id: "graph",
+                    name: "Graph",
+                    type: "graph",
+                    description: "Graph visualization (coming soon)",
+                    ingredients: {},
+                    documentSettings: {},
+                    version: "1.0.0",
+                    isCustom: false,
+                };
+
+                const recordRecipe: PrintRecipe = {
+                    id: "record",
+                    name: "Record",
+                    type: "record",
+                    description: "Record view (coming soon)",
+                    ingredients: {},
+                    documentSettings: {},
+                    version: "1.0.0",
+                    isCustom: false,
+                };
+
+                const customRecipe: PrintRecipe = {
+                    id: "custom",
+                    name: "Custom",
+                    type: "custom",
+                    description: "Custom print recipes (coming soon)",
+                    ingredients: {},
+                    documentSettings: {},
+                    version: "1.0.0",
+                    isCustom: false,
+                };
+
+                const bundledRecipes = [SCREENPLAY_RECIPE, CORKBOARD_RECIPE, graphRecipe, recordRecipe, customRecipe];
                 set({ recipes: bundledRecipes });
 
                 // Initialize default configurations for bundled recipes if not present

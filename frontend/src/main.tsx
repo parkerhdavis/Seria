@@ -9,3 +9,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <App />
     </React.StrictMode>
 );
+
+// Hide loading screen after React mounts
+document.body.classList.add("loaded");

@@ -12,10 +12,11 @@
  */
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use std::io::Read;
+use std::env;
 
 /// Read a Cell file (CSV, TSV, or JSON) from disk and return its contents as a string
 #[tauri::command]
@@ -29,6 +30,32 @@ pub fn open_cell_file(path: String) -> Result<String, String> {
 pub fn save_cell_file(path: String, content: String) -> Result<(), String> {
     fs::write(&path, content)
         .map_err(|e| format!("Failed to write file: {}", e))
+}
+
+/// Create a temporary Cell file and return its path
+/// The file will be created in the system temp directory with a unique name
+#[tauri::command]
+pub fn create_temp_file() -> Result<String, String> {
+    let temp_dir = env::temp_dir();
+
+    // Create a unique temp file name with timestamp
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let temp_file_name = format!("seria_temp_{}.csv", timestamp);
+    let temp_file_path = temp_dir.join(temp_file_name);
+
+    // Create the file with empty CSV content (just headers)
+    let initial_content = "Column1,Column2,Column3\n";
+    fs::write(&temp_file_path, initial_content)
+        .map_err(|e| format!("Failed to create temp file: {}", e))?;
+
+    // Return the path as a string
+    temp_file_path.to_str()
+        .ok_or("Failed to convert temp file path to string".to_string())
+        .map(|s| s.to_string())
 }
 
 /// File identifiers used for config matching

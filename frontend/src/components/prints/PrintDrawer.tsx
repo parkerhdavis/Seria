@@ -194,6 +194,18 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                                 containerHeight={containerHeight}
                                             />
                                         );
+                                    case "graph":
+                                    case "record":
+                                    case "custom":
+                                        return (
+                                            <div className="flex flex-col items-center justify-center h-full text-base-content/50">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <p className="text-lg font-semibold mb-2">{recipe.name} Print</p>
+                                                <p className="text-center">Coming soon</p>
+                                            </div>
+                                        );
                                     default:
                                         return (
                                             <div className="text-center py-8 text-base-content/50">
@@ -237,11 +249,11 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                     </svg>
                 </button>
 
-                {/* Title and recipe selector (center) */}
-                <div className="flex items-center gap-3 flex-1">
-                    <h2 className="text-lg font-bold">Print Recipe</h2>
+                {/* Recipe selector (center) */}
+                <div className="flex items-center justify-center flex-1">
                     <select
-                        className="select select-bordered select-sm max-w-200"
+                        className="select select-bordered select-md"
+                        style={{ textAlign: "center", textAlignLast: "center", minWidth: "200px" }}
                         value={selectedRecipeId ?? ""}
                         onChange={(e) => selectRecipe(e.target.value)}
                     >
@@ -334,6 +346,18 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                                 containerWidth={containerWidth}
                                                 containerHeight={containerHeight}
                                             />
+                                        );
+                                    case "graph":
+                                    case "record":
+                                    case "custom":
+                                        return (
+                                            <div className="flex flex-col items-center justify-center h-full text-base-content/50">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <p className="text-lg font-semibold mb-2">{recipe.name} Print</p>
+                                                <p className="text-center">Coming soon</p>
+                                            </div>
                                         );
                                     default:
                                         return (

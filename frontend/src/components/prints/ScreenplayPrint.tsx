@@ -1016,7 +1016,7 @@ function ScreenplayPrint({
                         className="absolute right-10 text-sm font-mono"
                         style={{ top: `${pageNumberMarginTop}in` }}
                     >
-                        {startPageNumber}.
+                        {startPageNumber}
                     </div>
                 )}
 

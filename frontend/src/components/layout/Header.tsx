@@ -21,9 +21,10 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
     // Local state for visual feedback
     const [showSaveSuccess, setShowSaveSuccess] = useState(false);
     const [showReloadConfirm, setShowReloadConfirm] = useState(false);
+    const [showNewConfirm, setShowNewConfirm] = useState(false);
 
     // Get Cell Store state and actions
-    const { headers, fileInfo, isDirty, isLoading, lastSavedAt, loadCells, reloadCells, saveCells, clearData, addRow } = useCellStore();
+    const { headers, fileInfo, isDirty, isLoading, lastSavedAt, loadCells, reloadCells, saveCells, clearData, addRow, createNew } = useCellStore();
 
     // Get settings store state and actions
     const { wrapText, setWrapText, showColumnSeparators, setShowColumnSeparators, autoFitColumns, setAutoFitColumns } = useSettingsStore();
@@ -52,10 +53,10 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
             const filePath = await open({
                 multiple: false,
                 filters: [
-                    { name: "Compatible Files", extensions: ["cell", "csv", "tsv"] },
+                    { name: "Data Files", extensions: ["csv", "tsv", "json"] },
                     { name: "All Files", extensions: ["*"] },
                 ],
-                title: "Open Cell File",
+                title: "Open Data File",
             });
             if (filePath) {
                 await loadCells(filePath);
@@ -74,7 +75,12 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
         try {
             await saveCells();
         } catch (error) {
-            console.error("Failed to save file:", error);
+            // If this is a temp file, show the Save As dialog instead
+            if (error instanceof Error && error.message === "TEMP_FILE_NEEDS_LOCATION") {
+                await handleSaveAs();
+            } else {
+                console.error("Failed to save file:", error);
+            }
         }
     };
 
@@ -91,15 +97,15 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
     // Save as - show save dialog and save to new location
     const handleSaveAs = async () => {
         try {
-            const fileName = fileInfo?.name || "untitled.cell";
+            const fileName = fileInfo?.name || "untitled.csv";
             const filePath = await save({
                 filters: [
-                    { name: "Cell Files", extensions: ["cell"] },
                     { name: "CSV Files", extensions: ["csv"] },
                     { name: "TSV Files", extensions: ["tsv"] },
+                    { name: "JSON Files", extensions: ["json"] },
                     { name: "All Files", extensions: ["*"] },
                 ],
-                title: "Save Cell File",
+                title: "Save Data File",
                 defaultPath: fileName,
             });
             if (filePath) {
@@ -121,6 +127,31 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
             }
         }
         clearData();
+    };
+
+    // Create new file
+    const handleNew = async () => {
+        // Check if current file has unsaved changes
+        if (fileInfo && isDirty) {
+            setShowNewConfirm(true);
+        } else {
+            // No unsaved changes, create new file directly
+            await createNew();
+        }
+    };
+
+    // Confirm new file creation (with save option)
+    const handleNewConfirm = async (saveFirst: boolean) => {
+        setShowNewConfirm(false);
+        if (saveFirst) {
+            try {
+                await saveCells();
+            } catch (error) {
+                console.error("Failed to save file before creating new:", error);
+                return;
+            }
+        }
+        await createNew();
     };
 
     return (
@@ -200,7 +231,13 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                     </button>
 
                     <button
-                        className={`btn btn-sm btn-primary transition-all ${showSaveSuccess ? "btn-success scale-105" : ""}`}
+                        className={`btn btn-sm transition-all ${
+                            showSaveSuccess
+                                ? "btn-success scale-105"
+                                : isDirty
+                                    ? "btn-primary"
+                                    : "btn-ghost"
+                        }`}
                         onClick={handleSave}
                         title="Save current file (Ctrl+S)"
                         disabled={!fileInfo || isLoading}
@@ -221,6 +258,18 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                     Reload
+                    </button>
+
+                    <button
+                        className="btn btn-sm btn-ghost"
+                        onClick={handleNew}
+                        title="Create new file (Ctrl+N)"
+                        disabled={isLoading}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    New
                     </button>
 
                     <div className="dropdown dropdown-end">
@@ -380,6 +429,38 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                                 onClick={handleReload}
                             >
                                 Reload
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* New File Confirmation Modal */}
+            {showNewConfirm && (
+                <div className="modal modal-open">
+                    <div className="modal-box">
+                        <h3 className="font-bold text-lg">Save Changes Before Creating New File?</h3>
+                        <p className="py-4">
+                            You have unsaved changes in the current file. Would you like to save them before creating a new file?
+                        </p>
+                        <div className="modal-action">
+                            <button
+                                className="btn btn-ghost"
+                                onClick={() => setShowNewConfirm(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="btn btn-warning"
+                                onClick={() => handleNewConfirm(false)}
+                            >
+                                Discard Changes
+                            </button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => handleNewConfirm(true)}
+                            >
+                                Save &amp; New
                             </button>
                         </div>
                     </div>

@@ -9,6 +9,7 @@ import { useFindReplaceStore } from "@/stores/findReplaceStore";
 import { useDrawerStore } from "@/stores/drawerStore";
 import { useFileConfigStore } from "@/stores/fileConfigStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { useGlobalConfigStore } from "@/stores/globalConfigStore";
 import { debouncedSaveCurrentFileConfig } from "@/utils/configPersistence";
 import { DragProvider } from "./contexts/DragContext";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -23,10 +24,11 @@ function App() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(100);
-    const { saveCells, loadCells, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile } = useCellStore();
+    const { saveCells, loadCells, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile, isTempFile, isDirty, data, headers, createNew } = useCellStore();
     const { openFind, openReplace } = useFindReplaceStore();
     const { position: printPreviewPosition, togglePosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
     const { loadConfigs } = useFileConfigStore();
+    const { loadConfig, config } = useGlobalConfigStore();
     const {
         rowColoringMode,
         rowColorFilter,
@@ -36,12 +38,35 @@ function App() {
         hoverHighlightMode,
     } = useSettingsStore();
 
-    // Load file configs on app startup
+    // Load global config and file configs on app startup
     useEffect(() => {
-        loadConfigs().catch((error) => {
-            console.error("Failed to load file configs:", error);
-        });
-    }, [loadConfigs]);
+        const initializeApp = async () => {
+            try {
+                // Load file configs first
+                await loadConfigs();
+
+                // Load global config
+                await loadConfig();
+            } catch (error) {
+                console.error("Failed to initialize app:", error);
+            }
+        };
+
+        initializeApp();
+    }, [loadConfigs, loadConfig]);
+
+    // Auto-reopen last file if enabled
+    useEffect(() => {
+        // Only run once config is loaded
+        if (!config) return;
+
+        // Only auto-open if enabled and there's a last file and no file is currently open
+        if (config.autoReopenLastFile && config.lastOpenedFile && !currentFile) {
+            loadCells(config.lastOpenedFile).catch((error) => {
+                console.error("Failed to auto-reopen last file:", error);
+            });
+        }
+    }, [config, loadCells, currentFile]);
 
     // Save config when settings, filters, or drawer state change
     useEffect(() => {
@@ -69,6 +94,44 @@ function App() {
         document.body.style.zoom = `${zoomLevel}%`;
     }, [zoomLevel]);
 
+    // Autosave for temp files
+    useEffect(() => {
+        // Only autosave if this is a temp file and it's dirty
+        if (!isTempFile || !isDirty || !currentFile) {
+            return;
+        }
+
+        // Set up autosave timer (save every 2 seconds)
+        const autosaveTimer = setTimeout(async () => {
+            try {
+                // Use the invoke command directly to bypass the temp file check in saveCells
+                const { invoke } = await import("@tauri-apps/api/core");
+                const { serializeCell } = await import("@utils/cellParser");
+                const { useCellStore } = await import("@stores/cellStore");
+
+                const state = useCellStore.getState();
+                const cellContent = serializeCell(
+                    { headers: state.headers, data: state.data },
+                    state.delimiter
+                );
+
+                await invoke("save_cell_file", {
+                    path: currentFile,
+                    content: cellContent,
+                });
+
+                // Update the store to mark as saved (without changing lastSavedAt to avoid UI flash)
+                useCellStore.setState({ isDirty: false });
+
+                console.log("Autosaved temp file");
+            } catch (error) {
+                console.error("Autosave failed:", error);
+            }
+        }, 2000);
+
+        return () => clearTimeout(autosaveTimer);
+    }, [isTempFile, isDirty, currentFile, data, headers]);
+
     // Global keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = async (e: KeyboardEvent) => {
@@ -79,10 +142,10 @@ function App() {
                     const filePath = await open({
                         multiple: false,
                         filters: [
-                            { name: "Cell Files", extensions: ["cell"] },
+                            { name: "Data Files", extensions: ["csv", "tsv", "json"] },
                             { name: "All Files", extensions: ["*"] },
                         ],
-                        title: "Open Cell File",
+                        title: "Open Data File",
                     });
                     if (filePath) {
                         await loadCells(filePath);
@@ -101,7 +164,30 @@ function App() {
                 try {
                     await saveCells();
                 } catch (error) {
-                    console.error("Save failed:", error);
+                    // If this is a temp file, show Save As dialog
+                    if (error instanceof Error && error.message === "TEMP_FILE_NEEDS_LOCATION") {
+                        const { save } = await import("@tauri-apps/plugin-dialog");
+                        const { useCellStore } = await import("@stores/cellStore");
+
+                        const fileInfo = useCellStore.getState().fileInfo;
+                        const fileName = fileInfo?.name || "untitled.csv";
+                        const filePath = await save({
+                            filters: [
+                                { name: "CSV Files", extensions: ["csv"] },
+                                { name: "TSV Files", extensions: ["tsv"] },
+                                { name: "JSON Files", extensions: ["json"] },
+                                { name: "All Files", extensions: ["*"] },
+                            ],
+                            title: "Save Data File",
+                            defaultPath: fileName,
+                        });
+                        if (filePath) {
+                            const { saveCellAs } = useCellStore.getState();
+                            await saveCellAs(filePath);
+                        }
+                    } else {
+                        console.error("Save failed:", error);
+                    }
                 }
             }
             // Ctrl+\ - Toggle right print preview drawer
