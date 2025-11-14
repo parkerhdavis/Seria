@@ -1,4 +1,4 @@
-![[backend/icons/icon@2x.png]]
+![[backend/icons/icon.png]]
 # Seria
 
 **Multimodal serialized data editor for game writers and narrative designers.** Seria lets you work directly with primitive data files (**CSV and TSV**, with **JSON coming soon**) while viewing and editing your content in writer-friendly formats like Screenplay and Corkboard views, as well as data-friendly views like Graph and Record editors. Changes made in any view sync instantly across all views - no import/export step, no duplication, just your raw data in whatever format feels best for what you're doing.
