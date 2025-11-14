@@ -183,7 +183,7 @@ Seria was inspired by tools like [Obsidian](https://obsidian.md/) that demonstra
 
 ## License
 
-Covered under the GPL License, see [[LICENSE]]
+Covered under the GPL License, see [LICENSE](./LICENSE)
 
 Beyond that, I only have one rule: **First, do no harm. Then, help where you can.**
 
