@@ -6,8 +6,8 @@
  *
  * Phase 1 Complete: Selection system, keyboard shortcuts, dynamic sizing
  * Phase 2 Complete: Copy/paste/cut, context menus, multi-cell fill
- * Phase 3 In Progress: Column resizing ✓, column filtering UI, column summaries
- * Phase 4+ Remaining: Row/column drag-and-drop reordering
+ * Phase 3 Complete: Column resizing, column filtering UI, column summaries with fixed bottom row
+ * Phase 4 Complete: Row/column drag-and-drop reordering
  */
 
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -16,6 +16,8 @@ import { useCellStore } from "@stores/cellStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { useDrawerStore } from "@stores/drawerStore";
+import ColumnFilterDropdown from "../toolbar/ColumnFilterDropdown";
+import { calculateSummary } from "@utils/summaryCalculations";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 import { useAutosave } from "@utils/useAutosave";
 
@@ -50,6 +52,12 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         columnWidths,
         setColumnWidths,
         columnFilters,
+        setColumnFilter,
+        clearColumnFilter,
+        columnSummaries,
+        setColumnSummary,
+        reorderRows,
+        reorderColumns,
     } = useCellStore();
 
     const {
@@ -99,6 +107,14 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const [resizeAllStartWidths, setResizeAllStartWidths] = useState<Record<number, number>>({});
     const [isShiftResize, setIsShiftResize] = useState(false);
 
+    // Drag and drop state
+    const [draggedRow, setDraggedRow] = useState<number | null>(null);
+    const [draggedColumn, setDraggedColumn] = useState<number | null>(null);
+    const [dropTargetRow, setDropTargetRow] = useState<number | null>(null);
+    const [dropTargetColumn, setDropTargetColumn] = useState<number | null>(null);
+    const [isDraggingRow, setIsDraggingRow] = useState(false);
+    const [isDraggingColumn, setIsDraggingColumn] = useState(false);
+
     // Performance: Batch selection updates using RAF
     const pendingSelectionRef = useRef<{ row: number; col: number } | null>(null);
     const rafIdRef = useRef<number | null>(null);
@@ -106,11 +122,15 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     // Track container width changes to trigger re-renders for proportional column widths
     const [containerWidth, setContainerWidth] = useState(0);
 
+    // Summary row scroll sync
+    const [summaryRowScrollLeft, setSummaryRowScrollLeft] = useState(0);
+
     // ===== REFS =====
     const parentRef = useRef<HTMLDivElement>(null);
     const gridFocusRef = useRef<HTMLDivElement>(null);
     const editingCellRef = useRef<HTMLDivElement | null>(null);
     const editingInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+    const summaryRowContentRef = useRef<HTMLDivElement>(null);
 
     // ===== FILTERED DATA =====
     // Apply column filters
@@ -286,6 +306,30 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
         // No resize listeners needed! Proportions stay constant, pixels recalculate on render
     }, [autoFitColumns, headers.length, columnWidths, setColumnWidths]);
+
+    // ===== SUMMARY ROW SCROLL SYNC =====
+
+    // Sync summary row horizontal scroll with main grid scroll
+    useEffect(() => {
+        const handleScroll = () => {
+            if (parentRef.current) {
+                setSummaryRowScrollLeft(parentRef.current.scrollLeft);
+            }
+        };
+
+        const container = parentRef.current;
+        if (container) {
+            container.addEventListener("scroll", handleScroll);
+            return () => container.removeEventListener("scroll", handleScroll);
+        }
+    }, []);
+
+    // Apply scroll position to summary row content
+    useEffect(() => {
+        if (summaryRowContentRef.current) {
+            summaryRowContentRef.current.scrollLeft = summaryRowScrollLeft;
+        }
+    }, [summaryRowScrollLeft]);
 
     // ===== GLOBAL EVENT HANDLERS =====
 
@@ -959,6 +1003,110 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [resizingColumn, resizeStartX, resizeStartWidth, resizeNextStartWidth, resizeAllStartWidths, isShiftResize, autoFitColumns, headers.length, headers, columnWidths, setColumnWidths]);
 
+    // Disable text selection during drag operations
+    useEffect(() => {
+        if (!isDraggingRow && !isDraggingColumn) return;
+
+        // Prevent text selection while dragging
+        document.body.style.userSelect = "none";
+        document.body.style.cursor = "grabbing";
+
+        return () => {
+            document.body.style.userSelect = "";
+            document.body.style.cursor = "";
+        };
+    }, [isDraggingRow, isDraggingColumn]);
+
+    // ===== ROW DRAG-AND-DROP HANDLERS =====
+
+    const handleRowDragStart = (e: React.DragEvent, rowIndex: number) => {
+        // Only allow left-click drag (button 0)
+        if (e.button && e.button !== 0) {
+            e.preventDefault();
+            return;
+        }
+        e.stopPropagation();
+        setDraggedRow(rowIndex);
+        setIsDraggingRow(true);
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", rowIndex.toString());
+    };
+
+    const handleRowDragOver = (e: React.DragEvent, rowIndex: number) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+
+        // Show visual indicator at target position (including original position)
+        if (draggedRow !== null) {
+            setDropTargetRow(rowIndex);
+        }
+    };
+
+    const handleRowDrop = (e: React.DragEvent, targetIndex: number) => {
+        e.preventDefault();
+
+        // Perform the reorder on drop
+        if (draggedRow !== null && draggedRow !== targetIndex) {
+            reorderRows(draggedRow, targetIndex);
+            triggerAutosave();
+        }
+
+        setDraggedRow(null);
+        setDropTargetRow(null);
+        setIsDraggingRow(false);
+    };
+
+    const handleRowDragEnd = () => {
+        setDraggedRow(null);
+        setDropTargetRow(null);
+        setIsDraggingRow(false);
+    };
+
+    // ===== COLUMN DRAG-AND-DROP HANDLERS =====
+
+    const handleColumnDragStart = (e: React.DragEvent, colIndex: number) => {
+        // Only allow left-click drag (button 0)
+        if (e.button && e.button !== 0) {
+            e.preventDefault();
+            return;
+        }
+        e.stopPropagation();
+        setDraggedColumn(colIndex);
+        setIsDraggingColumn(true);
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", colIndex.toString());
+    };
+
+    const handleColumnDragOver = (e: React.DragEvent, colIndex: number) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+
+        // Show visual indicator at target position (including original position)
+        if (draggedColumn !== null) {
+            setDropTargetColumn(colIndex);
+        }
+    };
+
+    const handleColumnDrop = (e: React.DragEvent, targetIndex: number) => {
+        e.preventDefault();
+
+        // Perform the reorder on drop
+        if (draggedColumn !== null && draggedColumn !== targetIndex) {
+            reorderColumns(draggedColumn, targetIndex);
+            triggerAutosave();
+        }
+
+        setDraggedColumn(null);
+        setDropTargetColumn(null);
+        setIsDraggingColumn(false);
+    };
+
+    const handleColumnDragEnd = () => {
+        setDraggedColumn(null);
+        setDropTargetColumn(null);
+        setIsDraggingColumn(false);
+    };
+
     // ===== CELL SELECTION HANDLERS =====
 
     const handleCellMouseDown = (e: React.MouseEvent, row: number, col: number) => {
@@ -1048,9 +1196,10 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const pixelWidths = getAllPixelWidths();
 
     const isEditingCell = editingCell && editingSource === "cell";
+    const summaryRowHeight = 60;
     const containerStyle: React.CSSProperties = {
         width: "100%",
-        height: "100%",
+        height: `calc(100% - ${summaryRowHeight}px)`,
         paddingBottom: "20px",
         userSelect: !isEditingCell && isSelecting ? "none" : "auto",
         WebkitUserSelect: !isEditingCell && isSelecting ? "none" : "auto",
@@ -1071,23 +1220,40 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             tabIndex={0}
             style={containerStyle}
             onClick={(e) => {
+                // Don't interfere with draggable elements
                 const target = e.target as HTMLElement;
+                const draggableElement = target.closest('[draggable="true"]');
+                if (draggableElement) {
+                    return; // Let the drag operation handle it
+                }
+
+                // Don't steal focus if clicking inside the editing cell
                 if (editingCellRef.current && editingCellRef.current.contains(target)) {
                     return;
                 }
+
+                // Keep focus on grid when clicking anywhere inside it
                 if (gridFocusRef.current) {
                     gridFocusRef.current.focus();
                 }
             }}
             onMouseDown={(e) => {
                 const target = e.target as HTMLElement;
-                const isClickInsideEditor =
-                    target instanceof HTMLInputElement ||
+
+                // Don't interfere with draggable elements
+                const draggableElement = target.closest('[draggable="true"]');
+                if (draggableElement) {
+                    return; // Let the drag operation handle it
+                }
+
+                // Don't interfere with text selection inside editing cell
+                const isClickInsideEditor = target instanceof HTMLInputElement ||
                     target instanceof HTMLTextAreaElement ||
                     target.closest("input[type='text']") !== null ||
                     target.closest("textarea") !== null;
 
                 if (isClickInsideEditor) {
+                    // Allow normal text selection behavior inside the editor
                     return;
                 }
 
@@ -1155,7 +1321,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                         const columnWidth = pixelWidths[colIndex];
                         const headerClass = `bg-base-300 font-bold p-2 border-r relative ${showColumnSeparators ? "border-base-300" : "border-base-content/10"} ${
                             hoveredColumn === colIndex ? "bg-base-200/70" : ""
-                        }`;
+                        } ${dropTargetColumn === colIndex ? "border-l-4 border-primary" : ""}`;
                         return (
                             <div
                                 key={colIndex}
@@ -1165,8 +1331,46 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                     minWidth: `${columnWidth}px`,
                                     maxWidth: `${columnWidth}px`,
                                 }}
+                                onDragOver={(e) => handleColumnDragOver(e, colIndex)}
+                                onDrop={(e) => handleColumnDrop(e, colIndex)}
                             >
-                                {header}
+                                {/* Header content with drag handle and filter */}
+                                <div className="flex items-center gap-2 justify-between">
+                                    {/* Drag handle */}
+                                    <div
+                                        draggable={true}
+                                        onMouseDown={(e) => {
+                                            // Only allow left-click to initiate drag
+                                            if (e.button !== 0) {
+                                                e.preventDefault();
+                                                return;
+                                            }
+                                            e.stopPropagation();
+                                            // Don't preventDefault - it blocks drag start
+                                        }}
+                                        onDragStart={(e) => handleColumnDragStart(e, colIndex)}
+                                        onDragEnd={handleColumnDragEnd}
+                                        className="cursor-move text-base-content/30 hover:text-base-content relative z-10"
+                                        style={{ userSelect: "none", WebkitUserSelect: "none" }}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ pointerEvents: "none" }}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                                        </svg>
+                                    </div>
+
+                                    {/* Header text */}
+                                    <span className="flex-1 truncate">{header}</span>
+
+                                    {/* Filter dropdown */}
+                                    <ColumnFilterDropdown
+                                        columnName={header}
+                                        operation={columnFilters.find((f) => f.column === header)?.operation || "contains"}
+                                        value={columnFilters.find((f) => f.column === header)?.value || ""}
+                                        onFilterChange={(operation, value) => setColumnFilter(header, operation, value)}
+                                        onClearFilter={() => clearColumnFilter(header)}
+                                        columnData={data.map((row) => row[colIndex] || "")}
+                                    />
+                                </div>
 
                                 {/* Resize handle */}
                                 <div
@@ -1229,11 +1433,13 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                 transform: `translateY(${virtualRow.start}px)`,
                                 ...rowStyle,
                             }}
-                            className={`flex ${rowHoverClass} ${rowBgClass}`}
+                            className={`flex ${rowHoverClass} ${rowBgClass} ${dropTargetRow === rowIndex ? "border-t-4 border-primary" : ""}`}
+                            onDragOver={(e) => handleRowDragOver(e, rowIndex)}
+                            onDrop={(e) => handleRowDrop(e, rowIndex)}
                         >
                             {/* Row number */}
                             <div
-                                className={`p-2 text-center font-mono text-sm bg-base-200/50 border-b border-r ${showColumnSeparators ? "border-base-300" : "border-base-content/10"}`}
+                                className={`p-2 text-center font-mono text-sm bg-base-200/50 border-b border-r cursor-move ${showColumnSeparators ? "border-base-300" : "border-base-content/10"}`}
                                 style={{
                                     width: "64px",
                                     minWidth: "64px",
@@ -1241,8 +1447,25 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                     userSelect: "none",
                                     WebkitUserSelect: "none",
                                 }}
+                                draggable={true}
+                                onMouseDown={(e) => {
+                                    // Only allow left-click to initiate drag
+                                    if (e.button !== 0) {
+                                        e.preventDefault();
+                                        return;
+                                    }
+                                    e.stopPropagation();
+                                    // Don't preventDefault - it blocks drag start
+                                }}
+                                onDragStart={(e) => handleRowDragStart(e, rowIndex)}
+                                onDragEnd={handleRowDragEnd}
                             >
-                                {rowIndex + 1}
+                                <div className="flex items-center justify-center gap-1" style={{ pointerEvents: "none" }}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-base-content/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                    </svg>
+                                    {rowIndex + 1}
+                                </div>
                             </div>
 
                             {/* Data cells */}
@@ -1579,6 +1802,93 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                     </div>
                 </div>
             )}
+
+            {/* Summary row */}
+            <div
+                className="fixed bg-base-300 border-t-2 border-base-300 shadow-lg z-40"
+                style={{
+                    left: 0,
+                    right: drawerPosition === "right" ? `${rightDrawerSize}px` : 0,
+                    bottom: 0,
+                    height: "60px",
+                    overflow: "hidden"
+                }}
+            >
+                {/* Row number column placeholder (left) - sticky */}
+                <div className="absolute left-0 h-full bg-base-300 border-r-2 border-base-300 z-10" style={{ width: "64px" }}></div>
+
+                <div
+                    ref={summaryRowContentRef}
+                    className="h-full summary-row-scroll"
+                    style={{
+                        overflowX: autoFitColumns ? "hidden" : "scroll",
+                        overflowY: "hidden",
+                        scrollbarWidth: "none",
+                        msOverflowStyle: "none",
+                        paddingLeft: "64px",
+                    }}
+                >
+                    <div className="flex items-center h-full" style={{ width: `${pixelWidths.reduce((sum, w) => sum + w, 0)}px` }}>
+                        {/* Summary dropdowns for each column */}
+                        {headers.map((columnName, colIndex) => {
+                            const summaryType = columnSummaries[columnName] || "count";
+                            const columnData = filteredData.map((row) => row[colIndex] || "");
+                            const summaryValue = calculateSummary(columnData, summaryType);
+                            const columnWidth = pixelWidths[colIndex];
+
+                            // Apply hover highlight to summary row as well
+                            const summaryClass = `flex-shrink-0 h-full flex items-center border-r-2 ${hoveredColumn === colIndex ? "bg-base-200/70" : ""} ${showColumnSeparators ? "border-base-300" : "border-transparent"}`;
+
+                            return (
+                                <div
+                                    key={colIndex}
+                                    className={summaryClass}
+                                    style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
+                                >
+                                    <div className="flex flex-col-reverse gap-1 p-2">
+                                        {/* Summary value (displayed above dropdown) */}
+                                        <div className="text-sm font-semibold text-primary truncate min-h-[20px]" title={summaryValue}>
+                                            {summaryValue || "\u00A0"}
+                                        </div>
+
+                                        {/* Summary type selector (opens upward) */}
+                                        <div className="relative">
+                                            <select
+                                                className="select select-xs select-bordered w-full bg-base-100"
+                                                value={summaryType}
+                                                onChange={(e) => setColumnSummary(columnName, e.target.value as "count" | "unique" | "mode" | "average" | "min" | "max" | "sum")}
+                                                style={{
+                                                    appearance: "none",
+                                                    backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4-4 4 4\'/%3e%3c/svg%3e")',
+                                                    backgroundPosition: "right 0.5rem center",
+                                                    backgroundRepeat: "no-repeat",
+                                                    backgroundSize: "1.5em 1.5em",
+                                                    paddingRight: "2.5rem"
+                                                }}
+                                            >
+                                                <option value="count">Count</option>
+                                                <option value="unique">Unique</option>
+                                                <option value="mode">Mode</option>
+                                                <option value="average">Average</option>
+                                                <option value="min">Min</option>
+                                                <option value="max">Max</option>
+                                                <option value="sum">Sum</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* Scrollbar styling - hide scrollbar for summary row */}
+            <style>{`
+                .summary-row-scroll::-webkit-scrollbar {
+                    display: none;
+                }
+            `}</style>
         </div>
     );
 }

@@ -1409,6 +1409,7 @@ function CellGrid({ onCellEdit }: CellGridProps) {
                                             value={columnFilters.find((f) => f.column === header)?.value || ""}
                                             onFilterChange={(operation, value) => setColumnFilter(header, operation, value)}
                                             onClearFilter={() => clearColumnFilter(header)}
+                                            columnData={data.map((row) => row[colIndex] || "")}
                                         />
                                     </div>
 
