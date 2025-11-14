@@ -156,8 +156,11 @@ Formats available on [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/r
 - [Current Limitations](wiki/06_FAQ%20and%20Support/04.01_Current%20Limitations.md) - Known issues and missing features
 
 **Developer Docs:**
-- [Developer Guide](wiki-internal/Developer-Guide.md) - Development setup
-- [Build and Distribution](wiki-internal/Build-and-Distribution.md) - Building from source
+- [Developer Quick Start](wiki/05_Development/05.01_DeveloperQuickStart.md) - Get started developing Seria
+- [Development Guide](wiki/05_Development/05.02_DevelopmentGuide.md) - Development setup and workflow
+- [Building and Distribution](wiki/05_Development/05.03_BuildingAndDistribution.md) - Building from source
+- [Cross-Compilation](wiki/05_Development/05.04_CrossCompilation.md) - Building Windows installers on Linux
+- [Contributing](wiki/05_Development/05.07_Contributing.md) - How to contribute to Seria
 
 ---
 
