@@ -23,7 +23,10 @@ interface FileEntry {
  */
 function FileTree() {
     const [files, setFiles] = useState<FileEntry[]>([]);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- expandedDirs is assigned a value but never used. This is intentional - the state tracks expanded directories for future features (collapsible tree). Alternative: Remove the state entirely if directory expansion UI is not planned, or implement the UI to actually use expandedDirs for rendering collapsed/expanded states.
+    // Disabled: expandedDirs is assigned a value but never used
+    // Reason: The state tracks expanded directories for future features (collapsible tree)
+    // Alternative: Remove the state entirely if directory expansion UI is not planned, or implement the UI to actually use expandedDirs for rendering collapsed/expanded states
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
     const { loadCells, fileInfo } = useCellStore();
     const { rootDirectory, setRootDirectory } = useFileTreeStore();

@@ -12,7 +12,9 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useGlobalConfigStore } from "@/stores/globalConfigStore";
 import { debouncedSaveCurrentFileConfig } from "@/utils/configPersistence";
 import { DragProvider } from "./contexts/DragContext";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
+import { serializeCell } from "@utils/cellParser";
 
 /**
  * Main application component
@@ -105,10 +107,6 @@ function App() {
         const autosaveTimer = setTimeout(async () => {
             try {
                 // Use the invoke command directly to bypass the temp file check in saveCells
-                const { invoke } = await import("@tauri-apps/api/core");
-                const { serializeCell } = await import("@utils/cellParser");
-                const { useCellStore } = await import("@stores/cellStore");
-
                 const state = useCellStore.getState();
                 const cellContent = serializeCell(
                     { headers: state.headers, data: state.data },
@@ -166,9 +164,6 @@ function App() {
                 } catch (error) {
                     // If this is a temp file, show Save As dialog
                     if (error instanceof Error && error.message === "TEMP_FILE_NEEDS_LOCATION") {
-                        const { save } = await import("@tauri-apps/plugin-dialog");
-                        const { useCellStore } = await import("@stores/cellStore");
-
                         const fileInfo = useCellStore.getState().fileInfo;
                         const fileName = fileInfo?.name || "untitled.csv";
                         const filePath = await save({

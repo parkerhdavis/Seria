@@ -55,7 +55,10 @@ export function DragProvider({ children }: { children: ReactNode }) {
     );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components -- Fast refresh only works when a file only exports components. This file exports both a component (DragProvider) and a hook (useDrag). React's Fast Refresh feature doesn't support this pattern and won't hot-reload properly. Alternative: Move useDrag hook to a separate file (e.g., hooks/useDrag.ts).
+// Disabled: Fast refresh only works when a file only exports components
+// Reason: This file exports both a component (DragProvider) and a hook (useDrag). React's Fast Refresh feature doesn't support this pattern and won't hot-reload properly
+// Alternative: Move useDrag hook to a separate file (e.g., hooks/useDrag.ts)
+// eslint-disable-next-line react-refresh/only-export-components
 export function useDrag() {
     const context = useContext(DragContext);
     if (context === undefined) {

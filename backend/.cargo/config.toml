@@ -1,7 +1,11 @@
 # Cargo configuration for Seria backend
-# This configures the build output directory
+# This configures the build output directory and cross-compilation settings
 
 [build]
-# Place build artifacts in the top-level target/ directory
-# instead of backend/target/ for cleaner project organization
+# IMPORTANT: Use top-level target directory (../target) instead of backend/target
+# This keeps all build artifacts in one place at the project root
 target-dir = "../target"
+
+# Note: cargo-xwin is used for Windows cross-compilation, but it's invoked
+# as a cargo wrapper command (via CARGO=cargo-xwin), not as a linker.
+# See Makefile build-windows target for usage.

@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from "react";
 import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
 import { getMappedColumn } from "@/utils/printRecipeMapper";
 import { useCellStore } from "@stores/cellStore";
+import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 
 interface ScreenplayPrintProps {
     data: string[][];
@@ -156,9 +157,10 @@ function ScreenplayElementView({
                 inputRef.current.setSelectionRange(editingValue.length, editingValue.length);
             }
         }
+    // Disabled: editingValue.length dependency removed
     // Reason: Including editingValue.length causes cursor to reset on every keystroke
     // Alternative: Only run when editing starts (isEditingFromPrint changes) or field type changes (isMultiLine)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing editingValue.length dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isEditingFromPrint, isMultiLine]);
 
     // Format content based on element type
@@ -410,7 +412,10 @@ function ScreenplayPrint({
             // User clicked in Cell Grid, clear Print selection
             setPrintSelection({ primary: null, additional: [] });
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing isEditingFromPrint, printSelection dependencies. Adding these would create an infinite loop - the effect clears printSelection, which would trigger the effect again, clearing it again, etc. Alternative: Restructure logic to use a ref for tracking state or separate the concerns.
+    // Disabled: Missing isEditingFromPrint, printSelection dependencies
+    // Reason: Adding these would create an infinite loop - the effect clears printSelection, which would trigger the effect again, clearing it again, etc.
+    // Alternative: Restructure logic to use a ref for tracking state or separate the concerns
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedCell, selectedRange]);
 
     // Clear Print selection when clicking anywhere in Cell Grid area (including background)
@@ -462,9 +467,6 @@ function ScreenplayPrint({
             // Only handle if the Print container is focused or if we're not in any input/textarea
             const target = e.target as HTMLElement;
             const isInInput = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
-
-            // Import clipboard utilities (dynamically to avoid top-level await issues)
-            const { writeText, readText } = await import("@tauri-apps/plugin-clipboard-manager");
 
             // Get all selected elements (primary + additional)
             const allSelectedElements = printSelection.primary
@@ -716,7 +718,10 @@ function ScreenplayPrint({
 
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing elements dependency. elements is derived from data and is recalculated on every render. Adding it would cause the keyboard handler to constantly detach/reattach, causing performance issues. The effect already depends on data, which is sufficient. Alternative: Memoize elements array with useMemo, then add to dependencies.
+    // Disabled: Missing elements dependency
+    // Reason: elements is derived from data and is recalculated on every render. Adding it would cause the keyboard handler to constantly detach/reattach, causing performance issues. The effect already depends on data, which is sufficient
+    // Alternative: Memoize elements array with useMemo, then add to dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [printSelection, isEditingFromPrint, headers, data, editingCell, editingValue, setEditingCell, updateCell, clearEditingCell, cutElements]);
 
     // Handle clicking on a Print element

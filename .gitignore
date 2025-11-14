@@ -24,6 +24,7 @@ frontend/pnpm-lock.yaml
 # ────────────────────────────────────────────────────────────────────────────────
 # Rust/Tauri
 target/
+!target/README.md
 **/*.rs.bk
 *.pdb
 Cargo.lock

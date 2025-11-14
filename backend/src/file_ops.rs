@@ -146,15 +146,15 @@ fn get_os_file_id(path: &str) -> Option<String> {
 
 #[cfg(windows)]
 fn get_os_file_id(path: &str) -> Option<String> {
-    use std::os::windows::fs::MetadataExt;
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
 
-    fs::metadata(path)
-        .ok()
-        .and_then(|m| {
-            // Windows file index is a combination of volume serial and file index
-            // This is a simplified version - in production you'd want the full file ID
-            Some(format!("fileid-{}", m.file_index().unwrap_or(0)))
-        })
+    // Note: The file_index() method is unstable in Rust, so we use a hash of the path
+    // as a stable alternative. This provides a consistent identifier for the file.
+    // In production, you might want to use the Win32 API to get the actual file index.
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    Some(format!("fileid-{}", hasher.finish()))
 }
 
 #[cfg(not(any(unix, windows)))]

@@ -136,10 +136,10 @@ function Card({
             titleInputRef.current.focus();
             titleInputRef.current.setSelectionRange(editingValue.length, editingValue.length);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     // Disabled: editingValue.length dependency removed
     // Reason: Including editingValue.length causes cursor to reset on every keystroke
     // Alternative: Only run when editing starts (isTitleEditingFromPrint changes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isTitleEditingFromPrint]);
 
     useEffect(() => {
@@ -147,10 +147,10 @@ function Card({
             subtitleInputRef.current.focus();
             subtitleInputRef.current.setSelectionRange(editingValue.length, editingValue.length);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     // Disabled: editingValue.length dependency removed
     // Reason: Including editingValue.length causes cursor to reset on every keystroke
     // Alternative: Only run when editing starts (isSubtitleEditingFromPrint changes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isSubtitleEditingFromPrint]);
 
     // Auto-resize content textareas when editing
@@ -165,10 +165,10 @@ function Card({
                 textarea.style.height = `${textarea.scrollHeight}px`;
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     // Disabled: editingValue.length dependency removed
     // Reason: Including editingValue.length causes cursor to reset on every keystroke
     // Alternative: Only run when editing starts (isEditingFromPrint/selectedField changes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isEditingFromPrint, selectedField]);
 
     const hasAnySelection = isTitleSelected || isSubtitleSelected ||
@@ -457,7 +457,10 @@ function CardPrint({
             // User clicked in Cell Grid, clear Print selection
             setSelectedField(null);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing isEditingFromPrint, selectedField dependencies. Adding these would create an infinite loop - the effect clears selectedField, which would trigger the effect again, clearing it again, etc. Alternative: Restructure logic to use a ref for tracking state or separate the concerns.
+    // Disabled: Missing isEditingFromPrint, selectedField dependencies
+    // Reason: Adding these would create an infinite loop - the effect clears selectedField, which would trigger the effect again, clearing it again, etc.
+    // Alternative: Restructure logic to use a ref for tracking state or separate the concerns
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedCell, selectedRange]);
 
     // Clear Print selection when clicking anywhere in Cell Grid area (including background)
