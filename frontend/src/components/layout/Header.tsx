@@ -9,6 +9,7 @@ interface HeaderProps {
     onTogglePrintPreview?: () => void;
     onToggleSidebar?: () => void;
     isSidebarOpen?: boolean;
+    onFilePickerOpenChange: (isOpen: boolean) => void;
 }
 
 /**
@@ -17,7 +18,7 @@ interface HeaderProps {
  * Displays the current file name, provides file operation buttons,
  * and includes theme toggle, print preview toggle, sidebar toggle, and mobile menu toggle.
  */
-function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: HeaderProps) {
+function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePickerOpenChange }: HeaderProps) {
     // Local state for visual feedback
     const [showSaveSuccess, setShowSaveSuccess] = useState(false);
     const [showReloadConfirm, setShowReloadConfirm] = useState(false);
@@ -49,6 +50,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
 
     // Open file dialog and load selected file
     const handleOpen = async () => {
+        onFilePickerOpenChange(true);
         try {
             const filePath = await open({
                 multiple: false,
@@ -59,14 +61,20 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                 title: "Open Data File",
             });
             if (filePath) {
+                // Keep overlay visible during loading
                 await loadCells(filePath);
                 // Blur the active element (Open button) so keyboard shortcuts work
                 if (document.activeElement instanceof HTMLElement) {
                     document.activeElement.blur();
                 }
+                onFilePickerOpenChange(false);
+            } else {
+                // User cancelled, close overlay
+                onFilePickerOpenChange(false);
             }
         } catch (error) {
             console.error("Failed to open file:", error);
+            onFilePickerOpenChange(false);
         }
     };
 
@@ -96,6 +104,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
 
     // Save as - show save dialog and save to new location
     const handleSaveAs = async () => {
+        onFilePickerOpenChange(true);
         try {
             const fileName = fileInfo?.name || "untitled.csv";
             const filePath = await save({
@@ -110,10 +119,16 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
             });
             if (filePath) {
                 const { saveCellAs } = useCellStore.getState();
+                // Keep overlay visible during save
                 await saveCellAs(filePath);
+                onFilePickerOpenChange(false);
+            } else {
+                // User cancelled, close overlay
+                onFilePickerOpenChange(false);
             }
         } catch (error) {
             console.error("Failed to save file:", error);
+            onFilePickerOpenChange(false);
         }
     };
 
@@ -142,6 +157,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
 
     // Import file (screenplay to CSV for now)
     const handleImport = async () => {
+        onFilePickerOpenChange(true);
         try {
             const filePath = await open({
                 multiple: false,
@@ -153,14 +169,20 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
             });
 
             if (filePath && typeof filePath === "string") {
+                // Keep overlay visible during import
                 await importFromScreenplay(filePath);
                 // Blur the active element so keyboard shortcuts work
                 if (document.activeElement instanceof HTMLElement) {
                     document.activeElement.blur();
                 }
+                onFilePickerOpenChange(false);
+            } else {
+                // User cancelled, close overlay
+                onFilePickerOpenChange(false);
             }
         } catch (error) {
             console.error("Failed to import file:", error);
+            onFilePickerOpenChange(false);
         }
     };
 

@@ -1630,13 +1630,6 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                 })}
             </div>
 
-            {/* Performance info (debug) */}
-            {import.meta.env.DEV && (
-                <div className="sticky bottom-0 bg-info text-info-content text-xs p-1 text-center">
-                    Virtualized: Rendering {virtualRows.length} of {filteredData.length} rows (Phase 1+2 Complete ✓)
-                </div>
-            )}
-
             {/* Empty state when no rows */}
             {filteredData.length === 0 && (
                 <div className="text-center py-8 text-base-content/50">

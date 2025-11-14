@@ -1,22 +1,22 @@
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useCellStore } from "@stores/cellStore";
-import CellGrid from "@components/cell/CellGrid";
 import CellGridVirtualized from "@components/cell/CellGridVirtualized";
 
-// Threshold for enabling virtualization (rows)
-// TEMPORARY: Set to 0 for Phase 1 testing. Will be set back to always use virtualized version after testing.
-const VIRTUALIZATION_THRESHOLD = 0;
+interface EditorProps {
+    onFilePickerOpenChange: (isOpen: boolean) => void;
+}
 
 /**
  * Cell Editor page component
  *
- * Main editing interface for Cell files. Provides a spreadsheet-like grid
+ * Main editing interface for Cell files. Provides a virtualized spreadsheet-like grid
  * for viewing and editing Cell Data with filtering, sorting, and bulk operations.
+ * Uses CellGridVirtualized for optimal performance with files of any size.
  * Toolbar controls have been moved to the Header component.
  */
-function Editor() {
-    const { headers, data, error, loadCells } = useCellStore();
+function Editor({ onFilePickerOpenChange }: EditorProps) {
+    const { headers, error, loadCells } = useCellStore();
     const [isDraggingOver, setIsDraggingOver] = useState(false);
 
     // Check if we have data loaded
@@ -26,6 +26,7 @@ function Editor() {
      * Handle click on empty state to open file dialog
      */
     const handleOpenFile = async () => {
+        onFilePickerOpenChange(true);
         try {
             const filePath = await open({
                 multiple: false,
@@ -36,10 +37,16 @@ function Editor() {
             });
 
             if (filePath && typeof filePath === "string") {
+                // Keep overlay visible during loading
                 await loadCells(filePath);
+                onFilePickerOpenChange(false);
+            } else {
+                // User cancelled, close overlay
+                onFilePickerOpenChange(false);
             }
         } catch (error) {
             console.error("Failed to open file:", error);
+            onFilePickerOpenChange(false);
         }
     };
 
@@ -121,11 +128,7 @@ function Editor() {
             {/* Grid or empty state */}
             <div className="flex-1 overflow-hidden bg-base-100 min-w-0">
                 {hasData ? (
-                    data.length >= VIRTUALIZATION_THRESHOLD ? (
-                        <CellGridVirtualized />
-                    ) : (
-                        <CellGrid />
-                    )
+                    <CellGridVirtualized />
                 ) : (
                     <div
                         className="h-full flex items-center justify-center p-8"
