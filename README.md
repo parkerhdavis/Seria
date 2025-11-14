@@ -181,7 +181,7 @@ Tauri 2.0 + React 18 + TypeScript + Vite + TailwindCSS + daisyUI
 
 ## Inspiration
 
-Seria was inspired by tools like [Obsidian](https://obsidian.md/) that demonstrate what's possible with local-first experiences built on top of simple, portable file formats. Just as Obsidian provides a powerful editing environment while keeping notes as plain markdown files, Seria provides rich writing views while keeping your data as plain CSV/TSV/JSON files.
+I was inspired to create Seria not only by my experiences as a game director, writer, and designer, but also as a proud user of [Obsidian](https://obsidian.md/), which demonstrates what's possible with local-first experiences built on top of simple, portable file formats. Just as Obsidian provides a powerful editing environment while keeping notes as plain markdown files, Seria provides rich writing views while keeping your data as plain CSV/TSV/JSON files.
 
 ---
 
@@ -195,8 +195,10 @@ Beyond that, I only have one rule: **First, do no harm. Then, help where you can
 
 ## Financial Support
 
-If you have some cash to spare and want to help out, that's very kind. I'm doing alright, so rather than sharing that kindness with me, I encourage you to share it with your charity of choice. Mine is the [GiveWell top charities fund](https://www.givewell.org/top-charities-fund) , which does excellent research to figure out which causes can save the most human lives for the money, and put their funds there.
+If you have some cash to spare and want to help out, that's very kind. I'm doing alright, though, so rather than sharing that kindness with me, I encourage you to share it with your charity of choice. 
 
-For example: their grant to the [Against Malaria Foundation](https://www.againstmalaria.com) delivered outcomes at a cost of just $1,700 per life saved.
+Mine is the [GiveWell top charities fund](https://www.givewell.org/top-charities-fund) , which does excellent research to figure out which causes can save the most human lives for the money, and put their funds there.
+
+Their grant to the [Against Malaria Foundation](https://www.againstmalaria.com) was shown to deliver outcomes at a cost of just $1,700 per life saved.
 
 ![GiveWell Logo](./wiki/00_Metafiles/00.01_Attachments/givewell_logo.png)
