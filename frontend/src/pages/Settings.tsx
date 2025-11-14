@@ -64,7 +64,7 @@ function Settings() {
                                 <div>
                                     <span className="label-text font-semibold block">Enable virtualization</span>
                                     <span className="label-text-alt block text-base-content/60">
-                                        Improve performance for large Cell files (1000+ rows)
+                                        Improve performance for large Cell files (10,000+ rows)
                                     </span>
                                 </div>
                             </label>

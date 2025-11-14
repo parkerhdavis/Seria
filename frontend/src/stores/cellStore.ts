@@ -101,6 +101,7 @@ interface CellStore {
     saveCells: () => Promise<void>;
     saveCellAs: (path: string) => Promise<void>;
     createNew: () => Promise<void>;
+    importFromScreenplay: (path: string) => Promise<void>;
     updateCell: (row: number, col: number, value: string) => void;
     updateCells: (cells: Array<{ row: number; col: number; value: string }>) => void;
     updateRow: (rowIndex: number, newRow: string[]) => void;
@@ -479,6 +480,44 @@ export const useCellStore = create<CellStore>((set, get) => ({
         } catch (error) {
             set({
                 error: `Failed to create new file: ${error}`,
+                isLoading: false,
+            });
+        }
+    },
+
+    // Import screenplay file and convert to CSV
+    importFromScreenplay: async (path: string) => {
+        set({ isLoading: true, error: null });
+
+        try {
+            // Read the screenplay file
+            const screenplayContent = await invoke<string>("open_cell_file", { path });
+
+            // Convert screenplay to CSV using the converter
+            const csvContent = await invoke<string>("convert_screenplay_to_csv", {
+                content: screenplayContent
+            });
+
+            // Create a temp file
+            const tempFilePath = await invoke<string>("create_temp_file");
+
+            // Save the converted CSV to the temp file
+            await invoke("save_cell_file", {
+                path: tempFilePath,
+                content: csvContent
+            });
+
+            // Load the temp file
+            await get().loadCells(tempFilePath);
+
+            // Mark as temp file and set as dirty (so it prompts to save)
+            set({
+                isTempFile: true,
+                isDirty: true,
+            });
+        } catch (error) {
+            set({
+                error: `Failed to import screenplay: ${error}`,
                 isLoading: false,
             });
         }

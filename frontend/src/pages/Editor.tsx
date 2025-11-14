@@ -5,7 +5,8 @@ import CellGrid from "@components/cell/CellGrid";
 import CellGridVirtualized from "@components/cell/CellGridVirtualized";
 
 // Threshold for enabling virtualization (rows)
-const VIRTUALIZATION_THRESHOLD = 1000;
+// TEMPORARY: Set to 0 for Phase 1 testing. Will be set back to always use virtualized version after testing.
+const VIRTUALIZATION_THRESHOLD = 0;
 
 /**
  * Cell Editor page component
