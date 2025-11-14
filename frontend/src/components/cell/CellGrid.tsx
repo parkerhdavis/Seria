@@ -424,7 +424,10 @@ function CellGrid({ onCellEdit }: CellGridProps) {
 
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing handleStartEdit, handleCopyToClipboard, handleCutToClipboard, and handlePasteFromSystemClipboard dependencies. These are stable functions defined in component scope. Adding them would cause the effect to re-run on every render, constantly detaching/reattaching event listeners. Alternative: Wrap in useCallback to memoize them, then add to dependencies.
+    // Disabled: Missing handleStartEdit, handleCopyToClipboard, handleCutToClipboard, and handlePasteFromSystemClipboard dependencies
+    // Reason: These are stable functions defined in component scope. Adding them would cause the effect to re-run on every render, constantly detaching/reattaching event listeners
+    // Alternative: Wrap in useCallback to memoize them, then add to dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingCell, editingSource, selectedCell, selectedRange, filteredData, headers, copySelection, clearCells, clearSelection, setSelectedCell, addRow]);
 
     // Scroll to row when editing from Print view
@@ -674,7 +677,10 @@ function CellGrid({ onCellEdit }: CellGridProps) {
             document.body.style.userSelect = "";
             document.body.style.cursor = "";
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Missing getPixelWidth, convertPixelsToProportions dependencies. These are stable helper functions defined in component scope. Adding them would cause the resize effect to re-run unnecessarily, creating performance issues. Alternative: Move these functions outside component scope or wrap in useCallback.
+    // Disabled: Missing getPixelWidth, convertPixelsToProportions dependencies
+    // Reason: These are stable helper functions defined in component scope. Adding them would cause the resize effect to re-run unnecessarily, creating performance issues
+    // Alternative: Move these functions outside component scope or wrap in useCallback
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [resizingColumn, resizeStartX, resizeStartWidth, resizeNextStartWidth, resizeAllStartWidths, isShiftResize, autoFitColumns, headers.length, headers, columnWidths, setColumnWidths]);
 
     // Disable text selection during drag operations

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # Setup script for Seria Desktop App
+# Cross-platform setup for Linux, macOS, and Windows (via Git Bash/WSL)
 # Installs Rust toolchain and Node.js dependencies
 
 set -euo pipefail
@@ -12,6 +13,30 @@ cd "$script_dir"
 echo "════════════════════════════════════════════════════════════════════════════════"
 echo "  Seria Setup - Installing Dependencies"
 echo "════════════════════════════════════════════════════════════════════════════════"
+echo ""
+
+# Track whether setup is fully complete
+SETUP_COMPLETE=true
+MISSING_DEPS_MESSAGE=""
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Detect Operating System
+# ────────────────────────────────────────────────────────────────────────────────
+OS="unknown"
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    OS="linux"
+    echo "🖥️  Detected: Linux"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    OS="macos"
+    echo "🍎 Detected: macOS"
+elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+    OS="windows"
+    echo "🪟 Detected: Windows (Git Bash/WSL)"
+else
+    echo "⚠️  Unknown OS: $OSTYPE"
+    echo "This script supports Linux, macOS, and Windows (via Git Bash/WSL)"
+    echo "Continuing with limited checks..."
+fi
 echo ""
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -66,14 +91,19 @@ else
 fi
 
 # ────────────────────────────────────────────────────────────────────────────────
-# System Dependencies Check (Linux only)
+# System Dependencies Check
 # ────────────────────────────────────────────────────────────────────────────────
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+
+if [ "$OS" = "linux" ]; then
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Linux System Dependencies
+    # ═══════════════════════════════════════════════════════════════════════════
     echo ""
     echo "🔍 Checking Linux system dependencies for Tauri..."
 
     # List of required packages for Tauri 2.0
     # Note: Tauri 2.0 requires webkit2gtk-4.1 (not 4.0)
+    # LLVM, lld, and clang are required for Windows cross-compilation (cargo-xwin)
     REQUIRED_PACKAGES=(
         "libwebkit2gtk-4.1-dev"
         "build-essential"
@@ -84,17 +114,23 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         "libgtk-3-dev"
         "libayatana-appindicator3-dev"
         "librsvg2-dev"
+        "llvm"
+        "lld"
+        "clang"
     )
 
     MISSING_PACKAGES=()
 
     for package in "${REQUIRED_PACKAGES[@]}"; do
-        if ! dpkg -l | grep -q "^ii  $package"; then
+        # Use dpkg-query for reliable package detection
+        # It returns "install ok installed" for installed packages
+        if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q "install ok installed"; then
             MISSING_PACKAGES+=("$package")
         fi
     done
 
     if [ ${#MISSING_PACKAGES[@]} -gt 0 ]; then
+        SETUP_COMPLETE=false
         echo ""
         echo "⚠️  Missing system dependencies:"
         for package in "${MISSING_PACKAGES[@]}"; do
@@ -105,18 +141,143 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         echo ""
         echo "  sudo apt install ${MISSING_PACKAGES[*]}"
         echo ""
-        echo "After installing system dependencies, you can run 'make dev' to start development."
+        MISSING_DEPS_MESSAGE="${MISSING_DEPS_MESSAGE}\n  • Install system dependencies (see above)"
     else
         echo "✅ All required system dependencies are installed"
+    fi
+
+elif [ "$OS" = "macos" ]; then
+    # ═══════════════════════════════════════════════════════════════════════════
+    # macOS System Dependencies
+    # ═══════════════════════════════════════════════════════════════════════════
+    echo ""
+    echo "🔍 Checking macOS system dependencies for Tauri..."
+
+    # Check for Xcode Command Line Tools
+    if ! xcode-select -p &> /dev/null; then
+        SETUP_COMPLETE=false
+        echo "⚠️  Xcode Command Line Tools not installed"
+        echo ""
+        echo "To install, run:"
+        echo "  xcode-select --install"
+        echo ""
+        MISSING_DEPS_MESSAGE="${MISSING_DEPS_MESSAGE}\n  • Install Xcode Command Line Tools: xcode-select --install"
+    else
+        echo "✅ Xcode Command Line Tools installed"
+    fi
+
+    # Check for Homebrew
+    if ! command -v brew &> /dev/null; then
+        echo "⚠️  Homebrew not found (recommended but not required)"
+        echo ""
+        echo "Homebrew is recommended for managing dependencies on macOS."
+        echo "Install from: https://brew.sh"
+        echo ""
+    else
+        echo "✅ Homebrew installed"
+
+        # Optional: Check for LLVM (for Windows cross-compilation from macOS)
+        if ! brew list llvm &> /dev/null; then
+            echo ""
+            echo "ℹ️  LLVM not installed (optional - needed for Windows cross-compilation)"
+            echo "   To enable Windows builds from macOS, run:"
+            echo "     brew install llvm"
+            echo ""
+            echo "   Note: Xcode Command Line Tools provides clang, which is also required"
+        else
+            echo "✅ LLVM installed (Windows cross-compilation ready)"
+        fi
+    fi
+
+elif [ "$OS" = "windows" ]; then
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Windows System Dependencies
+    # ═══════════════════════════════════════════════════════════════════════════
+    echo ""
+    echo "🔍 Checking Windows system dependencies for Tauri..."
+    echo ""
+    echo "On Windows, Tauri requires:"
+    echo "  1. Microsoft Visual Studio C++ Build Tools"
+    echo "  2. WebView2 Runtime (usually pre-installed on Windows 10+)"
+    echo ""
+    echo "For detailed instructions, see:"
+    echo "  https://tauri.app/v2/guides/prerequisites/#windows"
+    echo ""
+
+    # Check for Visual Studio Build Tools (rough check)
+    if command -v cl &> /dev/null; then
+        echo "✅ Visual Studio C++ Build Tools appear to be installed"
+    else
+        SETUP_COMPLETE=false
+        echo "⚠️  Visual Studio C++ Build Tools may not be installed"
+        echo "   Install from: https://visualstudio.microsoft.com/downloads/"
+        echo "   Select 'Desktop development with C++' workload"
+        echo ""
+        MISSING_DEPS_MESSAGE="${MISSING_DEPS_MESSAGE}\n  • Install Visual Studio C++ Build Tools (see above)"
+    fi
+fi
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Windows Cross-Compilation Setup (Linux/macOS only)
+# ────────────────────────────────────────────────────────────────────────────────
+if [ "$OS" = "linux" ] || [ "$OS" = "macos" ]; then
+    echo ""
+    echo "🔍 Checking Windows cross-compilation tools (optional)..."
+
+    CROSS_COMPILE_READY=true
+
+    # Check for Windows Rust target
+    if ! rustup target list --installed | grep -q "x86_64-pc-windows-msvc"; then
+        echo "  ⚠️  Windows Rust target not installed"
+        echo "      Run: rustup target add x86_64-pc-windows-msvc"
+        CROSS_COMPILE_READY=false
+    else
+        echo "  ✅ Windows Rust target (x86_64-pc-windows-msvc) installed"
+    fi
+
+    # Check for cargo-xwin
+    if ! command -v cargo-xwin &> /dev/null; then
+        echo "  ⚠️  cargo-xwin not installed"
+        echo "      Run: cargo install cargo-xwin"
+        CROSS_COMPILE_READY=false
+    else
+        echo "  ✅ cargo-xwin installed"
+    fi
+
+    if [ "$CROSS_COMPILE_READY" = true ]; then
+        echo ""
+        echo "✅ Windows cross-compilation is ready! You can use 'make build-windows'"
+    else
+        echo ""
+        echo "ℹ️  To enable Windows cross-compilation from $OS, run:"
+        echo "      rustup target add x86_64-pc-windows-msvc"
+        echo "      cargo install cargo-xwin"
     fi
 fi
 
 echo ""
 echo "════════════════════════════════════════════════════════════════════════════════"
-echo "  ✅ Setup Complete"
-echo "════════════════════════════════════════════════════════════════════════════════"
-echo ""
-echo "Next steps:"
-echo "  1. Run 'make dev' to start the development server"
-echo "  2. Run 'make build' to create a production installer"
-echo ""
+if [ "$SETUP_COMPLETE" = true ]; then
+    echo "  ✅ Setup Complete - Ready for Development"
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    echo ""
+    echo "Next steps:"
+    echo "  • Run 'make dev' to start the development server"
+    echo "  • Run 'make build' to create production installers"
+    echo ""
+else
+    echo "  ⚠️  Setup Incomplete - Action Required"
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    echo ""
+    echo "Node.js dependencies have been installed, but system dependencies are missing."
+    echo ""
+    echo "Before you can start development, please complete these steps:"
+    echo -e "$MISSING_DEPS_MESSAGE"
+    echo ""
+    echo "After installing the missing dependencies, you can:"
+    echo "  • Run 'make dev' to start the development server"
+    echo "  • Run 'make build' to create production installers"
+    echo ""
+    echo "Or run './setup.sh' again to verify your setup."
+    echo ""
+fi

@@ -1,4 +1,4 @@
-.PHONY: help dev build lint format test clean setup install dev-frontend check
+.PHONY: help dev build build-linux build-windows lint format test clean setup install dev-frontend check
 
 help:
 	@echo "════════════════════════════════════════════════════════════════════════════════"
@@ -14,7 +14,9 @@ help:
 	@echo "Building:"
 	@echo "  setup              # Install all dependencies (Rust + Node.js)"
 	@echo "  install            # Install Node.js dependencies (runs setup.sh)"
-	@echo "  build              # Build production app bundle (creates installer)"
+	@echo "  build              # Build for ALL platforms (Linux + Windows)"
+	@echo "  build-linux        # Build Linux installers only (.deb, .rpm, AppImage)"
+	@echo "  build-windows      # Build Windows installers only (.exe, .msi)"
 	@echo "  check              # Run Rust compiler checks without building"
 	@echo ""
 	@echo "Quality:"
@@ -27,7 +29,7 @@ help:
 	@echo ""
 	@echo "Quick workflows:"
 	@echo "  make dev           # Start development with hot-reload"
-	@echo "  make build         # Build production installer"
+	@echo "  make build         # Build all platform installers (Linux + Windows)"
 	@echo "  make lint format   # Check and format all code"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════════════════════"
@@ -73,13 +75,53 @@ setup:
 install: setup
 	@echo "✅ Dependencies installed"
 
-build:
-	@echo "🔨 Building production app bundle..."
+build: build-linux build-windows
+	@echo ""
+	@echo "════════════════════════════════════════════════════════════════════════════════"
+	@echo "✅ All platform builds complete!"
+	@echo "════════════════════════════════════════════════════════════════════════════════"
+	@echo ""
+	@echo "Linux installers: target/release/bundle/"
+	@echo "Windows binary:   target/x86_64-pc-windows-msvc/release/seria.exe"
+	@echo ""
+	@echo "See target/README.md for detailed build output locations."
+	@echo ""
+
+build-linux:
+	@echo "🔨 Building Linux installers (.deb, .rpm, AppImage)..."
+	@echo "  → Syncing version from .env..."
+	@./scripts/sync-version.sh
 	@echo "  → Building frontend..."
 	@cd frontend && npm run build
-	@echo "  → Building Tauri app..."
+	@echo "  → Building Tauri app for Linux..."
 	@cd backend && ../frontend/node_modules/.bin/tauri build
-	@echo "✅ Build complete - installer created in backend/target/release/bundle/"
+	@echo ""
+	@echo "✅ Linux build complete!"
+	@echo ""
+	@echo "Build outputs in target/release/bundle/:"
+	@echo "  • AppImage: target/release/bundle/appimage/"
+	@echo "  • Debian:   target/release/bundle/deb/"
+	@echo "  • RPM:      target/release/bundle/rpm/"
+	@echo ""
+
+build-windows:
+	@echo "🔨 Cross-compiling Windows build from Linux..."
+	@echo "  → Syncing version from .env..."
+	@./scripts/sync-version.sh
+	@echo "  → Building frontend..."
+	@cd frontend && npm run build
+	@echo "  → Building Rust backend for Windows (x86_64-pc-windows-msvc)..."
+	@cd backend && cargo xwin build --release --target x86_64-pc-windows-msvc
+	@echo ""
+	@echo "✅ Windows build complete!"
+	@echo ""
+	@echo "Binary location:"
+	@echo "  target/x86_64-pc-windows-msvc/release/seria.exe"
+	@echo ""
+	@echo "Note: Windows installers (.msi, .exe) can only be created on Windows."
+	@echo "      The seria.exe binary is fully functional and can be distributed directly."
+	@echo "      To create installers, run 'npm run tauri:build' on a Windows machine."
+	@echo ""
 
 check:
 	@echo "🔍 Running Rust compiler checks..."
@@ -120,7 +162,7 @@ clean:
 	@rm -rf frontend/node_modules
 	@rm -rf frontend/dist
 	@rm -rf node_modules
-	@rm -rf backend/target
+	@rm -rf target
 	@echo "✅ Cleanup complete"
 
 .DEFAULT_GOAL := help

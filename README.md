@@ -111,7 +111,7 @@ The killer feature: **edit in any view, changes sync everywhere.**
 → [Bidirectional Editing Explained](wiki/03_Print%20View/02.01_Bidirectional%20Editing.md)
 
 ### Multi-Platform & Local-First
-- **Windows, macOS, Linux** - Native desktop app for all platforms
+- **Windows & Linux** - Native desktop app (macOS support planned for future release)
 - **Local-first** - Your data stays on your machine, works offline
 - **Fast & lightweight** - Small installer (~10-15MB), native performance
 - **No vendor lock-in** - Plain CSV files you own forever
@@ -132,7 +132,8 @@ Formats available on [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/r
 
 - **Linux:** `.AppImage` (universal), `.deb` (Debian/Ubuntu), `.rpm` (Fedora/RHEL)
 - **Windows:** `.msi` or `_setup.exe`
-- **macOS:** `.dmg`
+
+**Note:** macOS builds are planned for a future release.
 
 → [Detailed installation instructions for all platforms](wiki/01_Introduction/00.03_Installation.md)
 
@@ -151,8 +152,8 @@ Formats available on [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/r
 
 **Reference:**
 - [Keyboard Shortcuts](wiki/04_Customization/03.02_Keyboard%20Shortcuts.md) - All shortcuts
-- [FAQ](wiki/05_FAQ%20and%20Support/04.00_FAQ.md) - Frequently asked questions
-- [Current Limitations](wiki/05_FAQ%20and%20Support/04.01_Current%20Limitations.md) - Known issues and missing features
+- [FAQ](wiki/06_FAQ%20and%20Support/04.00_FAQ.md) - Frequently asked questions
+- [Current Limitations](wiki/06_FAQ%20and%20Support/04.01_Current%20Limitations.md) - Known issues and missing features
 
 **Developer Docs:**
 - [Developer Guide](wiki-internal/Developer-Guide.md) - Development setup
