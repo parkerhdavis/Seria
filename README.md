@@ -3,6 +3,11 @@
 
 **Multimodal serialized data editor for game writers and narrative designers.** Seria lets you work directly with primitive data files (**CSV and TSV**, with **JSON coming soon**) while viewing and editing your content in writer-friendly formats like Screenplay and Corkboard views, as well as data-friendly views like Graph and Record editors. Changes made in any view sync instantly across all views - no import/export step, no duplication, just your raw data in whatever format feels best for what you're doing.
 
+- **GitLab (main repo):** [https://gitlab.com/parkerhdavis/Seria](https://gitlab.com/parkerhdavis/Seria)
+- **GitHub (mirror repo):** [https://github.com/parkerhdavis/Seria](https://github.com/parkerhdavis/Seria)
+- **Issues:** [GitLab Issues](https://gitlab.com/parkerhdavis/Seria/-/issues)
+- **Releases:** [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/releases)
+
 ---
 
 ![[wiki-internal/00-Metafiles/00.01 - Attachments/general_screenshot_2025-11-13.png]]
@@ -187,6 +192,6 @@ Beyond that, I only have one rule: **First, do no harm. Then, help where you can
 
 If you have some cash to spare and want to help out, that's very kind. I'm doing alright, so rather than sharing that kindness with me, I encourage you to share it with your charity of choice. Mine is the [GiveWell top charities fund](https://www.givewell.org/top-charities-fund) , which does excellent research to figure out which causes can save the most human lives for the money, and put their funds there.
 
-For example: their grant to the [Against Malaria Foundation](https://www.againstmalaria.com) was shown to deliver outcomes at a cost of just $1,700 per life saved.
+For example: their grant to the [Against Malaria Foundation](https://www.againstmalaria.com) delivered outcomes at a cost of just $1,700 per life saved.
 
 ![GiveWell Logo](https://blog.givewell.org/wp-content/themes/givewell2015/images/logo.png)
