@@ -179,11 +179,10 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         if (!parentRef.current) return 800;
         // Use the tracked containerWidth state to ensure re-renders on resize
         const currentWidth = containerWidth || parentRef.current.clientWidth;
-        const rowNumberWidth = 64; // Row number column (left side only)
-        const scrollbarWidth = autoFitColumns ? 14 : 0; // Account for vertical scrollbar when auto-fit is on
-        // Account for Print Drawer when positioned on the right
-        const drawerWidth = drawerPosition === "right" ? rightDrawerSize : 0;
-        const available = Math.max(currentWidth - rowNumberWidth - scrollbarWidth - drawerWidth, 200);
+        const rowNumberWidth = 64 * 2; // Row number columns (left and right side)
+        // In auto-fit mode, use overlay scrollbars so they don't take up layout space
+        // Note: Drawer width is handled by the container width, not here
+        const available = Math.max(currentWidth - rowNumberWidth, 200);
         return available;
     };
 
@@ -1198,7 +1197,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const isEditingCell = editingCell && editingSource === "cell";
     const summaryRowHeight = 60;
     const containerStyle: React.CSSProperties = {
-        width: "100%",
+        width: drawerPosition === "right" ? `calc(100% - ${rightDrawerSize}px)` : "100%",
         height: `calc(100% - ${summaryRowHeight}px)`,
         paddingBottom: "20px",
         userSelect: !isEditingCell && isSelecting ? "none" : "auto",
@@ -1265,25 +1264,25 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             <style>{`
                 .cell-grid-container {
                     scrollbar-width: thin;
-                    scrollbar-gutter: stable both-edges;
+                    ${autoFitColumns ? "" : "scrollbar-gutter: stable both-edges;"}
                     -webkit-overflow-scrolling: touch;
                 }
 
                 .cell-grid-container::-webkit-scrollbar {
                     -webkit-appearance: none;
-                    width: 14px;
-                    height: 14px;
+                    width: ${autoFitColumns ? "10px" : "14px"};
+                    height: ${autoFitColumns ? "10px" : "14px"};
                 }
 
                 .cell-grid-container::-webkit-scrollbar-track {
-                    background: oklch(var(--b2));
-                    border: 1px solid oklch(var(--bc) / 0.1);
+                    background: ${autoFitColumns ? "oklch(var(--b2) / 0.5)" : "oklch(var(--b2))"};
+                    border: ${autoFitColumns ? "none" : "1px solid oklch(var(--bc) / 0.1)"};
                 }
 
                 .cell-grid-container::-webkit-scrollbar-thumb {
-                    background: oklch(var(--bc) / 0.4);
-                    border-radius: 7px;
-                    border: 2px solid oklch(var(--b2));
+                    background: oklch(var(--bc) / ${autoFitColumns ? "0.5" : "0.4"});
+                    border-radius: ${autoFitColumns ? "5px" : "7px"};
+                    border: ${autoFitColumns ? "1px solid oklch(var(--b2))" : "2px solid oklch(var(--b2))"};
                     min-height: 30px;
                     min-width: 30px;
                 }
@@ -1308,7 +1307,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             {/* Header (sticky) */}
             <div className="sticky top-0 z-10 bg-base-300 border-b-2 border-base-300">
                 <div className="flex">
-                    {/* Row number column header */}
+                    {/* Row number column header (left) */}
                     <div
                         className={`p-2 text-center font-bold border-r bg-base-300 ${showColumnSeparators ? "border-base-300" : "border-base-content/10"}`}
                         style={{ width: "64px", minWidth: "64px", maxWidth: "64px" }}
@@ -1390,6 +1389,14 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                             </div>
                         );
                     })}
+
+                    {/* Row number column header (right) */}
+                    <div
+                        className={`p-2 text-center font-bold border-l bg-base-300 ${showColumnSeparators ? "border-base-300" : "border-base-content/10"}`}
+                        style={{ width: "64px", minWidth: "64px", maxWidth: "64px" }}
+                    >
+                        #
+                    </div>
                 </div>
             </div>
 
@@ -1625,6 +1632,37 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                     </div>
                                 );
                             })}
+
+                            {/* Row number (right) */}
+                            <div
+                                className={`p-2 text-center font-mono text-sm bg-base-200/50 border-b border-l cursor-move ${showColumnSeparators ? "border-base-300" : "border-base-content/10"}`}
+                                style={{
+                                    width: "64px",
+                                    minWidth: "64px",
+                                    maxWidth: "64px",
+                                    userSelect: "none",
+                                    WebkitUserSelect: "none",
+                                }}
+                                draggable={true}
+                                onMouseDown={(e) => {
+                                    // Only allow left-click to initiate drag
+                                    if (e.button !== 0) {
+                                        e.preventDefault();
+                                        return;
+                                    }
+                                    e.stopPropagation();
+                                    // Don't preventDefault - it blocks drag start
+                                }}
+                                onDragStart={(e) => handleRowDragStart(e, rowIndex)}
+                                onDragEnd={handleRowDragEnd}
+                            >
+                                <div className="flex items-center justify-center gap-1" style={{ pointerEvents: "none" }}>
+                                    {rowIndex + 1}
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-base-content/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                    </svg>
+                                </div>
+                            </div>
                         </div>
                     );
                 })}
@@ -1810,6 +1848,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                 {/* Row number column placeholder (left) - sticky */}
                 <div className="absolute left-0 h-full bg-base-300 border-r-2 border-base-300 z-10" style={{ width: "64px" }}></div>
 
+                {/* Row number column placeholder (right) - sticky */}
+                <div className="absolute right-0 h-full bg-base-300 border-l-2 border-base-300 z-10" style={{ width: "64px" }}></div>
+
                 <div
                     ref={summaryRowContentRef}
                     className="h-full summary-row-scroll"
@@ -1819,6 +1860,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                         scrollbarWidth: "none",
                         msOverflowStyle: "none",
                         paddingLeft: "64px",
+                        paddingRight: "64px",
                     }}
                 >
                     <div className="flex items-center h-full" style={{ width: `${pixelWidths.reduce((sum, w) => sum + w, 0)}px` }}>
