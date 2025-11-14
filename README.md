@@ -177,7 +177,7 @@ Tauri 2.0 + React 18 + TypeScript + Vite + TailwindCSS + daisyUI
 
 ## Inspiration
 
-Seria was inspired by tools like [Obsidian](https://obsidian.md/) that demonstrate what's possible with local-first experiences built on top of simple, portable file formats. Just as Obsidian provides a powerful editing environment while keeping notes as plain markdown files, Seria provides rich writing views while keeping your data as plain CSV files.
+Seria was inspired by tools like [Obsidian](https://obsidian.md/) that demonstrate what's possible with local-first experiences built on top of simple, portable file formats. Just as Obsidian provides a powerful editing environment while keeping notes as plain markdown files, Seria provides rich writing views while keeping your data as plain CSV/TSV/JSON files.
 
 ---
 
