@@ -201,11 +201,11 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
     };
 
     return (
-        <header className="bg-base-200 border-b-2 border-base-300 shadow-sm flex">
+        <header className="bg-black/70 border-b-6 border-black/80 shadow-sm flex">
             {/* Sidebar toggle - spans full toolbar height */}
             {!isSidebarOpen && (
                 <button
-                    className="btn btn-ghost flex-shrink-0 rounded-none border-r border-base-300 hover:bg-base-300"
+                    className="btn btn-ghost h-full shadow-xl shadow-black flex-shrink-0 rounded-none border-r border-base-300 hover:bg-base-300"
                     onClick={onToggleSidebar}
                     title="Toggle Sidebar (Ctrl+.)"
                     style={{ minWidth: "3rem" }}
@@ -219,140 +219,80 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
             {/* Toolbar rows container */}
             <div className="flex-1 flex flex-col">
                 {/* Row 1: File Toolbar */}
-                <div className="flex items-center px-2 py-2 gap-2 bg-base-200">
-                    {/* Toolbar label */}
-                    <span className="text-sm font-semibold text-base-content/70 w-20">File:</span>
+                <div className="flex items-center px-2 py-2 gap-2">
 
                     {/* File info section */}
                     <div className="flex items-center gap-2">
-                        {/* File name */}
-                        <h2 className="text-lg font-semibold">
-                            {fileInfo?.name || "No file open"}
-                        </h2>
-                        {/* Saved/Unsaved status badge */}
-                        {fileInfo && (
-                            isDirty ? (
-                                <span className="badge badge-warning badge-sm">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                Unsaved
-                                </span>
-                            ) : (
-                                <span className="badge badge-success badge-sm">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                Saved
-                                </span>
-                            )
-                        )}
-                        {/* Outside Tree badge */}
-                        {isOutsideTree && (
-                            <span className="badge badge-info badge-sm" title="File is outside the current directory tree">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            Outside Tree
-                            </span>
-                        )}
-                        {isLoading && (
-                            <span className="loading loading-spinner loading-sm"></span>
-                        )}
-                    </div>
-
-                    {/* Divider */}
-                    <div className="divider divider-horizontal mx-0"></div>
-
-                    {/* File operations - Open and Save */}
-                    <button
-                        className="btn btn-sm btn-ghost"
-                        onClick={handleOpen}
-                        title="Open Cell file (Ctrl+O)"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                        </svg>
-                    Open
-                    </button>
-
-                    <button
-                        className={`btn btn-sm transition-all ${
-                            showSaveSuccess
-                                ? "btn-success scale-105"
-                                : isDirty
-                                    ? "btn-primary"
-                                    : "btn-ghost"
-                        }`}
-                        onClick={handleSave}
-                        title="Save current file (Ctrl+S)"
-                        disabled={!fileInfo || isLoading}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                        </svg>
-                    Save
-                    </button>
-
-                    <button
-                        className="btn btn-sm btn-ghost"
-                        onClick={() => setShowReloadConfirm(true)}
-                        title="Reload file from disk"
-                        disabled={!fileInfo || isLoading}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                    Reload
-                    </button>
-
-                    <button
-                        className="btn btn-sm btn-ghost"
-                        onClick={handleNew}
-                        title="Create new file (Ctrl+N)"
-                        disabled={isLoading}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                    New
-                    </button>
-
-                    <button
-                        className="btn btn-sm btn-ghost"
-                        onClick={handleImport}
-                        title="Import screenplay file to CSV"
-                        disabled={isLoading}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                    Import
-                    </button>
-
-                    <div className="dropdown dropdown-end">
-                        <label tabIndex={0} className="btn btn-sm btn-ghost">
+                        
+                        <button
+                            className="btn btn-sm btn-ghost"
+                            onClick={handleNew}
+                            title="Create new file (Ctrl+N)"
+                            disabled={isLoading}
+                        >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                        </label>
-                        <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
-                            <li><a onClick={handleSaveAs}>Save As...</a></li>
-                            <li><a onClick={handleClose}>Close File</a></li>
-                        </ul>
-                    </div>
+                            New
+                        </button>
 
-                    {/* Spacer */}
-                    <div className="flex-1"></div>
-                </div>
+                        <button
+                            className="btn btn-sm btn-ghost"
+                            onClick={handleImport}
+                            title="Import screenplay file to CSV"
+                            disabled={isLoading}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            Import
+                        </button>
 
-                {/* Row 2: Content Toolbar (only shown when data is loaded) */}
-                {hasData && (
-                    <div className="flex items-center px-2 py-2 gap-2 bg-base-100 border-t border-base-300">
-                        {/* Toolbar label */}
-                        <span className="text-sm font-semibold text-base-content/70 w-20">Content:</span>
+                        {/* File operations - Open and Save */}
+                        <button
+                            className="btn btn-sm btn-ghost"
+                            onClick={handleOpen}
+                            title="Open Cell file (Ctrl+O)"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                            </svg>
+                            Open
+                        </button>
 
-                        {/* Add Row button */}
+                        <button
+                            className={`btn btn-sm transition-all ${
+                                showSaveSuccess
+                                    ? "btn-success scale-105"
+                                    : isDirty
+                                        ? "btn-primary"
+                                        : "btn-ghost"
+                            }`}
+                            onClick={handleSave}
+                            title="Save current file (Ctrl+S)"
+                            disabled={!fileInfo || isLoading}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                            </svg>
+                            Save
+                        </button>
+
+                        <button
+                            className="btn btn-sm btn-ghost"
+                            onClick={() => setShowReloadConfirm(true)}
+                            title="Reload file from disk"
+                            disabled={!fileInfo || isLoading}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Reload
+                        </button>
+
+                        {/* Divider */}
+                        <div className="divider divider-horizontal mx-0"></div>
+
                         <button
                             className="btn btn-sm btn-ghost"
                             onClick={() => addRow()}
@@ -372,7 +312,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                                     d="M12 4v16m8-8H4"
                                 />
                             </svg>
-                        Add Row
+                            Add Row
                         </button>
 
                         {/* Wrap Text toggle */}
@@ -395,7 +335,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                                     d="M4 6h16M4 12h16m-7 6h7"
                                 />
                             </svg>
-                        Wrap Text
+                            Wrap Text
                         </button>
 
                         {/* Column Lines toggle */}
@@ -418,7 +358,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                                     d="M9 4v16m6-16v16M4 9h16M4 15h16"
                                 />
                             </svg>
-                        Column Lines
+                            Column Lines
                         </button>
 
                         {/* Auto-Fit toggle */}
@@ -441,18 +381,33 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                                     d="M8 7H20m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4-4m-4 4l4 4"
                                 />
                             </svg>
-                        Auto-Fit
+                            Auto-Fit
                         </button>
 
                         {/* Row Coloring dropdown */}
                         <RowColoringDropdown />
                     </div>
-                )}
+                        {isLoading && (
+                            <span className="loading loading-spinner loading-sm"></span>
+                        )}
+                    </div>
+
+                    
+
+                {/* Row 2: Content Toolbar (only shown when data is loaded) */}
+                {/*{hasData && (*/}
+                {/*    <div className="flex items-center px-2 py-2 gap-2 bg-base-100 border-t border-base-300">*/}
+                {/*        /!* Toolbar label *!/*/}
+                {/*        /!*<span className="text-sm font-semibold text-base-content/70 w-20">Content:</span>*!/*/}
+                
+                {/*        /!* Add Row button *!/*/}
+                {/*    </div>*/}
+                {/*)}*/}
             </div>
 
             {/* Print preview toggle - spans full toolbar height */}
             <button
-                className="btn btn-ghost flex-shrink-0 rounded-none border-l border-base-300 hover:bg-base-300"
+                className="btn btn-ghost h-full shadow-xl shadow-black flex-shrink-0 rounded-none border-l border-base-300 hover:bg-base-300"
                 onClick={onTogglePrintPreview}
                 title="Toggle Print Preview (Ctrl+\)"
                 style={{ minWidth: "3rem" }}

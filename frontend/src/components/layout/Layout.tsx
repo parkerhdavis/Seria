@@ -1,5 +1,6 @@
 import { ReactNode, useState, useEffect, useRef } from "react";
 import Header from "./Header";
+import { TitleBar } from "./TitleBar";
 import FileTree from "../FileTree";
 import ThemeToggle from "./ThemeToggle";
 import { useDrag } from "@/contexts/DragContext";
@@ -16,7 +17,7 @@ interface LayoutProps {
 /**
  * Main layout component providing application structure
  *
- * Provides a consistent layout with header, file tree sidebar, and main content area.
+ * Provides a consistent layout with custom title bar, header, file tree sidebar, and main content area.
  * Supports responsive design with drawer navigation on smaller screens.
  * Sidebar is resizable via draggable edge.
  */
@@ -50,9 +51,14 @@ function Layout({ children, isSidebarOpen, onTogglePrintPreview, onToggleSidebar
     }, [isResizing, endDrag]);
 
     return (
-        <div className="flex h-screen">
-            {/* Sidebar with file tree */}
-            {isSidebarOpen && (
+        <div className="flex flex-col h-screen">
+            {/* Custom title bar */}
+            <TitleBar onFilePickerOpenChange={onFilePickerOpenChange} />
+
+            {/* Main application area */}
+            <div className="flex flex-1 min-h-0">
+                {/* Sidebar with file tree */}
+                {isSidebarOpen && (
                 <aside
                     ref={sidebarRef}
                     className="bg-base-200 flex flex-col border-r border-base-300 relative"
@@ -112,6 +118,7 @@ function Layout({ children, isSidebarOpen, onTogglePrintPreview, onToggleSidebar
                     {children}
                 </main>
             </div>
+        </div>
         </div>
     );
 }
