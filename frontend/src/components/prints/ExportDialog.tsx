@@ -81,7 +81,7 @@ function ExportDialog({
         pageRange: "all",
         textColor: "#000000",
         backgroundColor: "#ffffff",
-        includePageNumbers: true,
+        includePageNumbers: false,
         includeHeaders: false,
         includeFooters: false,
     });

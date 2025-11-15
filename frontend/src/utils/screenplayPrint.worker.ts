@@ -112,12 +112,8 @@ function calculateElementHeight(element: ScreenplayElement, recipe: PrintRecipe)
     const spacingAfterInches = spaceAfterElement * fontSizeInches;
     const contentHeight = numLines * lineHeightInches;
 
-    // Account for CSS padding applied to elements:
-    // - py-1 = 0.25rem top + 0.25rem bottom = 8px total at 16px base = 0.083 inches (padding)
-    // Note: mb-3 class was removed - recipe's spaceBeforeElement/spaceAfterElement have full control over spacing
-    const elementPadding = 0.083;
-
-    return spacingBeforeInches + contentHeight + spacingAfterInches + elementPadding;
+    // Note: py-1 class and mb-3 class were removed - recipe settings have full control over spacing
+    return spacingBeforeInches + contentHeight + spacingAfterInches;
 }
 
 /**

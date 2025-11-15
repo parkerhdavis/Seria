@@ -129,14 +129,14 @@ function ScreenplayElementView({
     const elementConfig = getElementStyle(recipe, element.type);
 
     // Build style object from recipe configuration with sensible defaults
-    // margin is interpreted based on textAlign: left edge for "left", right edge for "right"
+    // xMargin is applied on top of page margin (measured from page margin edge)
     const textAlign = elementConfig.textAlign || "left";
-    const margin = elementConfig.xMargin ?? 0;
+    const xMargin = elementConfig.xMargin ?? 0;
 
     const style = {
         fontFamily: elementConfig.fontFamily || "Courier, monospace",
-        marginLeft: textAlign === "left" ? `${margin}in` : undefined,
-        marginRight: textAlign === "right" ? `${margin}in` : undefined,
+        marginLeft: textAlign === "left" ? `${xMargin}in` : undefined,
+        marginRight: textAlign === "right" ? `${xMargin}in` : undefined,
         textAlign: textAlign,
         textTransform: elementConfig.textTransform || "none",
         fontWeight: elementConfig.fontWeight || 400,
@@ -241,11 +241,11 @@ function ScreenplayElementView({
             {showSceneNumbers && element.type === "scene_heading" && element.sceneNumber && (
                 <>
                     {/* Left scene number */}
-                    <div className="absolute top-0 text-sm font-mono text-base-content font-bold" style={{ left: "-0.7in" }}>
+                    <div className="absolute bottom-0 text-sm font-mono text-base-content font-bold" style={{ left: "0.5in" }}>
                         {element.sceneNumber}.
                     </div>
                     {/* Right scene number */}
-                    <div className="absolute top-0 text-sm font-mono text-base-content font-bold" style={{ right: "-0.7in" }}>
+                    <div className="absolute bottom-0 text-sm font-mono text-base-content font-bold" style={{ right: "0.5in" }}>
                         {element.sceneNumber}.
                     </div>
                 </>
@@ -255,7 +255,7 @@ function ScreenplayElementView({
                 isMultiLine ? (
                     <textarea
                         ref={textareaRef}
-                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 py-1 resize-none overflow-hidden relative z-10"
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 resize-none overflow-hidden relative z-10"
                         style={{
                             ...style as React.CSSProperties,
                             minHeight: "1.5rem",
@@ -281,7 +281,7 @@ function ScreenplayElementView({
                     <input
                         ref={inputRef}
                         type="text"
-                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 py-1 relative z-10"
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 relative z-10"
                         style={style as React.CSSProperties}
                         value={editingValue}
                         onChange={(e) => onEditingValueChange(e.target.value)}
@@ -291,7 +291,7 @@ function ScreenplayElementView({
                 )
             ) : (
                 <p
-                    className={`font-mono text-base leading-tight rounded px-2 py-1 transition-colors relative z-10 ${isBeingEdited ? "ring-2 ring-primary ring-inset bg-primary/10" : ""} ${isSelected ? "bg-primary/20" : ""} ${isCut ? "ring-2 ring-dashed ring-primary ring-inset opacity-60" : ""}`}
+                    className={`font-mono text-base leading-tight rounded px-2 transition-colors relative z-10 ${isBeingEdited ? "ring-2 ring-primary ring-inset bg-primary/10" : ""} ${isSelected ? "bg-primary/20" : ""} ${isCut ? "ring-2 ring-dashed ring-primary ring-inset opacity-60" : ""}`}
                     style={style as React.CSSProperties}
                 >
                     {formatContent(element.content)}
@@ -381,11 +381,9 @@ function ScreenplayPrint({
     const sceneNumbering = (recipe.documentSettings.sceneNumbering ?? false) as boolean;
 
     // Calculate available space
-    // Account for p-2 padding (0.5rem = 8px per side = 16px total horizontal padding)
-    const paddingX = 16;
-    const paddingY = 16;
-    const availableWidth = (containerWidth ?? containerRef?.clientWidth ?? 800) - paddingX;
-    const availableHeight = (containerHeight ?? containerRef?.clientHeight ?? 600) - paddingY;
+    // No container padding - using full width/height
+    const availableWidth = containerWidth ?? containerRef?.clientWidth ?? 800;
+    const availableHeight = containerHeight ?? containerRef?.clientHeight ?? 600;
 
     // Calculate zoom scale to fit page width in available space
     // Page width is in inches, convert to pixels at 96dpi
@@ -979,7 +977,7 @@ function ScreenplayPrint({
                     (printContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
                 }
             }}
-            className="screenplay-print-container w-full h-full overflow-auto p-2 outline-none"
+            className="screenplay-print-container w-full h-full overflow-auto outline-none"
             tabIndex={0}
             onClick={(e) => {
                 // Clear Cell selection when clicking anywhere in Print view

@@ -447,7 +447,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
             </div>
 
             {/* Content */}
-            <div ref={printContainerRef} className="print-drawer-content flex-1 overflow-auto">
+            <div ref={printContainerRef} className="print-drawer-content p-4 flex-1 overflow-auto">
                 {!fileInfo ? (
                     <div className="flex flex-col items-center justify-center h-full text-base-content/50">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

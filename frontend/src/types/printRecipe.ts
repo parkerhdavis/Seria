@@ -10,7 +10,7 @@
 export type TextTransform = "none" | "uppercase" | "lowercase" | "capitalize";
 
 /** Font family options */
-export type FontFamily = "Courier" | "Times New Roman" | "Arial" | "Helvetica" | "Georgia" | "Verdana";
+export type FontFamily = "Courier" | "Courier Prime" | "Times New Roman" | "Arial" | "Helvetica" | "Georgia" | "Verdana";
 
 
 /**
@@ -33,8 +33,8 @@ export interface RecipeIngredient {
         italic?: boolean;
         underline?: boolean;
         textTransform?: TextTransform;  // Optional text transformation
-        textAlign: string;              // "left" or "right" - determines which edge margin is measured from
-        xMargin: number;                 // Distance from edge in inches (left edge if textAlign="left", right edge if textAlign="right")
+        textAlign: string;              // "left" or "right" - determines which margin edge xMargin is measured from
+        xMargin: number;                // Distance from page margin edge in inches (left margin edge if textAlign="left", right margin edge if textAlign="right")
         lineHeight?: number;            // Line height multiplier for multi-line text (e.g., 1.0 = single-spaced, 1.25 = tight, 1.5 = 1.5x, 2.0 = double-spaced; default 1.25)
         spaceBeforeElement: number;        // Space before element (in em units)
         spaceAfterElement: number;         // Space after element (in em units)

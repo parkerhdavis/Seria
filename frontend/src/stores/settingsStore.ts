@@ -21,6 +21,7 @@ interface SettingsStore {
     // State
     showIncompatibleFiles: boolean;
     theme: "light" | "dark" | "auto";
+    appFont: string;
     showColumnSeparators: boolean;
     wrapText: boolean;
     autoFitColumns: boolean;
@@ -35,6 +36,7 @@ interface SettingsStore {
     // Actions
     setShowIncompatibleFiles: (show: boolean) => void;
     setTheme: (theme: "light" | "dark" | "auto") => void;
+    setAppFont: (font: string) => void;
     setShowColumnSeparators: (show: boolean) => void;
     setWrapText: (wrap: boolean) => void;
     setAutoFitColumns: (autoFit: boolean) => void;
@@ -51,6 +53,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     // Initial state
     showIncompatibleFiles: false,
     theme: "dark",
+    appFont: "system",
     showColumnSeparators: true,
     wrapText: false,
     autoFitColumns: true,
@@ -70,6 +73,11 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     // Set theme
     setTheme: (theme: "light" | "dark" | "auto") => {
         set({ theme });
+    },
+
+    // Set app font
+    setAppFont: (font: string) => {
+        set({ appFont: font });
     },
 
     // Toggle column separators

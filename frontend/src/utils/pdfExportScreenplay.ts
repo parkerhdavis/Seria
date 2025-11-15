@@ -41,6 +41,57 @@ const ELEMENT_ORDER_PRIORITY: Record<string, number> = {
 };
 
 /**
+ * Loads and registers Courier Prime font with jsPDF
+ *
+ * @param pdf - jsPDF instance to register fonts with
+ */
+async function registerCourierPrimeFont(pdf: jsPDF): Promise<void> {
+    try {
+        // Fetch font files from public directory
+        const fontFiles = [
+            { name: "CourierPrime-Regular.ttf", style: "normal", weight: "normal" },
+            { name: "CourierPrime-Bold.ttf", style: "normal", weight: "bold" },
+            { name: "CourierPrime-Italic.ttf", style: "italic", weight: "normal" },
+            { name: "CourierPrime-BoldItalic.ttf", style: "italic", weight: "bold" },
+        ];
+
+        for (const font of fontFiles) {
+            // Fetch font file
+            const fontPath = `/fonts/courier-prime/Courier Prime${font.name.includes("Bold") ? " Bold" : ""}${font.name.includes("Italic") ? " Italic" : ""}.ttf`;
+            const response = await fetch(fontPath);
+            const fontData = await response.arrayBuffer();
+
+            // Convert to base64
+            const base64Font = arrayBufferToBase64(fontData);
+
+            // Add to jsPDF virtual file system
+            pdf.addFileToVFS(font.name, base64Font);
+
+            // Register font with jsPDF
+            pdf.addFont(font.name, "CourierPrime", font.style, font.weight);
+        }
+
+        console.log("[Screenplay PDF Export] Courier Prime fonts registered successfully");
+    } catch (error) {
+        console.error("[Screenplay PDF Export] Failed to load Courier Prime fonts:", error);
+        console.warn("[Screenplay PDF Export] Falling back to default Courier font");
+    }
+}
+
+/**
+ * Converts ArrayBuffer to base64 string
+ */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+/**
  * Exports screenplay CSV data to a text-based PDF
  *
  * @param data - CSV data rows
@@ -95,6 +146,9 @@ export async function exportScreenplayToPDF(
             format: [pageWidth, pageHeight],
         });
 
+        // Register Courier Prime font
+        await registerCourierPrimeFont(pdf);
+
         // Set background color
         pdf.setFillColor(settings.backgroundColor);
         pdf.rect(0, 0, pageWidth, pageHeight, "F");
@@ -102,8 +156,8 @@ export async function exportScreenplayToPDF(
         // Set text color
         pdf.setTextColor(settings.textColor);
 
-        // Set font (Courier is the screenplay standard)
-        pdf.setFont("courier");
+        // Set font (Courier Prime is the screenplay standard)
+        pdf.setFont("CourierPrime");
         pdf.setFontSize(12);
 
         settings.onProgress?.({
@@ -138,7 +192,7 @@ export async function exportScreenplayToPDF(
             }
 
             // Add page break if needed
-            const elementHeight = estimateElementHeight(pdf, element, elementConfig, marginLeft, marginRight);
+            const elementHeight = estimateElementHeight(pdf, element, elementConfig, recipe, marginLeft, pageWidth - marginRight);
             if (currentY + elementHeight > pageHeight - marginBottom) {
                 pdf.addPage();
                 // Set background color for new page
@@ -147,13 +201,6 @@ export async function exportScreenplayToPDF(
                 pdf.setTextColor(settings.textColor);
                 currentY = marginTop;
                 previousElementType = null; // Reset for new page
-            }
-
-            // Add extra spacing between consecutive Action elements
-            if (element.type === "action" && previousElementType === "action") {
-                // Get line spacing from recipe
-                const lineHeight = (elementConfig.style.fontSize ?? 12) / 72; // Convert pt to inches
-                currentY += lineHeight;
             }
 
             // Render the element
@@ -335,18 +382,19 @@ function estimateElementHeight(
     pdf: jsPDF,
     element: ScreenplayElement,
     elementConfig: any,
+    recipe: PrintRecipe,
     marginLeft: number,
     rightEdge: number
 ): number {
     const style = elementConfig.style;
     const textAlign = style.textAlign || "left";
-    const margin = style.margin ?? 0;
+    const xMargin = style.xMargin ?? 0;
 
     // Get max width from recipe
     const maxWidthStr = (style as any).maxWidth;
     // Available width is from the element's start position to the right edge
     const availableWidth = textAlign === "left"
-        ? rightEdge - (marginLeft + margin)  // Left-aligned: from indent to right edge
+        ? rightEdge - (marginLeft + xMargin)  // Left-aligned: from indent to right edge
         : rightEdge - marginLeft;             // Right-aligned: from left edge to right edge
     const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
 
@@ -398,17 +446,17 @@ function renderElement(
     const lineHeightMultiplier = (style as any).lineHeight ?? 1.25; // Default to 1.25 if not specified
     const lineHeight = fontSizeInches * lineHeightMultiplier;
 
-    // Get indentation from recipe (relative to page margins)
-    // margin is interpreted based on textAlign: left edge for "left", right edge for "right"
+    // Get indentation from recipe
+    // xMargin is applied on top of page margin (measured from page margin edge)
     const textAlign = style.textAlign || "left";
-    const margin = style.xMargin ?? 0;
-    const indent = textAlign === "left" ? marginLeft + margin : rightEdge - margin;
+    const xMargin = style.xMargin ?? 0;
+    const indent = textAlign === "left" ? marginLeft + xMargin : rightEdge - xMargin;
 
     // Get max width from recipe
     const maxWidthStr = (style as any).maxWidth;
     // Available width is from the element's start position to the right edge
     const availableWidth = textAlign === "left"
-        ? rightEdge - (marginLeft + margin)  // Left-aligned: from indent to right edge
+        ? rightEdge - (marginLeft + xMargin)  // Left-aligned: from indent to right edge
         : rightEdge - marginLeft;             // Right-aligned: from left edge to right edge
     const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
 
@@ -441,9 +489,9 @@ function renderElement(
     // Set font weight (normal or bold)
     const fontWeight = style.fontWeight ?? 400;
     if (fontWeight >= 700) {
-        pdf.setFont("courier", "bold");
+        pdf.setFont("CourierPrime", "bold");
     } else {
-        pdf.setFont("courier", "normal");
+        pdf.setFont("CourierPrime", "normal");
     }
 
     // Set font size
@@ -485,7 +533,7 @@ function addPageNumbers(pdf: jsPDF, recipe: PrintRecipe, textColor: string): voi
     for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(12);
-        pdf.setFont("courier", "normal");
+        pdf.setFont("CourierPrime", "normal");
         pdf.setTextColor(textColor);
 
         // Calculate page number to display
@@ -513,7 +561,7 @@ function addWatermark(
     for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(96);
-        pdf.setFont("courier", "bold");
+        pdf.setFont("CourierPrime", "bold");
         pdf.setTextColor(watermark.color);
 
         // Save graphics state before changing opacity
@@ -557,7 +605,7 @@ function addHeaders(pdf: jsPDF, headerText: string, textColor: string, pageWidth
     for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(10);
-        pdf.setFont("courier", "normal");
+        pdf.setFont("CourierPrime", "normal");
         pdf.setTextColor(textColor);
 
         // Save graphics state before changing opacity
@@ -588,7 +636,7 @@ function addFooters(
     for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(10);
-        pdf.setFont("courier", "normal");
+        pdf.setFont("CourierPrime", "normal");
         pdf.setTextColor(textColor);
 
         // Save graphics state before changing opacity

@@ -58,7 +58,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
         // Debug logging
         console.log("TitleBar mounted - Tauri window API available:", !!appWindow);
         console.log("Window label:", appWindow.label);
-        console.log("Running in Tauri:", window.__TAURI__ !== undefined);
+        console.log("Running in Tauri:", "__TAURI__" in window);
         console.log("User agent:", navigator.userAgent);
 
         return () => {
