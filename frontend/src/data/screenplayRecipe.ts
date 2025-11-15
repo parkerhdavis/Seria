@@ -134,7 +134,7 @@ export const SCREENPLAY_RECIPE: ScreenplayRecipe = {
                 lineHeight: 1.0,
                 spaceBeforeElement: 1,
                 spaceAfterElement: 1,
-                maxWidth: "6.25in",
+                maxWidth: "6in",
             },
         },
         character: {

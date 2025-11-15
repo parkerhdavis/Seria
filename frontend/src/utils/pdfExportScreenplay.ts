@@ -25,6 +25,8 @@ interface ScreenplayElement {
     type: string; // scene_heading, action, character, dialogue, parenthetical, transition
     text: string;
     sceneNumber?: number; // For Scene elements (auto-generated counter)
+    rowIndex?: number; // Original row from CSV (for tracking split elements)
+    splitIndex?: number; // For dialogue split across pages: 0 = first part, 1 = continued part
 }
 
 /**
@@ -89,6 +91,126 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
         binary += String.fromCharCode(bytes[i]);
     }
     return btoa(binary);
+}
+
+/**
+ * Split dialogue text to fit within available height
+ * Returns array of [firstPart, remainingPart] or null if can't split
+ */
+function splitDialogueText(
+    pdf: jsPDF,
+    dialogueText: string,
+    availableHeight: number,
+    dialogueConfig: any,
+    recipe: PrintRecipe,
+    marginLeft: number,
+    rightEdge: number,
+    reserveHeightForMore: number
+): [string, string] | null {
+    const style = dialogueConfig.style;
+    const fontSize = style.fontSize ?? 12;
+    const fontSizeInches = fontSize / 72;
+    const lineHeightMultiplier = (style as any).lineHeight ?? 1.25;
+    const lineHeight = fontSizeInches * lineHeightMultiplier;
+
+    // Calculate how many lines can fit (including reserve for (MORE))
+    const availableForDialogue = availableHeight - reserveHeightForMore;
+    const maxLines = Math.floor(availableForDialogue / lineHeight);
+
+    if (maxLines < 1) {
+        return null;
+    }
+
+    // Get max width for dialogue
+    const textAlign = style.textAlign || "left";
+    const xMargin = style.xMargin ?? 0;
+    const maxWidthStr = (style as any).maxWidth;
+    const availableWidth = textAlign === "left"
+        ? rightEdge - (marginLeft + xMargin)
+        : rightEdge - marginLeft;
+    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
+
+    // Estimate characters per line based on maxWidth
+    const charsPerLine = Math.floor(maxWidth * 10); // Rough estimate: 10 chars per inch
+
+    // Split dialogue at the natural break point (fill entire final line on first page)
+    const targetLines = maxLines;
+    const targetChars = targetLines * charsPerLine;
+
+    // Find a good break point (prefer breaking at spaces)
+    let breakPoint = Math.min(targetChars, dialogueText.length);
+
+    // Try to break at a space or punctuation
+    if (breakPoint < dialogueText.length) {
+        // Look backwards for a good break point
+        for (let i = breakPoint; i > Math.max(0, breakPoint - charsPerLine); i--) {
+            const char = dialogueText[i];
+            if (char === ' ' || char === '.' || char === '!' || char === '?') {
+                breakPoint = i + 1;
+                break;
+            }
+        }
+    }
+
+    const firstPart = dialogueText.slice(0, breakPoint).trim();
+    const remainingPart = dialogueText.slice(breakPoint).trim();
+
+    return firstPart && remainingPart ? [firstPart, remainingPart] : null;
+}
+
+/**
+ * Group elements into blocks that should stay together across page breaks
+ */
+interface ElementBlock {
+    elements: ScreenplayElement[];
+    totalHeight: number;
+}
+
+function groupIntoBlocks(
+    elements: ScreenplayElement[],
+    pdf: jsPDF,
+    recipe: PrintRecipe,
+    marginLeft: number,
+    rightEdge: number
+): ElementBlock[] {
+    const blocks: ElementBlock[] = [];
+    let i = 0;
+
+    while (i < elements.length) {
+        const element = elements[i];
+
+        if (element.type === "character") {
+            const blockElements: ScreenplayElement[] = [element];
+            const elementConfig = recipe.ingredients[element.type];
+            let blockHeight = estimateElementHeight(pdf, element, elementConfig, recipe, marginLeft, rightEdge);
+            let j = i + 1;
+
+            // Group character with its parentheticals and dialogue
+            while (j < elements.length && elements[j].rowIndex === element.rowIndex) {
+                const nextElement = elements[j];
+                if (nextElement.type === "parenthetical" || nextElement.type === "dialogue") {
+                    blockElements.push(nextElement);
+                    const nextConfig = recipe.ingredients[nextElement.type];
+                    blockHeight += estimateElementHeight(pdf, nextElement, nextConfig, recipe, marginLeft, rightEdge);
+                    j++;
+                } else {
+                    break;
+                }
+            }
+
+            blocks.push({ elements: blockElements, totalHeight: blockHeight });
+            i = j;
+        } else {
+            const elementConfig = recipe.ingredients[element.type];
+            blocks.push({
+                elements: [element],
+                totalHeight: estimateElementHeight(pdf, element, elementConfig, recipe, marginLeft, rightEdge),
+            });
+            i++;
+        }
+    }
+
+    return blocks;
 }
 
 /**
@@ -167,54 +289,149 @@ export async function exportScreenplayToPDF(
             percentage: 20,
         });
 
-        // Render all elements
+        // Group elements into blocks for page break logic
+        const rightEdge = pageWidth - marginRight;
+        const usableHeight = pageHeight - marginTop - marginBottom;
+        const blocks = groupIntoBlocks(elements, pdf, recipe, marginLeft, rightEdge);
+
+        // Render all blocks with sophisticated page break rules
         let currentY = marginTop;
-        let previousElementType: string | null = null;
+        let elementsRendered = 0;
 
-        for (let i = 0; i < elements.length; i++) {
-            const element = elements[i];
+        for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+            const block = blocks[blockIndex];
 
-            // Report progress every 50 elements
-            if (i % 50 === 0) {
+            // Report progress periodically
+            if (elementsRendered % 50 === 0) {
                 settings.onProgress?.({
                     stage: "Rendering screenplay text",
-                    current: i,
+                    current: elementsRendered,
                     total: elements.length,
-                    percentage: 20 + Math.floor((i / elements.length) * 60),
+                    percentage: 20 + Math.floor((elementsRendered / elements.length) * 60),
                 });
             }
 
-            // Get element config from recipe for accurate height estimation
-            const elementConfig = recipe.ingredients[element.type];
-            if (!elementConfig) {
-                console.warn(`No ingredient config found for type: ${element.type}`);
-                continue;
+            // Check if this is a character-dialogue block
+            const isDialogueBlock = block.elements.length > 1 && block.elements[0].type === "character";
+
+            // For dialogue blocks, recalculate height excluding spaceAfterElement from dialogue
+            let effectiveBlockHeight = block.totalHeight;
+            if (isDialogueBlock) {
+                effectiveBlockHeight = 0;
+                block.elements.forEach(el => {
+                    const elementConfig = recipe.ingredients[el.type];
+                    const excludeSpaceAfter = el.type === "dialogue";
+                    effectiveBlockHeight += estimateElementHeight(pdf, el, elementConfig, recipe, marginLeft, rightEdge, excludeSpaceAfter);
+                });
             }
 
-            // Add page break if needed
-            const elementHeight = estimateElementHeight(pdf, element, elementConfig, recipe, marginLeft, pageWidth - marginRight);
-            if (currentY + elementHeight > pageHeight - marginBottom) {
+            const blockWouldExceedPage = currentY + effectiveBlockHeight > pageHeight - marginBottom;
+            const hasContentOnPage = currentY > marginTop;
+
+            // PAGE BREAK RULE #1: Dialogue elements that would split across pages get split with (MORE) and (CONT'D)
+            if (blockWouldExceedPage && hasContentOnPage && isDialogueBlock) {
+                const characterEl = block.elements[0];
+                const dialogueEls = block.elements.filter(el => el.type === "dialogue");
+                const parentheticalEls = block.elements.filter(el => el.type === "parenthetical");
+
+                if (dialogueEls.length > 0) {
+                    // Calculate available space on current page
+                    const availableHeight = (pageHeight - marginBottom) - currentY;
+
+                    // Calculate heights for (MORE)
+                    const moreConfig = recipe.ingredients["parenthetical"];
+                    const moreElement: ScreenplayElement = { type: "parenthetical", text: "(MORE)", rowIndex: characterEl.rowIndex };
+                    const moreHeight = estimateElementHeight(pdf, moreElement, moreConfig, recipe, marginLeft, rightEdge);
+
+                    // Try to split the dialogue
+                    const mainDialogue = dialogueEls[0];
+                    const dialogueConfig = recipe.ingredients["dialogue"];
+                    const split = splitDialogueText(
+                        pdf,
+                        mainDialogue.text,
+                        availableHeight,
+                        dialogueConfig,
+                        recipe,
+                        marginLeft,
+                        rightEdge,
+                        moreHeight
+                    );
+
+                    if (split !== null) {
+                        // Successfully split dialogue - add first part to current page
+                        const [firstPart, remainingPart] = split;
+
+                        // Add character (block hasn't been rendered yet, so character always needs to be added)
+                        currentY = renderElement(pdf, characterEl, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                        elementsRendered++;
+
+                        // Add parentheticals before dialogue
+                        for (const paren of parentheticalEls) {
+                            currentY = renderElement(pdf, paren, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                            elementsRendered++;
+                        }
+
+                        // Add first part of dialogue
+                        const firstDialogue: ScreenplayElement = {
+                            ...mainDialogue,
+                            text: firstPart,
+                            splitIndex: 0
+                        };
+                        currentY = renderElement(pdf, firstDialogue, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+
+                        // Add (MORE) marker
+                        currentY = renderElement(pdf, moreElement, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+
+                        // Start new page
+                        pdf.addPage();
+                        pdf.setFillColor(settings.backgroundColor);
+                        pdf.rect(0, 0, pageWidth, pageHeight, "F");
+                        pdf.setTextColor(settings.textColor);
+                        currentY = marginTop;
+
+                        // Add character (CONT'D) at start of next page
+                        const contdCharacter: ScreenplayElement = {
+                            ...characterEl,
+                            text: `${characterEl.text} (CONT'D)`
+                        };
+                        currentY = renderElement(pdf, contdCharacter, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+
+                        // Add remaining part of dialogue
+                        const remainingDialogue: ScreenplayElement = {
+                            ...mainDialogue,
+                            text: remainingPart,
+                            splitIndex: 1
+                        };
+                        currentY = renderElement(pdf, remainingDialogue, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                        elementsRendered++;
+
+                        // Add remaining dialogue elements if any
+                        for (let i = 1; i < dialogueEls.length; i++) {
+                            currentY = renderElement(pdf, dialogueEls[i], currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                            elementsRendered++;
+                        }
+
+                        continue; // Skip the normal block addition below
+                    }
+                }
+            }
+
+            // PAGE BREAK RULE #2: If block doesn't fit, move entire block to next page
+            // This handles action elements (which are single-element blocks) and
+            // dialogue blocks that don't fit but aren't large enough to split
+            if (blockWouldExceedPage && hasContentOnPage) {
                 pdf.addPage();
-                // Set background color for new page
                 pdf.setFillColor(settings.backgroundColor);
                 pdf.rect(0, 0, pageWidth, pageHeight, "F");
                 pdf.setTextColor(settings.textColor);
                 currentY = marginTop;
-                previousElementType = null; // Reset for new page
             }
 
-            // Render the element
-            currentY = renderElement(
-                pdf,
-                element,
-                currentY,
-                recipe,
-                marginLeft,
-                pageWidth - marginRight,
-                showSceneNumbers
-            );
-
-            previousElementType = element.type;
+            // Add entire block to current page
+            for (const element of block.elements) {
+                currentY = renderElement(pdf, element, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                elementsRendered++;
+            }
         }
 
         settings.onProgress?.({
@@ -327,7 +544,8 @@ function parseScreenplayElements(
     let sceneCounter = 0;
 
     // Parse each row
-    for (const row of data) {
+    for (let rowIndex = 0; rowIndex < data.length; rowIndex++) {
+        const row = data[rowIndex];
         // Collect all elements for this row
         const rowElements: ScreenplayElement[] = [];
 
@@ -347,6 +565,7 @@ function parseScreenplayElements(
                     type: ingredientId,
                     text,
                     sceneNumber,
+                    rowIndex,
                 });
             }
         });
@@ -377,6 +596,7 @@ function parseMaxWidth(maxWidthStr: string | undefined, defaultWidth: number): n
 
 /**
  * Estimates the height needed for an element (for page break calculation)
+ * @param excludeSpaceAfter - If true, excludes spaceAfterElement from calculation (useful for dialogue split calculations)
  */
 function estimateElementHeight(
     pdf: jsPDF,
@@ -384,7 +604,8 @@ function estimateElementHeight(
     elementConfig: any,
     recipe: PrintRecipe,
     marginLeft: number,
-    rightEdge: number
+    rightEdge: number,
+    excludeSpaceAfter: boolean = false
 ): number {
     const style = elementConfig.style;
     const textAlign = style.textAlign || "left";
@@ -419,7 +640,7 @@ function estimateElementHeight(
     const spaceBeforeElement = elementConfig.style.spaceBeforeElement ?? 0;
     const spaceAfterElement = elementConfig.style.spaceAfterElement ?? 0;
 
-    return spaceBeforeElement * fontSizeInches + numLines * lineHeight + spaceAfterElement * fontSizeInches;
+    return spaceBeforeElement * fontSizeInches + numLines * lineHeight + (excludeSpaceAfter ? 0 : spaceAfterElement * fontSizeInches);
 }
 
 /**

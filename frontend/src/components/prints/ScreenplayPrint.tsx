@@ -37,6 +37,7 @@ interface ScreenplayElement {
     rowIndex: number;
     columnName: string;  // Which Cell column this element came from
     sceneNumber?: number; // Scene number (only for scene_heading elements)
+    splitIndex?: number; // For dialogue split across pages: 0 = first part, 1 = continued part
 }
 
 /**
@@ -1037,7 +1038,8 @@ function ScreenplayPrint({
                                 headers[editingCell.col] === element.columnName;
 
                             // Create a unique key for this element
-                            const elementKey = `${element.rowIndex}-${element.columnName}`;
+                            // Include splitIndex for split dialogue elements
+                            const elementKey = `${element.rowIndex}-${element.columnName}${element.splitIndex !== undefined ? `-split${element.splitIndex}` : ""}`;
 
                             // Create ref callback to store element ref
                             const setRef = (el: HTMLDivElement | null) => {
@@ -1117,8 +1119,11 @@ function ScreenplayPrint({
                         <div className="screenplay-content relative">
                             {page.elements.map((element) => {
                                 // Find the global index of this element in the full elements array
+                                // For split dialogue, we need to match splitIndex too
                                 const globalIndex = elements.findIndex(
-                                    (e) => e.rowIndex === element.rowIndex && e.columnName === element.columnName
+                                    (e) => e.rowIndex === element.rowIndex &&
+                                           e.columnName === element.columnName &&
+                                           (e.splitIndex ?? -1) === (element.splitIndex ?? -1)
                                 );
 
                                 // Check if this element corresponds to the cell being edited
@@ -1149,7 +1154,8 @@ function ScreenplayPrint({
                                     headers[editingCell.col] === element.columnName;
 
                                 // Create a unique key for this element
-                                const elementKey = `${element.rowIndex}-${element.columnName}`;
+                                // Include splitIndex for split dialogue elements
+                                const elementKey = `${element.rowIndex}-${element.columnName}${element.splitIndex !== undefined ? `-split${element.splitIndex}` : ""}`;
 
                                 // Create ref callback to store element ref
                                 const setRef = (el: HTMLDivElement | null) => {
