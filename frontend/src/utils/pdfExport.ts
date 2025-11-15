@@ -8,7 +8,7 @@
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { writeFile } from "@tauri-apps/plugin-fs";
-import type { ExportSettings, ExportProgress } from "@/components/prints/ExportDialog";
+import type { ExportSettings } from "@/components/prints/ExportDialog";
 
 /**
  * Exports a Print view element to PDF with the specified settings
@@ -132,7 +132,7 @@ export async function exportPrintToPDF(
         console.log("[PDF Export] Clone added to iframe");
 
         // Force browser to recalculate layout before rendering
-        clone.offsetHeight;
+        void clone.offsetHeight;
 
         settings.onProgress?.({
             stage: "Creating isolated environment",
@@ -244,23 +244,24 @@ export async function exportPrintToPDF(
 /**
  * Converts oklch color to RGB
  * oklch() is not supported by html2canvas, so we need to convert to RGB
+ * (Currently unused but kept for potential future use)
  */
-function convertOklchToRgb(oklchString: string): string {
-    // Try to get the computed color from a temporary element
-    const tempDiv = document.createElement("div");
-    tempDiv.style.color = oklchString;
-    document.body.appendChild(tempDiv);
-    const computedColor = window.getComputedStyle(tempDiv).color;
-    document.body.removeChild(tempDiv);
+// function convertOklchToRgb(oklchString: string): string {
+//     // Try to get the computed color from a temporary element
+//     const tempDiv = document.createElement("div");
+//     tempDiv.style.color = oklchString;
+//     document.body.appendChild(tempDiv);
+//     const computedColor = window.getComputedStyle(tempDiv).color;
+//     document.body.removeChild(tempDiv);
 
-    // If the browser computed it to rgb(), use that
-    if (computedColor && computedColor !== oklchString) {
-        return computedColor;
-    }
+//     // If the browser computed it to rgb(), use that
+//     if (computedColor && computedColor !== oklchString) {
+//         return computedColor;
+//     }
 
-    // Fallback to a default color if conversion failed
-    return "rgb(0, 0, 0)";
-}
+//     // Fallback to a default color if conversion failed
+//     return "rgb(0, 0, 0)";
+// }
 
 /**
  * Recursively converts all computed styles to inline styles and removes class names
@@ -346,7 +347,7 @@ function inlineAllComputedStyles(
 
         try {
             element.style.setProperty(prop, value, computedStyle.getPropertyPriority(prop));
-        } catch (e) {
+        } catch {
             // Some properties can't be set inline, silently skip them
         }
     }
@@ -424,10 +425,8 @@ function applyExportStyles(
     // computes oklch to RGB, so by inlining we get RGB values
     //
     // We track progress during this operation since it can take time for large documents
-    let processedElements = 0;
 
     inlineAllComputedStyles(element, (currentCount) => {
-        processedElements = currentCount;
         // Report progress: 5% to 40% of overall export progress
         const percentage = 5 + Math.floor((currentCount / totalElements) * 35);
         settings.onProgress?.({

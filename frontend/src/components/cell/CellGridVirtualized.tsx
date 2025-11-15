@@ -613,12 +613,12 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         } else {
             setPopoutEditPosition(null);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     // Disabled: pixelWidths dependency
     // Reason: pixelWidths is defined later in the component (line 1313), adding it here causes
     //         "Cannot access uninitialized variable" error. The current value is accessed when
     //         editingCell changes, which is the main trigger we need.
     // Alternative: Refactor to move pixelWidths calculation earlier, or use a ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingCell, wrapText, editingSource, filteredData]);
 
     // Position cursor at end when editing input is ready AND auto-size textarea to fit content

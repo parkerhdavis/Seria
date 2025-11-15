@@ -6,10 +6,9 @@
  * capitalization, and element positioning.
  */
 
-import { useState, useEffect, useRef, useMemo, memo } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
-import { getMappedColumn } from "@/utils/printRecipeMapper";
+import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 import { useCellStore } from "@stores/cellStore";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 
@@ -353,14 +352,6 @@ function ScreenplayPrint({
         columnName: string;
         elementIndex: number;
     } | null>(null);
-
-    // Get field mappings
-    const sceneHeadingColumn = getMappedColumn(configuration.fieldMappings, "scene_heading");
-    const actionColumn = getMappedColumn(configuration.fieldMappings, "action");
-    const characterColumn = getMappedColumn(configuration.fieldMappings, "character");
-    const dialogueColumn = getMappedColumn(configuration.fieldMappings, "dialogue");
-    const parentheticalColumn = getMappedColumn(configuration.fieldMappings, "parenthetical");
-    const transitionColumn = getMappedColumn(configuration.fieldMappings, "transition");
 
     // Get render settings
     // Note: pageWidth and pageHeight are used as intended aspect ratio for drawer scaling

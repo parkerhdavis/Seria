@@ -45,7 +45,17 @@ interface ErrorResponse {
     message: string;
 }
 
-type WorkerResponse = CalculateResponse | ErrorResponse;
+interface FieldMapping {
+    ingredientId: string;
+    cellColumn: string | string[];
+    csvColumn?: string;
+}
+
+// Extended style type for screenplay-specific properties
+type ScreenplayIngredientStyle = RecipeIngredient["style"] & {
+    lineHeight?: number;
+    maxWidth?: string;
+};
 
 /**
  * Get mapped column name from configuration
@@ -53,27 +63,27 @@ type WorkerResponse = CalculateResponse | ErrorResponse;
  */
 function getMappedColumn(fieldMappings: RecipeConfiguration["fieldMappings"], fieldName: string): string | undefined {
     if (Array.isArray(fieldMappings)) {
-        const mapping = fieldMappings.find((m: any) => m.ingredientId === fieldName);
-        return mapping?.cellColumn || undefined;
+        const mapping = fieldMappings.find((m: FieldMapping) => m.ingredientId === fieldName);
+        return mapping?.cellColumn as string | undefined;
     }
     // Fallback for object structure (if it exists)
-    const mapping = (fieldMappings as any)[fieldName];
+    const mapping = (fieldMappings as Record<string, FieldMapping>)[fieldName];
     return mapping?.csvColumn || undefined;
 }
 
 /**
  * Gets the style configuration for a screenplay element type from the recipe
  */
-function getElementStyle(recipe: PrintRecipe, elementType: ElementType): RecipeIngredient["style"] {
+function getElementStyle(recipe: PrintRecipe, elementType: ElementType): ScreenplayIngredientStyle {
     const ingredient = recipe.ingredients?.[elementType];
-    return ingredient?.style || {
+    return (ingredient?.style || {
         fontFamily: "Courier",
         fontSize: 12,
         textAlign: "left",
         xMargin: 0,
         spaceBeforeElement: 0,
         spaceAfterElement: 0,
-    };
+    }) as ScreenplayIngredientStyle;
 }
 
 /**
@@ -98,7 +108,7 @@ function calculateElementHeight(element: ScreenplayElement, recipe: PrintRecipe,
     const fontSizeInches = fontSize / 72;
 
     // Get line height from recipe (default 1.25 if not specified)
-    const lineHeightMultiplier = (elementConfig as any).lineHeight ?? 1.25;
+    const lineHeightMultiplier = elementConfig.lineHeight ?? 1.25;
     const lineHeightInches = fontSizeInches * lineHeightMultiplier;
 
     // Estimate number of lines
@@ -134,13 +144,13 @@ function calculateElementHeightWithCollapsing(
     const spaceBeforeElement = elementConfig.spaceBeforeElement || 0;
     const spaceAfterElement = elementConfig.spaceAfterElement || 0;
 
-    const lineHeightMultiplier = (elementConfig as any).lineHeight ?? 1.25;
+    const lineHeightMultiplier = elementConfig.lineHeight ?? 1.25;
     const lineHeightInches = fontSizeInches * lineHeightMultiplier;
 
     // Estimate number of lines
     let numLines = 1;
     if (isMultiLineElement(element.type)) {
-        const maxWidth = ("maxWidth" in elementConfig ? (elementConfig as {maxWidth?: string}).maxWidth : undefined) || "6in";
+        const maxWidth = elementConfig.maxWidth || "6in";
         const widthInches = parseFloat(maxWidth.replace("in", ""));
         const charsPerLine = Math.floor(widthInches * 10);
         numLines = Math.max(1, Math.ceil(element.content.length / charsPerLine));
@@ -176,7 +186,7 @@ function splitDialogueText(
     }
 
     const fontSize = (dialogueStyle.fontSize ?? 12) / 72; // Convert pt to inches
-    const lineHeightMultiplier = (dialogueStyle as any).lineHeight ?? 1.25;
+    const lineHeightMultiplier = (dialogueStyle as ScreenplayIngredientStyle).lineHeight ?? 1.25;
     const lineHeight = fontSize * lineHeightMultiplier;
 
     // Calculate how many lines can fit (including reserve for (MORE))
@@ -191,7 +201,7 @@ function splitDialogueText(
     }
 
     // Estimate characters per line based on maxWidth
-    const maxWidth = (dialogueStyle as any).maxWidth || "3.9in";
+    const maxWidth = (dialogueStyle as ScreenplayIngredientStyle).maxWidth || "3.9in";
     const widthInches = parseFloat(maxWidth.replace("in", ""));
     const charsPerLine = Math.floor(widthInches * 10); // Rough estimate: 10 chars per inch
 
@@ -369,8 +379,9 @@ function splitIntoPages(
 
         // PAGE BREAK RULE #1: Never orphan a Character element without its dialogue/parentheticals
         // Check if adding this dialogue block would result in Character on current page but dialogue on next page
-        // TEMPORARILY DISABLED FOR TESTING
-        if (false && isDialogueBlock && hasContentOnPage) {
+        // TEMPORARILY DISABLED FOR TESTING - To re-enable, change RULE_1_ENABLED to true
+        const RULE_1_ENABLED = false;
+        if (RULE_1_ENABLED && isDialogueBlock && hasContentOnPage) {
             const characterEl = block.elements[0];
             const characterHeight = calculateElementHeight(characterEl, recipe);
             const characterWouldFit = currentPageHeight + characterHeight <= usableHeight;

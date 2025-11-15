@@ -36,7 +36,11 @@ interface ErrorResponse {
     message: string;
 }
 
-type WorkerResponse = CalculateResponse | ErrorResponse;
+interface FieldMapping {
+    ingredientId: string;
+    cellColumn: string | string[];
+    csvColumn?: string;
+}
 
 /**
  * Get mapped column name from configuration
@@ -44,11 +48,11 @@ type WorkerResponse = CalculateResponse | ErrorResponse;
  */
 function getMappedColumn(fieldMappings: RecipeConfiguration["fieldMappings"], fieldName: string): string | undefined {
     if (Array.isArray(fieldMappings)) {
-        const mapping = fieldMappings.find((m: any) => m.ingredientId === fieldName);
-        return mapping?.cellColumn || undefined;
+        const mapping = fieldMappings.find((m: FieldMapping) => m.ingredientId === fieldName);
+        return mapping?.cellColumn as string | undefined;
     }
     // Fallback for object structure (if it exists)
-    const mapping = (fieldMappings as any)[fieldName];
+    const mapping = (fieldMappings as Record<string, FieldMapping>)[fieldName];
     return mapping?.csvColumn || undefined;
 }
 
@@ -58,7 +62,7 @@ function getMappedColumn(fieldMappings: RecipeConfiguration["fieldMappings"], fi
  */
 function getMappedColumns(fieldMappings: RecipeConfiguration["fieldMappings"], fieldName: string): string[] {
     if (Array.isArray(fieldMappings)) {
-        const mapping = fieldMappings.find((m: any) => m.ingredientId === fieldName);
+        const mapping = fieldMappings.find((m: FieldMapping) => m.ingredientId === fieldName);
         if (!mapping) return [];
         if (Array.isArray(mapping.cellColumn)) {
             return mapping.cellColumn;
@@ -66,7 +70,7 @@ function getMappedColumns(fieldMappings: RecipeConfiguration["fieldMappings"], f
         return mapping.cellColumn ? [mapping.cellColumn] : [];
     }
     // Fallback for object structure
-    const mapping = (fieldMappings as any)[fieldName];
+    const mapping = (fieldMappings as Record<string, FieldMapping>)[fieldName];
     if (!mapping) return [];
     if (Array.isArray(mapping.csvColumn)) {
         return mapping.csvColumn;

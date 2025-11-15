@@ -383,15 +383,13 @@ export const useCellStore = create<CellStore>((set, get) => ({
             let allData: string[][] = [];
             let headers: string[] = [];
             let delimiter: string = ",";
-            let estimatedRows = 0;
 
             // Start progressive parsing with callbacks
-            const worker = parseCellsProgressive(fileContent, {
+            parseCellsProgressive(fileContent, {
                 // Phase 1: Metadata received - show empty grid with headers
                 onMetadata: (parsedHeaders, estimatedRowCount, detectedDelimiter) => {
                     headers = parsedHeaders;
                     delimiter = detectedDelimiter;
-                    estimatedRows = estimatedRowCount;
 
                     // Initialize column summaries
                     const initialSummaries: Record<string, SummaryType> = {};

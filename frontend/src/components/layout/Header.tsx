@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCellStore } from "@stores/cellStore";
-import { useFileTreeStore } from "@stores/fileTreeStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import RowColoringDropdown from "../toolbar/RowColoringDropdown";
 
@@ -25,19 +24,10 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
     const [showNewConfirm, setShowNewConfirm] = useState(false);
 
     // Get Cell Store state and actions
-    const { headers, fileInfo, isDirty, isLoading, lastSavedAt, loadCells, loadCellsProgressive, reloadCells, saveCells, clearData, addRow, createNew, importFromScreenplay } = useCellStore();
+    const { fileInfo, isDirty, isLoading, lastSavedAt, loadCellsProgressive, reloadCells, saveCells, addRow, createNew, importFromScreenplay } = useCellStore();
 
     // Get settings store state and actions
     const { wrapText, setWrapText, showColumnSeparators, setShowColumnSeparators, autoFitColumns, setAutoFitColumns } = useSettingsStore();
-
-    // Get file tree store to check if file is in tree
-    const { isFileInTree } = useFileTreeStore();
-
-    // Check if current file is outside the tree
-    const isOutsideTree = fileInfo && !isFileInTree(fileInfo.path);
-
-    // Check if we have data loaded
-    const hasData = headers.length > 0;
 
     // Trigger save success animation when lastSavedAt changes
     useEffect(() => {
@@ -130,18 +120,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
             console.error("Failed to save file:", error);
             onFilePickerOpenChange(false);
         }
-    };
-
-    // Close current file
-    const handleClose = () => {
-        if (isDirty) {
-            // TODO: Show confirmation dialog for unsaved changes
-            const confirmed = confirm("You have unsaved changes. Close anyway?");
-            if (!confirmed) {
-                return;
-            }
-        }
-        clearData();
     };
 
     // Create new file

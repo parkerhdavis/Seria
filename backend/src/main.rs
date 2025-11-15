@@ -17,7 +17,6 @@
  * - Clipboard operations (read/write text)
  * - File format converters (screenplay, Fountain, Excel, PDF to CSV)
  */
-
 mod converters;
 mod file_ops;
 mod storage;
