@@ -91,8 +91,11 @@ function calculateElementHeight(element: ScreenplayElement, recipe: PrintRecipe)
     const lineSpaceBefore = elementConfig.lineSpaceBefore || 0;
     const lineSpaceAfter = elementConfig.lineSpaceAfter || 0;
 
-    // Calculate base line height
-    const lineHeightInches = (fontSize / 72) * 1.2;
+    // Convert font size to inches
+    const fontSizeInches = fontSize / 72;
+
+    // Calculate base line height (CSS uses leading-tight = 1.25)
+    const lineHeightInches = fontSizeInches * 1.25;
 
     // Estimate number of lines
     let numLines = 1;
@@ -103,11 +106,18 @@ function calculateElementHeight(element: ScreenplayElement, recipe: PrintRecipe)
         numLines = Math.max(1, Math.ceil(element.content.length / charsPerLine));
     }
 
-    const spacingBeforeInches = lineSpaceBefore * lineHeightInches;
-    const spacingAfterInches = lineSpaceAfter * lineHeightInches;
+    // CSS uses em units for spacing, which are relative to font size (not line height)
+    const spacingBeforeInches = lineSpaceBefore * fontSizeInches;
+    const spacingAfterInches = lineSpaceAfter * fontSizeInches;
     const contentHeight = numLines * lineHeightInches;
 
-    return spacingBeforeInches + contentHeight + spacingAfterInches;
+    // Account for CSS classes applied to elements:
+    // - mb-3 = 0.75rem = 12px at 16px base = 0.125 inches (margin-bottom)
+    // - py-1 = 0.25rem top + 0.25rem bottom = 8px total = 0.083 inches (padding)
+    const elementMarginBottom = 0.125;
+    const elementPadding = 0.083;
+
+    return spacingBeforeInches + contentHeight + spacingAfterInches + elementMarginBottom + elementPadding;
 }
 
 /**
