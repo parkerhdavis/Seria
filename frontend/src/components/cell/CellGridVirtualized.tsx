@@ -63,6 +63,7 @@
  */
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCellStore } from "@stores/cellStore";
 import { useSettingsStore } from "@stores/settingsStore";
@@ -179,6 +180,13 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
     // Summary row scroll sync
     const [summaryRowScrollLeft, setSummaryRowScrollLeft] = useState(0);
+
+    // Popout edit box position (for multi-line editing when wrap text is off)
+    const [popoutEditPosition, setPopoutEditPosition] = useState<{
+        top: number;
+        left: number;
+        width: number;
+    } | null>(null);
 
     // ===== REFS =====
     const parentRef = useRef<HTMLDivElement>(null);
@@ -410,11 +418,14 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     // Handle clicking outside editing cell to save
     useEffect(() => {
         const handleMouseDown = (e: MouseEvent) => {
-            if (editingCell && editingSource === "cell" && editingCellRef.current) {
+            if (editingCell && editingSource === "cell") {
                 const target = e.target as Node;
-                const isClickInsideEditingCell = editingCellRef.current.contains(target);
 
-                if (!isClickInsideEditingCell) {
+                // Check if click is inside the editing cell or the editing input (portal or inline)
+                const isClickInsideEditingCell = editingCellRef.current?.contains(target);
+                const isClickInsideEditingInput = editingInputRef.current?.contains(target);
+
+                if (!isClickInsideEditingCell && !isClickInsideEditingInput) {
                     const value = editingValue;
                     updateCell(editingCell.row, editingCell.col, value);
                     clearEditingCell();
@@ -570,9 +581,57 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         }
     }, [editingCell, editingSource, cellFollowsPrintEdit, rowVirtualizer]);
 
-    // Position cursor at end when editing starts
+    // Calculate popout position when editing starts (BEFORE rendering input)
+    useEffect(() => {
+        if (editingCell && editingSource === "cell") {
+            // Calculate popout position if needed (for multi-line edit when wrap text is off)
+            const cellValue = filteredData[editingCell.row]?.[editingCell.col] || "";
+            const cellHasNewlines = cellValue.includes("\n");
+
+            // Estimate if text is long enough to wrap to multiple lines
+            // Average character width for text-sm (14px) is approximately 7-8px
+            // Account for padding (3 on each side = 24px total)
+            const columnWidth = pixelWidths[editingCell.col] || 150;
+            const availableWidth = columnWidth - 24; // subtract padding
+            const avgCharWidth = 7.5; // approximate average character width
+            const charsPerLine = Math.floor(availableWidth / avgCharWidth);
+            const wouldWrapMultipleLines = cellValue.length > charsPerLine;
+
+            const isMultiLine = cellHasNewlines || wouldWrapMultipleLines;
+            const needsPopout = !wrapText && isMultiLine;
+
+            if (needsPopout && editingCellRef.current) {
+                const cellRect = editingCellRef.current.getBoundingClientRect();
+                setPopoutEditPosition({
+                    top: cellRect.top,
+                    left: cellRect.left,
+                    width: Math.max(cellRect.width, 200),
+                });
+            } else {
+                setPopoutEditPosition(null);
+            }
+        } else {
+            setPopoutEditPosition(null);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Disabled: pixelWidths dependency
+    // Reason: pixelWidths is defined later in the component (line 1313), adding it here causes
+    //         "Cannot access uninitialized variable" error. The current value is accessed when
+    //         editingCell changes, which is the main trigger we need.
+    // Alternative: Refactor to move pixelWidths calculation earlier, or use a ref.
+    }, [editingCell, wrapText, editingSource, filteredData]);
+
+    // Position cursor at end when editing input is ready AND auto-size textarea to fit content
     useEffect(() => {
         if (editingCell && editingInputRef.current) {
+            // Auto-size textarea to fit existing multi-line content
+            if (editingInputRef.current instanceof HTMLTextAreaElement) {
+                const textarea = editingInputRef.current;
+                textarea.style.height = "auto";
+                textarea.style.height = `${textarea.scrollHeight}px`;
+            }
+
+            // Position cursor at end
             const length = editingInputRef.current.value.length;
             editingInputRef.current.setSelectionRange(length, length);
         } else if (!editingCell) {
@@ -1618,7 +1677,14 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
                                 const columnWidth = pixelWidths[colIndex];
                                 const cellHasNewlines = value.includes("\n");
-                                const shouldUseTextarea = wrapText || cellHasNewlines;
+
+                                // Check if text is long enough to wrap to multiple lines
+                                const availableWidth = columnWidth - 24; // subtract padding
+                                const avgCharWidth = 7.5; // approximate average character width
+                                const charsPerLine = Math.floor(availableWidth / avgCharWidth);
+                                const wouldWrapMultipleLines = value.length > charsPerLine;
+
+                                const shouldUseTextarea = wrapText || cellHasNewlines || wouldWrapMultipleLines;
 
                                 return (
                                     <div
@@ -1664,7 +1730,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                             </div>
                                         )}
 
-                                        {isEditing && editingSource === "cell" ? (
+                                        {isEditing && editingSource === "cell" && !popoutEditPosition ? (
                                             shouldUseTextarea ? (
                                                 <textarea
                                                     ref={(el) => {
@@ -1712,7 +1778,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                             )
                                         ) : (
                                             <div
-                                                className={`px-3 py-2 min-h-[40px] text-sm leading-tight flex items-center ${wrapText ? "whitespace-normal" : "whitespace-nowrap overflow-hidden text-ellipsis"} ${isEditing && editingSource === "print" ? "bg-primary/10" : ""}`}
+                                                className={`px-3 py-2 min-h-[40px] text-sm leading-tight flex items-center ${wrapText ? "whitespace-normal" : "whitespace-nowrap overflow-hidden text-ellipsis"} ${isEditing && editingSource === "print" ? "bg-primary/10" : ""} ${isEditing && editingSource === "cell" && popoutEditPosition ? "bg-primary/10 ring-2 ring-primary/30 ring-inset" : ""}`}
                                             >
                                                 {isEditing && editingSource === "print" ? editingValue : value}
                                             </div>
@@ -2012,6 +2078,61 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                     display: none;
                 }
             `}</style>
+
+            {/* Popout edit box for multi-line cells when wrap text is off */}
+            {popoutEditPosition &&
+                editingCell &&
+                createPortal(
+                        <div
+                            className="fixed z-[9999] bg-base-100 shadow-2xl border-2 border-primary/50 rounded-lg"
+                            style={{
+                                top: `${popoutEditPosition.top}px`,
+                                left: `${popoutEditPosition.left}px`,
+                                width: `${popoutEditPosition.width}px`,
+                                minWidth: "200px",
+                                maxWidth: "600px",
+                            }}
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => {
+                            e.stopPropagation();
+                            e.nativeEvent.stopImmediatePropagation();
+                        }}
+                    >
+                        <textarea
+                            ref={(el) => {
+                                editingInputRef.current = el;
+                            }}
+                            className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight resize-none overflow-hidden rounded-lg"
+                            style={{ userSelect: "text", WebkitUserSelect: "text" }}
+                            value={editingValue}
+                            onChange={(e) => {
+                                updateEditingValue(e.target.value);
+                                e.target.style.height = "auto";
+                                e.target.style.height = `${e.target.scrollHeight}px`;
+                            }}
+                            onKeyDown={(e) => {
+                                if (editingCell) {
+                                    handleKeyDown(e, editingCell.row, editingCell.col);
+                                }
+                            }}
+                            onInput={(e) => {
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = "auto";
+                                target.style.height = `${target.scrollHeight}px`;
+                            }}
+                            onFocus={(e) => {
+                                // Position cursor at end when focused
+                                const length = e.target.value.length;
+                                e.target.setSelectionRange(length, length);
+                                // Auto-size to fit content
+                                e.target.style.height = "auto";
+                                e.target.style.height = `${e.target.scrollHeight}px`;
+                            }}
+                            autoFocus
+                        />
+                    </div>,
+                    document.body
+                )}
         </div>
     );
 }
