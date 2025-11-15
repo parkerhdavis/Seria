@@ -45,11 +45,11 @@ type WorkerResponse = CalculateResponse | ErrorResponse;
 function getMappedColumn(fieldMappings: RecipeConfiguration["fieldMappings"], fieldName: string): string | undefined {
     if (Array.isArray(fieldMappings)) {
         const mapping = fieldMappings.find((m: any) => m.ingredientId === fieldName);
-        return mapping?.cellColumn;
+        return mapping?.cellColumn || undefined;
     }
     // Fallback for object structure (if it exists)
     const mapping = (fieldMappings as any)[fieldName];
-    return mapping?.csvColumn;
+    return mapping?.csvColumn || undefined;
 }
 
 /**

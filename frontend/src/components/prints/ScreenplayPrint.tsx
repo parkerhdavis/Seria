@@ -21,7 +21,7 @@ interface ScreenplayPrintProps {
     drawerPosition?: "right" | "bottom";  // Drawer orientation
     containerWidth?: number;               // Available width in pixels
     containerHeight?: number;              // Available height in pixels
-    continuous?: boolean;                  // If false, shows gaps between pages (default: true)
+    continuous?: boolean;                  // If true, renders as single continuous page; if false, renders with page breaks (default: true)
     followCell?: boolean;                  // If false, won't scroll when Cell is edited (default: true)
     onLoadingChange?: (isLoading: boolean) => void;  // Callback for loading state changes
 }
@@ -361,8 +361,7 @@ function ScreenplayPrint({
     const pageWidth = recipe.documentSettings.pageWidth ?? 8.5;
     const pageHeight = recipe.documentSettings.pageHeight ?? 11;
     const marginTop = recipe.documentSettings.marginTop ?? 1;
-    // In continuous mode, use 0 bottom margin so content flows seamlessly
-    const marginBottom = continuous ? 0 : (recipe.documentSettings.marginBottom ?? 1);
+    const marginBottom = recipe.documentSettings.marginBottom ?? 1;
     const marginLeft = recipe.documentSettings.marginLeft ?? 1.5;
     const marginRight = recipe.documentSettings.marginRight ?? 1;
     const backgroundColor = recipe.documentSettings.backgroundColor ?? "bg-white";
@@ -908,13 +907,14 @@ function ScreenplayPrint({
             recipe,
             editingCell,
             editingValue,
+            continuous,
         });
 
         // Cleanup on unmount
         return () => {
             worker.terminate();
         };
-    }, [data, headers, configuration, recipe, editingCell, editingValue]);
+    }, [data, headers, configuration, recipe, editingCell, editingValue, continuous]);
 
     /**
      * Calculate approximate height of a screenplay element in inches
@@ -1083,8 +1083,75 @@ function ScreenplayPrint({
                         <p className="text-xs">Make sure your Cell columns are mapped to screenplay elements</p>
                     </div>
                 </div>
+            ) : continuous ? (
+                /* Continuous mode: single page with all elements */
+                <div className={`screenplay-page ${backgroundColor} text-grey-50 ${drawerPosition === "bottom" ? "mx-auto" : ""}`} style={pageStyle}>
+                    {/* Screenplay elements - all on one continuous page */}
+                    <div className="screenplay-content relative">
+                        {elements.map((element, index) => {
+                            // Check if this element corresponds to the cell being edited
+                            const isBeingEdited = editingCell !== null &&
+                                editingCell.row === element.rowIndex &&
+                                headers[editingCell.col] === element.columnName;
+
+                            // Check if this element is selected (in primary or additional selection)
+                            const isSelected =
+                                (printSelection.primary !== null &&
+                                    printSelection.primary.rowIndex === element.rowIndex &&
+                                    printSelection.primary.columnName === element.columnName) ||
+                                printSelection.additional.some(sel =>
+                                    sel.rowIndex === element.rowIndex &&
+                                    sel.columnName === element.columnName
+                                );
+
+                            // Check if this element is cut
+                            const isCut = cutElements.some(sel =>
+                                sel.rowIndex === element.rowIndex &&
+                                sel.columnName === element.columnName
+                            );
+
+                            // Check if this element is being edited from Print view
+                            const isEditingThisFromPrint = isEditingFromPrint &&
+                                editingCell !== null &&
+                                editingCell.row === element.rowIndex &&
+                                headers[editingCell.col] === element.columnName;
+
+                            // Create a unique key for this element
+                            const elementKey = `${element.rowIndex}-${element.columnName}`;
+
+                            // Create ref callback to store element ref
+                            const setRef = (el: HTMLDivElement | null) => {
+                                if (el) {
+                                    elementRefs.current.set(elementKey, el);
+                                } else {
+                                    elementRefs.current.delete(elementKey);
+                                }
+                            };
+
+                            return (
+                                <ScreenplayElementView
+                                    key={`continuous-${index}`}
+                                    element={element}
+                                    recipe={recipe}
+                                    showRowNumbers={false}
+                                    showSceneNumbers={sceneNumbering}
+                                    isBeingEdited={isBeingEdited}
+                                    isSelected={isSelected}
+                                    isCut={isCut}
+                                    isEditingFromPrint={isEditingThisFromPrint}
+                                    editingValue={editingValue}
+                                    onEditingValueChange={updateEditingValue}
+                                    onClick={(e) => handleElementClick(e, element, index)}
+                                    onDoubleClick={() => handleElementDoubleClick(element, index)}
+                                    onContextMenu={(e) => handleElementContextMenu(e, element, index)}
+                                    setRef={setRef}
+                                />
+                            );
+                        })}
+                    </div>
+                </div>
             ) : (
-                /* Virtualized pages container */
+                /* Paged mode: virtualized pages container */
                 <div
                     style={{
                         height: `${totalSize}px`,
@@ -1098,7 +1165,7 @@ function ScreenplayPrint({
                     // Calculate page number to display (accounting for startPageNumber offset)
                     const displayPageNumber = startPageNumber + page.pageNumber - 1;
                     // Determine if this page should show page number
-                    const shouldShowPageNumber = !continuous && showPageNumbers && (firstPageNumbered || page.pageNumber > 1);
+                    const shouldShowPageNumber = showPageNumbers && (firstPageNumbered || page.pageNumber > 1);
 
                     return (
                         <div

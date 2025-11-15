@@ -25,6 +25,7 @@ interface CalculateRequest {
     recipe: PrintRecipe;
     editingCell: { row: number; col: number } | null;
     editingValue: string;
+    continuous: boolean;
 }
 
 interface PageWithElements {
@@ -52,11 +53,11 @@ type WorkerResponse = CalculateResponse | ErrorResponse;
 function getMappedColumn(fieldMappings: RecipeConfiguration["fieldMappings"], fieldName: string): string | undefined {
     if (Array.isArray(fieldMappings)) {
         const mapping = fieldMappings.find((m: any) => m.ingredientId === fieldName);
-        return mapping?.cellColumn;
+        return mapping?.cellColumn || undefined;
     }
     // Fallback for object structure (if it exists)
     const mapping = (fieldMappings as any)[fieldName];
-    return mapping?.csvColumn;
+    return mapping?.csvColumn || undefined;
 }
 
 /**
@@ -209,7 +210,7 @@ self.addEventListener("message", (e: MessageEvent<CalculateRequest>) => {
 
     if (message.type === "calculate") {
         try {
-            const { data, headers, configuration, recipe, editingCell, editingValue } = message;
+            const { data, headers, configuration, recipe, editingCell, editingValue, continuous } = message;
 
             // Get field mappings
             const sceneHeadingColumn = getMappedColumn(configuration.fieldMappings, "scene_heading");
@@ -315,12 +316,22 @@ self.addEventListener("message", (e: MessageEvent<CalculateRequest>) => {
                 }
             });
 
-            // Calculate pages
-            const pageHeight = recipe.documentSettings.pageHeight ?? 11;
-            const marginTop = recipe.documentSettings.marginTop ?? 1;
-            const marginBottom = recipe.documentSettings.marginBottom ?? 1;
+            // Calculate pages (only if not continuous mode)
+            let pages: PageWithElements[];
 
-            const pages = splitIntoPages(elements, recipe, pageHeight, marginTop, marginBottom);
+            if (continuous) {
+                // Continuous mode: single page with all elements
+                pages = [{
+                    elements,
+                    pageNumber: 1,
+                }];
+            } else {
+                // Paged mode: calculate page breaks
+                const pageHeight = recipe.documentSettings.pageHeight ?? 11;
+                const marginTop = recipe.documentSettings.marginTop ?? 1;
+                const marginBottom = recipe.documentSettings.marginBottom ?? 1;
+                pages = splitIntoPages(elements, recipe, pageHeight, marginTop, marginBottom);
+            }
 
             // Send result back
             const response: CalculateResponse = {
