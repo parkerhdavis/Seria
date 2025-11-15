@@ -20,7 +20,7 @@ import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types
 
 // Extended jsPDF interface to include setGState (not in official types)
 interface ExtendedJsPDF extends jsPDF {
-    setGState(state: { opacity: number }): void;
+    setGState(state: { opacity: number }): jsPDF;
 }
 
 // Extended style type for screenplay-specific properties

@@ -5,7 +5,7 @@
  * to keep UI responsive with large files (20k+ rows).
  */
 
-import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
+import type { PrintRecipe, RecipeConfiguration, RecipeIngredient, RecipeFieldMapping } from "@/types/printRecipe";
 
 type ElementType = "scene_heading" | "action" | "character" | "dialogue" | "parenthetical" | "transition";
 
@@ -45,12 +45,6 @@ interface ErrorResponse {
     message: string;
 }
 
-interface FieldMapping {
-    ingredientId: string;
-    cellColumn: string | string[];
-    csvColumn?: string;
-}
-
 // Extended style type for screenplay-specific properties
 type ScreenplayIngredientStyle = RecipeIngredient["style"] & {
     lineHeight?: number;
@@ -63,12 +57,10 @@ type ScreenplayIngredientStyle = RecipeIngredient["style"] & {
  */
 function getMappedColumn(fieldMappings: RecipeConfiguration["fieldMappings"], fieldName: string): string | undefined {
     if (Array.isArray(fieldMappings)) {
-        const mapping = fieldMappings.find((m: FieldMapping) => m.ingredientId === fieldName);
-        return mapping?.cellColumn as string | undefined;
+        const mapping = fieldMappings.find((m: RecipeFieldMapping) => m.ingredientId === fieldName);
+        return mapping?.cellColumn ?? undefined;
     }
-    // Fallback for object structure (if it exists)
-    const mapping = (fieldMappings as Record<string, FieldMapping>)[fieldName];
-    return mapping?.csvColumn || undefined;
+    return undefined;
 }
 
 /**

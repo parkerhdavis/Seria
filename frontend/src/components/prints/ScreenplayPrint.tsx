@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
+import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
 import { useCellStore } from "@stores/cellStore";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 

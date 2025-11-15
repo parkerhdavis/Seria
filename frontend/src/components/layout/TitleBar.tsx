@@ -262,7 +262,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
         <>
             <div
                 data-tauri-drag-region
-                className="relative flex flex-row items-center h-10 bg-gray-900 border-b border-base-300 select-none"
+                className="relative flex flex-row items-center h-10 bg-gray-900 border-b-4 border-black/60 select-none"
                 onMouseDown={(e) => {
                     console.log("Title bar mousedown:", {
                         target: e.target,
