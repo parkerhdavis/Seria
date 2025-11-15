@@ -6,6 +6,13 @@
 
 import Papa from "papaparse";
 import { CellData } from "@/types/cellData";
+import type {
+    WorkerResponse,
+    MetadataMessage,
+    ChunkMessage,
+    CompleteMessage,
+    ErrorMessage,
+} from "./cellParser.worker";
 
 /**
  * Parsed Cell data with metadata
@@ -147,4 +154,97 @@ export function getCellStats(cellData: CellData) {
             0
         ),
     };
+}
+
+/**
+ * Callbacks for progressive CSV parsing
+ */
+export interface ProgressiveParseCallbacks {
+    onMetadata: (headers: string[], estimatedRows: number, delimiter: string) => void;
+    onChunk: (data: string[][], progress: number) => void;
+    onComplete: () => void;
+    onError: (error: string) => void;
+}
+
+/**
+ * Parse CSV progressively using a Web Worker
+ *
+ * This function offloads CSV parsing to a background thread, preventing UI freezes
+ * for large files. It provides progress updates and chunked data delivery.
+ *
+ * @param fileContent - Raw CSV file content as string
+ * @param callbacks - Callbacks for metadata, chunks, completion, and errors
+ * @param chunkSize - Number of rows per chunk (default: 1000)
+ * @returns Worker instance (for cancellation if needed)
+ */
+export function parseCellsProgressive(
+    fileContent: string,
+    callbacks: ProgressiveParseCallbacks,
+    chunkSize: number = 1000
+): Worker {
+    // Create worker instance
+    // Note: Vite will automatically handle the worker bundling
+    const worker = new Worker(new URL("./cellParser.worker.ts", import.meta.url), {
+        type: "module",
+    });
+
+    // Handle messages from worker
+    worker.addEventListener("message", (e: MessageEvent<WorkerResponse>) => {
+        const message = e.data;
+
+        switch (message.type) {
+            case "metadata":
+                // Extract delimiter from the raw content (PapaParse detection)
+                const quickParse = Papa.parse(fileContent, {
+                    preview: 1,
+                    skipEmptyLines: true,
+                    delimitersToGuess: [",", "\t", "|", ";"],
+                });
+                const delimiter = quickParse.meta.delimiter || ",";
+
+                callbacks.onMetadata(message.headers, message.estimatedRows, delimiter);
+                break;
+
+            case "chunk":
+                callbacks.onChunk(message.data, message.progress);
+                break;
+
+            case "complete":
+                callbacks.onComplete();
+                // Clean up worker after completion
+                worker.terminate();
+                break;
+
+            case "error":
+                callbacks.onError(message.message);
+                // Clean up worker after error
+                worker.terminate();
+                break;
+        }
+    });
+
+    // Handle worker errors
+    worker.addEventListener("error", (error) => {
+        callbacks.onError(`Worker error: ${error.message}`);
+        worker.terminate();
+    });
+
+    // Start parsing
+    worker.postMessage({
+        type: "parse",
+        fileContent: fileContent,
+        chunkSize: chunkSize,
+    });
+
+    return worker;
+}
+
+/**
+ * Cancel progressive parsing
+ *
+ * @param worker - Worker instance returned from parseCellsProgressive
+ */
+export function cancelProgressiveParsing(worker: Worker) {
+    worker.postMessage({ type: "cancel" });
+    worker.terminate();
 }

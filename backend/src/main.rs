@@ -15,8 +15,10 @@
  * - Custom Print template storage
  * - Per-file configuration storage
  * - Clipboard operations (read/write text)
+ * - File format converters (screenplay, Fountain, Excel, PDF to CSV)
  */
 
+mod converters;
 mod file_ops;
 mod storage;
 
@@ -40,6 +42,8 @@ fn main() {
             storage::delete_custom_print,
             storage::load_file_configs,
             storage::save_file_configs,
+            // File format converters
+            converters::screenplay::convert_screenplay_to_csv,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

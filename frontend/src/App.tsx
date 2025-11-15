@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import Layout from "@components/layout/Layout";
+import LoadingScreen from "@components/layout/LoadingScreen";
 import Editor from "./pages/Editor";
 import PrintDrawer from "@components/prints/PrintDrawer";
 import SettingsModal from "@components/modals/SettingsModal";
@@ -26,7 +27,9 @@ function App() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(100);
-    const { saveCells, loadCells, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile, isTempFile, isDirty, data, headers, createNew } = useCellStore();
+    const [isInitializing, setIsInitializing] = useState(true);
+    const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
+    const { saveCells, loadCells, loadCellsProgressive, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile, isTempFile, isDirty, data, headers, isLoading } = useCellStore();
     const { openFind, openReplace } = useFindReplaceStore();
     const { position: printPreviewPosition, togglePosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
     const { loadConfigs } = useFileConfigStore();
@@ -51,6 +54,9 @@ function App() {
                 await loadConfig();
             } catch (error) {
                 console.error("Failed to initialize app:", error);
+            } finally {
+                // Mark initialization as complete
+                setIsInitializing(false);
             }
         };
 
@@ -64,11 +70,11 @@ function App() {
 
         // Only auto-open if enabled and there's a last file and no file is currently open
         if (config.autoReopenLastFile && config.lastOpenedFile && !currentFile) {
-            loadCells(config.lastOpenedFile).catch((error) => {
+            loadCellsProgressive(config.lastOpenedFile).catch((error) => {
                 console.error("Failed to auto-reopen last file:", error);
             });
         }
-    }, [config, loadCells, currentFile]);
+    }, [config, loadCellsProgressive, currentFile]);
 
     // Save config when settings, filters, or drawer state change
     useEffect(() => {
@@ -136,6 +142,7 @@ function App() {
             // Ctrl+O - Open file
             if (e.ctrlKey && e.key === "o") {
                 e.preventDefault();
+                setIsFilePickerOpen(true);
                 try {
                     const filePath = await open({
                         multiple: false,
@@ -146,14 +153,20 @@ function App() {
                         title: "Open Data File",
                     });
                     if (filePath) {
+                        // Keep overlay visible during loading
                         await loadCells(filePath);
                         // Blur the active element so keyboard shortcuts continue to work
                         if (document.activeElement instanceof HTMLElement) {
                             document.activeElement.blur();
                         }
+                        setIsFilePickerOpen(false);
+                    } else {
+                        // User cancelled, close overlay
+                        setIsFilePickerOpen(false);
                     }
                 } catch (error) {
                     console.error("Open file failed:", error);
+                    setIsFilePickerOpen(false);
                 }
             }
             // Ctrl+S - Save file
@@ -164,21 +177,32 @@ function App() {
                 } catch (error) {
                     // If this is a temp file, show Save As dialog
                     if (error instanceof Error && error.message === "TEMP_FILE_NEEDS_LOCATION") {
-                        const fileInfo = useCellStore.getState().fileInfo;
-                        const fileName = fileInfo?.name || "untitled.csv";
-                        const filePath = await save({
-                            filters: [
-                                { name: "CSV Files", extensions: ["csv"] },
-                                { name: "TSV Files", extensions: ["tsv"] },
-                                { name: "JSON Files", extensions: ["json"] },
-                                { name: "All Files", extensions: ["*"] },
-                            ],
-                            title: "Save Data File",
-                            defaultPath: fileName,
-                        });
-                        if (filePath) {
-                            const { saveCellAs } = useCellStore.getState();
-                            await saveCellAs(filePath);
+                        setIsFilePickerOpen(true);
+                        try {
+                            const fileInfo = useCellStore.getState().fileInfo;
+                            const fileName = fileInfo?.name || "untitled.csv";
+                            const filePath = await save({
+                                filters: [
+                                    { name: "CSV Files", extensions: ["csv"] },
+                                    { name: "TSV Files", extensions: ["tsv"] },
+                                    { name: "JSON Files", extensions: ["json"] },
+                                    { name: "All Files", extensions: ["*"] },
+                                ],
+                                title: "Save Data File",
+                                defaultPath: fileName,
+                            });
+                            if (filePath) {
+                                const { saveCellAs } = useCellStore.getState();
+                                // Keep overlay visible during save
+                                await saveCellAs(filePath);
+                                setIsFilePickerOpen(false);
+                            } else {
+                                // User cancelled, close overlay
+                                setIsFilePickerOpen(false);
+                            }
+                        } catch (saveError) {
+                            console.error("Save As failed:", saveError);
+                            setIsFilePickerOpen(false);
                         }
                     } else {
                         console.error("Save failed:", error);
@@ -250,8 +274,23 @@ function App() {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [saveCells, loadCells, openFind, openReplace, undo, redo, canUndo, canRedo, togglePosition]);
 
+    // Determine loading state and message
+    // Only show blocking LoadingScreen during initialization, not file loading
+    // (file loading uses non-blocking progress banner in CellGridVirtualized)
+    const showLoading = isInitializing;
+    const showBlurOverlay = isFilePickerOpen || showLoading;
+    const loadingMessage = isInitializing ? "Initializing Seria..." : "Loading...";
+
     return (
         <DragProvider>
+            {/* Blur overlay - shown when file picker is open OR when loading */}
+            {showBlurOverlay && (
+                <div className="fixed inset-0 z-[9998] bg-base-100/20 backdrop-blur-sm" />
+            )}
+
+            {/* Loading screen card - shown only during initialization */}
+            {showLoading && <LoadingScreen message={loadingMessage} />}
+
             <Layout
                 printPreviewPosition={printPreviewPosition}
                 isSidebarOpen={isSidebarOpen}
@@ -259,8 +298,9 @@ function App() {
                     togglePosition(position);
                 }}
                 onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+                onFilePickerOpenChange={setIsFilePickerOpen}
             >
-                <Editor />
+                <Editor onFilePickerOpenChange={setIsFilePickerOpen} />
 
                 <PrintDrawer
                     isOpen={printPreviewPosition === "right"}

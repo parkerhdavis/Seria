@@ -10,6 +10,7 @@ interface LayoutProps {
     isSidebarOpen: boolean;
     onTogglePrintPreview: (position: "right" | "bottom") => void;
     onToggleSidebar: () => void;
+    onFilePickerOpenChange: (isOpen: boolean) => void;
 }
 
 /**
@@ -19,7 +20,7 @@ interface LayoutProps {
  * Supports responsive design with drawer navigation on smaller screens.
  * Sidebar is resizable via draggable edge.
  */
-function Layout({ children, isSidebarOpen, onTogglePrintPreview, onToggleSidebar }: LayoutProps) {
+function Layout({ children, isSidebarOpen, onTogglePrintPreview, onToggleSidebar, onFilePickerOpenChange }: LayoutProps) {
     const [sidebarWidth, setSidebarWidth] = useState(256);
     const [isResizing, setIsResizing] = useState(false);
     const sidebarRef = useRef<HTMLElement>(null);
@@ -103,6 +104,7 @@ function Layout({ children, isSidebarOpen, onTogglePrintPreview, onToggleSidebar
                     onTogglePrintPreview={() => onTogglePrintPreview("right")}
                     onToggleSidebar={onToggleSidebar}
                     isSidebarOpen={isSidebarOpen}
+                    onFilePickerOpenChange={onFilePickerOpenChange}
                 />
 
                 {/* Page content */}

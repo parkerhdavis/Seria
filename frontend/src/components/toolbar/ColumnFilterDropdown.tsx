@@ -15,6 +15,7 @@ interface ColumnFilterDropdownProps {
     value: string;
     onFilterChange: (operation: FilterOperation, value: string) => void;
     onClearFilter: () => void;
+    columnData: string[];
 }
 
 const OPERATION_SYMBOLS: Record<FilterOperation, string> = {
@@ -40,11 +41,24 @@ function ColumnFilterDropdown({
     value,
     onFilterChange,
     onClearFilter,
+    columnData,
 }: ColumnFilterDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [localOperation, setLocalOperation] = useState<FilterOperation>(operation);
     const [localValue, setLocalValue] = useState(value);
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Calculate unique values (filter out empty strings)
+    const uniqueValues = Array.from(new Set(columnData.filter(val => val.trim() !== ""))).sort();
+
+    // Filter unique values based on current input (if user is typing)
+    const filteredUniqueValues = localValue.trim() !== ""
+        ? uniqueValues.filter(val => val.toLowerCase().includes(localValue.toLowerCase()))
+        : uniqueValues;
+
+    // Show value list if there are 10 or fewer unique values, OR if user has typed and we have filtered results
+    const showValueList = (uniqueValues.length > 0 && uniqueValues.length <= 10) ||
+                         (localValue.trim() !== "" && filteredUniqueValues.length > 0 && filteredUniqueValues.length <= 10);
 
     // Update local state when props change
     useEffect(() => {
@@ -143,6 +157,30 @@ function ColumnFilterDropdown({
                             onKeyDown={handleKeyDown}
                             autoFocus
                         />
+
+                        {/* Unique values list or message */}
+                        {showValueList ? (
+                            <div className="max-h-40 overflow-y-auto border border-base-300 rounded bg-base-200/50">
+                                {filteredUniqueValues.map((val, idx) => (
+                                    <button
+                                        key={idx}
+                                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-base-300 transition-colors"
+                                        onClick={() => {
+                                            setLocalValue(val);
+                                            setLocalOperation("equals");
+                                            onFilterChange("equals", val);
+                                            setIsOpen(false);
+                                        }}
+                                    >
+                                        {val}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : uniqueValues.length > 10 && localValue.trim() === "" ? (
+                            <div className="text-xs text-base-content/60 p-2 bg-base-200/50 rounded border border-base-300">
+                                More than 10 unique values in this field. Type to filter and we'll show a list of options when ready, or you can filter just on the text.
+                            </div>
+                        ) : null}
 
                         {/* Action buttons */}
                         <div className="flex gap-2 justify-end">

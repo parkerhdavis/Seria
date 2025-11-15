@@ -9,6 +9,7 @@ interface HeaderProps {
     onTogglePrintPreview?: () => void;
     onToggleSidebar?: () => void;
     isSidebarOpen?: boolean;
+    onFilePickerOpenChange: (isOpen: boolean) => void;
 }
 
 /**
@@ -17,14 +18,14 @@ interface HeaderProps {
  * Displays the current file name, provides file operation buttons,
  * and includes theme toggle, print preview toggle, sidebar toggle, and mobile menu toggle.
  */
-function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: HeaderProps) {
+function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePickerOpenChange }: HeaderProps) {
     // Local state for visual feedback
     const [showSaveSuccess, setShowSaveSuccess] = useState(false);
     const [showReloadConfirm, setShowReloadConfirm] = useState(false);
     const [showNewConfirm, setShowNewConfirm] = useState(false);
 
     // Get Cell Store state and actions
-    const { headers, fileInfo, isDirty, isLoading, lastSavedAt, loadCells, reloadCells, saveCells, clearData, addRow, createNew } = useCellStore();
+    const { headers, fileInfo, isDirty, isLoading, lastSavedAt, loadCells, loadCellsProgressive, reloadCells, saveCells, clearData, addRow, createNew, importFromScreenplay } = useCellStore();
 
     // Get settings store state and actions
     const { wrapText, setWrapText, showColumnSeparators, setShowColumnSeparators, autoFitColumns, setAutoFitColumns } = useSettingsStore();
@@ -49,6 +50,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
 
     // Open file dialog and load selected file
     const handleOpen = async () => {
+        onFilePickerOpenChange(true);
         try {
             const filePath = await open({
                 multiple: false,
@@ -59,14 +61,20 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                 title: "Open Data File",
             });
             if (filePath) {
-                await loadCells(filePath);
+                // Use progressive loading for better UX (shows grid immediately, loads in chunks)
+                await loadCellsProgressive(filePath);
                 // Blur the active element (Open button) so keyboard shortcuts work
                 if (document.activeElement instanceof HTMLElement) {
                     document.activeElement.blur();
                 }
+                onFilePickerOpenChange(false);
+            } else {
+                // User cancelled, close overlay
+                onFilePickerOpenChange(false);
             }
         } catch (error) {
             console.error("Failed to open file:", error);
+            onFilePickerOpenChange(false);
         }
     };
 
@@ -96,6 +104,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
 
     // Save as - show save dialog and save to new location
     const handleSaveAs = async () => {
+        onFilePickerOpenChange(true);
         try {
             const fileName = fileInfo?.name || "untitled.csv";
             const filePath = await save({
@@ -110,10 +119,16 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
             });
             if (filePath) {
                 const { saveCellAs } = useCellStore.getState();
+                // Keep overlay visible during save
                 await saveCellAs(filePath);
+                onFilePickerOpenChange(false);
+            } else {
+                // User cancelled, close overlay
+                onFilePickerOpenChange(false);
             }
         } catch (error) {
             console.error("Failed to save file:", error);
+            onFilePickerOpenChange(false);
         }
     };
 
@@ -137,6 +152,37 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
         } else {
             // No unsaved changes, create new file directly
             await createNew();
+        }
+    };
+
+    // Import file (screenplay to CSV for now)
+    const handleImport = async () => {
+        onFilePickerOpenChange(true);
+        try {
+            const filePath = await open({
+                multiple: false,
+                filters: [
+                    { name: "Screenplay Files", extensions: ["txt"] },
+                    { name: "All Files", extensions: ["*"] },
+                ],
+                title: "Import Screenplay File",
+            });
+
+            if (filePath && typeof filePath === "string") {
+                // Keep overlay visible during import
+                await importFromScreenplay(filePath);
+                // Blur the active element so keyboard shortcuts work
+                if (document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                }
+                onFilePickerOpenChange(false);
+            } else {
+                // User cancelled, close overlay
+                onFilePickerOpenChange(false);
+            }
+        } catch (error) {
+            console.error("Failed to import file:", error);
+            onFilePickerOpenChange(false);
         }
     };
 
@@ -270,6 +316,18 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen }: Header
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                     New
+                    </button>
+
+                    <button
+                        className="btn btn-sm btn-ghost"
+                        onClick={handleImport}
+                        title="Import screenplay file to CSV"
+                        disabled={isLoading}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                    Import
                     </button>
 
                     <div className="dropdown dropdown-end">
