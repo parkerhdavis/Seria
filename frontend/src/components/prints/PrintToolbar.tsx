@@ -5,7 +5,6 @@
  * Settings are saved to the user's file config for persistence.
  */
 
-import { useState } from "react";
 import type { PrintRecipe } from "@/types/printRecipe";
 import type { RecipeDisplaySettings } from "@/stores/fileConfigStore";
 
