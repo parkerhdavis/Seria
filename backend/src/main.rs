@@ -44,6 +44,7 @@ fn main() {
             storage::save_file_configs,
             // File format converters
             converters::screenplay::convert_screenplay_to_csv,
+            converters::screenplay::convert_csv_to_screenplay,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -61,6 +61,20 @@ pub fn convert_screenplay_to_csv(content: String) -> Result<String, String> {
     Ok(csv)
 }
 
+/// Convert CSV format back to screenplay text
+///
+/// # Arguments
+/// * `csv_content` - CSV content with Transition, Scene, Action, Character, Parenthetical, Dialogue columns
+///
+/// # Returns
+/// * `Result<String, String>` - Formatted screenplay text or error message
+#[tauri::command]
+pub fn convert_csv_to_screenplay(csv_content: String) -> Result<String, String> {
+    let elements = parse_csv_to_elements(&csv_content)?;
+    let screenplay = elements_to_screenplay(&elements);
+    Ok(screenplay)
+}
+
 /// Parse screenplay text into structured elements
 fn parse_screenplay(content: &str) -> Result<Vec<ScreenplayElement>, String> {
     let lines: Vec<&str> = content.lines().collect();
@@ -387,6 +401,185 @@ fn elements_to_csv(elements: &[ScreenplayElement]) -> String {
     }
 
     csv
+}
+
+/// Parse CSV content into screenplay elements
+fn parse_csv_to_elements(csv_content: &str) -> Result<Vec<ScreenplayElement>, String> {
+    let mut elements = Vec::new();
+    let lines: Vec<&str> = csv_content.lines().collect();
+
+    // Skip header row
+    if lines.is_empty() {
+        return Ok(elements);
+    }
+
+    for (index, line) in lines.iter().skip(1).enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        // Parse CSV line - handle quoted fields
+        let fields = parse_csv_line(line);
+
+        if fields.len() != 6 {
+            return Err(format!(
+                "Invalid CSV format at line {}: expected 6 columns, found {}",
+                index + 2,
+                fields.len()
+            ));
+        }
+
+        // Extract fields: Transition, Scene, Action, Character, Parenthetical, Dialogue
+        let transition = fields[0].trim();
+        let scene = fields[1].trim();
+        let action = fields[2].trim();
+        let character = fields[3].trim();
+        let parenthetical = fields[4].trim();
+        let dialogue = fields[5].trim();
+
+        // Add elements in order based on what's present
+        if !transition.is_empty() {
+            elements.push(ScreenplayElement {
+                element_type: ElementType::Transition,
+                content: transition.to_string(),
+            });
+        }
+
+        if !scene.is_empty() {
+            elements.push(ScreenplayElement {
+                element_type: ElementType::Scene,
+                content: scene.to_string(),
+            });
+        }
+
+        if !action.is_empty() {
+            elements.push(ScreenplayElement {
+                element_type: ElementType::Action,
+                content: action.to_string(),
+            });
+        }
+
+        if !character.is_empty() {
+            elements.push(ScreenplayElement {
+                element_type: ElementType::Character,
+                content: character.to_string(),
+            });
+        }
+
+        if !parenthetical.is_empty() {
+            elements.push(ScreenplayElement {
+                element_type: ElementType::Parenthetical,
+                content: parenthetical.to_string(),
+            });
+        }
+
+        if !dialogue.is_empty() {
+            elements.push(ScreenplayElement {
+                element_type: ElementType::Dialogue,
+                content: dialogue.to_string(),
+            });
+        }
+    }
+
+    Ok(elements)
+}
+
+/// Simple CSV line parser that handles quoted fields
+fn parse_csv_line(line: &str) -> Vec<String> {
+    let mut fields = Vec::new();
+    let mut current_field = String::new();
+    let mut in_quotes = false;
+    let mut chars = line.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '"' => {
+                // Check for escaped quote ""
+                if in_quotes && chars.peek() == Some(&'"') {
+                    current_field.push('"');
+                    chars.next();
+                } else {
+                    in_quotes = !in_quotes;
+                }
+            }
+            ',' if !in_quotes => {
+                fields.push(current_field.clone());
+                current_field.clear();
+            }
+            _ => {
+                current_field.push(ch);
+            }
+        }
+    }
+
+    // Push final field
+    fields.push(current_field);
+
+    fields
+}
+
+/// Convert screenplay elements back to formatted screenplay text
+fn elements_to_screenplay(elements: &[ScreenplayElement]) -> String {
+    let mut screenplay = String::new();
+
+    for element in elements {
+        // Add blank line before scene headings and character names for readability
+        // (except at the very start)
+        if !screenplay.is_empty() {
+            match element.element_type {
+                ElementType::Scene | ElementType::Character => {
+                    screenplay.push_str("\n");
+                }
+                _ => {}
+            }
+        }
+
+        // Format element with appropriate indentation
+        match element.element_type {
+            ElementType::Scene => {
+                // Scene headings: left-aligned, ALL CAPS
+                screenplay.push_str(&element.content);
+                screenplay.push('\n');
+            }
+            ElementType::Action => {
+                // Action: left-aligned
+                screenplay.push_str(&element.content);
+                screenplay.push('\n');
+            }
+            ElementType::Character => {
+                // Character: indented 20 spaces
+                screenplay.push_str("                    ");
+                screenplay.push_str(&element.content);
+                screenplay.push('\n');
+            }
+            ElementType::Parenthetical => {
+                // Parenthetical: indented 15 spaces, wrapped in parentheses if not already
+                screenplay.push_str("               ");
+                if !element.content.starts_with('(') {
+                    screenplay.push('(');
+                }
+                screenplay.push_str(&element.content);
+                if !element.content.ends_with(')') {
+                    screenplay.push(')');
+                }
+                screenplay.push('\n');
+            }
+            ElementType::Dialogue => {
+                // Dialogue: indented 10 spaces
+                screenplay.push_str("          ");
+                screenplay.push_str(&element.content);
+                screenplay.push('\n');
+            }
+            ElementType::Transition => {
+                // Transition: indented 44 spaces (roughly right-aligned for 8.5" page)
+                screenplay.push_str("                                            ");
+                screenplay.push_str(&element.content);
+                screenplay.push('\n');
+            }
+        }
+    }
+
+    screenplay
 }
 
 #[cfg(test)]

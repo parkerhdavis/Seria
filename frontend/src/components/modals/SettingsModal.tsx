@@ -24,6 +24,8 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setShowIncompatibleFiles,
         theme,
         setTheme,
+        appFont,
+        setAppFont,
         printFollowsCellEdit,
         setPrintFollowsCellEdit,
         cellFollowsPrintEdit,
@@ -132,6 +134,23 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                 </select>
                                 <label className="label">
                                     <span className="label-text-alt">Choose your preferred color theme</span>
+                                </label>
+                            </div>
+
+                            <div className="form-control mt-4">
+                                <label className="label">
+                                    <span className="label-text font-semibold">App Font</span>
+                                </label>
+                                <select
+                                    className="select select-bordered w-full max-w-xs"
+                                    value={appFont}
+                                    onChange={(e) => setAppFont(e.target.value)}
+                                >
+                                    <option value="system">System Default</option>
+                                    <option value="courier-prime">Courier Prime</option>
+                                </select>
+                                <label className="label">
+                                    <span className="label-text-alt">Font used throughout the application (not in Print views)</span>
                                 </label>
                             </div>
 

@@ -7,6 +7,7 @@
 
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
+import Papa from "papaparse";
 import { CellFileInfo } from "@/types/cellData";
 import { parseCells, serializeCell, validateCell, getDelimiterFromPath } from "@utils/cellParser";
 import { useFileConfigStore, type FileIdentifiers } from "./fileConfigStore";
@@ -105,6 +106,7 @@ interface CellStore {
     saveCellAs: (path: string) => Promise<void>;
     createNew: () => Promise<void>;
     importFromScreenplay: (path: string) => Promise<void>;
+    exportToScreenplay: (savePath: string) => Promise<void>;
     updateCell: (row: number, col: number, value: string) => void;
     updateCells: (cells: Array<{ row: number; col: number; value: string }>) => void;
     updateRow: (rowIndex: number, newRow: string[]) => void;
@@ -723,6 +725,39 @@ export const useCellStore = create<CellStore>((set, get) => ({
         } catch (error) {
             set({
                 error: `Failed to import screenplay: ${error}`,
+                isLoading: false,
+            });
+        }
+    },
+
+    // Export current CSV data as screenplay text file
+    exportToScreenplay: async (savePath: string) => {
+        set({ isLoading: true, error: null });
+
+        try {
+            const { data, headers } = get();
+
+            // Convert data to CSV string format
+            const csvContent = Papa.unparse({
+                fields: headers,
+                data: data,
+            });
+
+            // Convert CSV to screenplay format using the converter
+            const screenplayContent = await invoke<string>("convert_csv_to_screenplay", {
+                csvContent: csvContent
+            });
+
+            // Save the screenplay file
+            await invoke("save_cell_file", {
+                path: savePath,
+                content: screenplayContent
+            });
+
+            set({ isLoading: false });
+        } catch (error) {
+            set({
+                error: `Failed to export screenplay: ${error}`,
                 isLoading: false,
             });
         }

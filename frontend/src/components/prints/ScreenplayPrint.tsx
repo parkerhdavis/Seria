@@ -37,6 +37,7 @@ interface ScreenplayElement {
     rowIndex: number;
     columnName: string;  // Which Cell column this element came from
     sceneNumber?: number; // Scene number (only for scene_heading elements)
+    splitIndex?: number; // For dialogue split across pages: 0 = first part, 1 = continued part
 }
 
 /**
@@ -77,8 +78,8 @@ function getElementStyle(recipe: PrintRecipe, elementType: ElementType): RecipeI
         fontSize: 12,
         textAlign: "left",
         leftMargin: 0,
-        lineSpaceBefore: 0,
-        lineSpaceAfter: 0,
+        spaceBeforeElement: 0,
+        spaceAfterElement: 0,
     };
 }
 
@@ -129,18 +130,24 @@ function ScreenplayElementView({
     const elementConfig = getElementStyle(recipe, element.type);
 
     // Build style object from recipe configuration with sensible defaults
+    // xMargin is applied on top of page margin (measured from page margin edge)
+    const textAlign = elementConfig.textAlign || "left";
+    const xMargin = elementConfig.xMargin ?? 0;
+
     const style = {
-        marginLeft: elementConfig.leftMargin ? `${elementConfig.leftMargin}in` : undefined,
-        marginRight: elementConfig.rightMargin ? `${elementConfig.rightMargin}in` : undefined,
-        textAlign: elementConfig.textAlign || "left",
+        fontFamily: elementConfig.fontFamily || "Courier, monospace",
+        marginLeft: textAlign === "left" ? `${xMargin}in` : undefined,
+        marginRight: textAlign === "right" ? `${xMargin}in` : undefined,
+        textAlign: textAlign,
         textTransform: elementConfig.textTransform || "none",
         fontWeight: elementConfig.fontWeight || 400,
         fontSize: elementConfig.fontSize ? `${elementConfig.fontSize}pt` : undefined,
-        maxWidth: elementConfig.textAlign !== "right" ?
+        lineHeight: elementConfig.lineHeight ?? 1.25, // Default to 1.25 if not specified
+        maxWidth: textAlign !== "right" ?
             (("maxWidth" in elementConfig ? (elementConfig as {maxWidth?: string}).maxWidth : undefined) || "100%") :
             undefined,
-        marginTop: elementConfig.lineSpaceBefore ? `${elementConfig.lineSpaceBefore}em` : undefined,
-        marginBottom: elementConfig.lineSpaceAfter ? `${elementConfig.lineSpaceAfter}em` : undefined,
+        marginTop: elementConfig.spaceBeforeElement ? `${elementConfig.spaceBeforeElement}em` : undefined,
+        marginBottom: elementConfig.spaceAfterElement ? `${elementConfig.spaceAfterElement}em` : undefined,
     };
 
     // Auto-focus input/textarea when editing starts from Print view
@@ -179,7 +186,7 @@ function ScreenplayElementView({
     return (
         <div
             ref={setRef}
-            className={`screenplay-element mb-3 relative cursor-pointer ${isBeingEdited ? "editing-indicator" : ""} ${isSelected ? "selected-indicator" : ""} ${isCut ? "cut-indicator" : ""}`}
+            className={`screenplay-element relative cursor-pointer ${isBeingEdited ? "editing-indicator" : ""} ${isSelected ? "selected-indicator" : ""} ${isCut ? "cut-indicator" : ""}`}
             onClick={onClick}
             onDoubleClick={onDoubleClick}
             onContextMenu={onContextMenu}
@@ -235,11 +242,11 @@ function ScreenplayElementView({
             {showSceneNumbers && element.type === "scene_heading" && element.sceneNumber && (
                 <>
                     {/* Left scene number */}
-                    <div className="absolute top-0 text-sm font-mono text-base-content font-bold" style={{ left: "-0.7in" }}>
+                    <div className="absolute bottom-0 text-sm font-mono text-base-content font-bold" style={{ left: "0.5in" }}>
                         {element.sceneNumber}.
                     </div>
                     {/* Right scene number */}
-                    <div className="absolute top-0 text-sm font-mono text-base-content font-bold" style={{ right: "-0.7in" }}>
+                    <div className="absolute bottom-0 text-sm font-mono text-base-content font-bold" style={{ right: "0.5in" }}>
                         {element.sceneNumber}.
                     </div>
                 </>
@@ -249,7 +256,7 @@ function ScreenplayElementView({
                 isMultiLine ? (
                     <textarea
                         ref={textareaRef}
-                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 py-1 resize-none overflow-hidden relative z-10"
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 resize-none overflow-hidden relative z-10"
                         style={{
                             ...style as React.CSSProperties,
                             minHeight: "1.5rem",
@@ -275,7 +282,7 @@ function ScreenplayElementView({
                     <input
                         ref={inputRef}
                         type="text"
-                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 py-1 relative z-10"
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 relative z-10"
                         style={style as React.CSSProperties}
                         value={editingValue}
                         onChange={(e) => onEditingValueChange(e.target.value)}
@@ -285,7 +292,7 @@ function ScreenplayElementView({
                 )
             ) : (
                 <p
-                    className={`font-mono text-base leading-tight rounded px-2 py-1 transition-colors relative z-10 ${isBeingEdited ? "ring-2 ring-primary ring-inset bg-primary/10" : ""} ${isSelected ? "bg-primary/20" : ""} ${isCut ? "ring-2 ring-dashed ring-primary ring-inset opacity-60" : ""}`}
+                    className={`font-mono text-base leading-tight rounded px-2 transition-colors relative z-10 ${isBeingEdited ? "ring-2 ring-primary ring-inset bg-primary/10" : ""} ${isSelected ? "bg-primary/20" : ""} ${isCut ? "ring-2 ring-dashed ring-primary ring-inset opacity-60" : ""}`}
                     style={style as React.CSSProperties}
                 >
                     {formatContent(element.content)}
@@ -375,15 +382,13 @@ function ScreenplayPrint({
     const sceneNumbering = (recipe.documentSettings.sceneNumbering ?? false) as boolean;
 
     // Calculate available space
-    // Account for p-2 padding (0.5rem = 8px per side = 16px total horizontal padding)
-    const paddingX = 16;
-    const paddingY = 16;
-    const availableWidth = (containerWidth ?? containerRef?.clientWidth ?? 800) - paddingX;
-    const availableHeight = (containerHeight ?? containerRef?.clientHeight ?? 600) - paddingY;
+    // No container padding - using full width/height
+    const availableWidth = containerWidth ?? containerRef?.clientWidth ?? 800;
+    const availableHeight = containerHeight ?? containerRef?.clientHeight ?? 600;
 
     // Calculate zoom scale to fit page width in available space
     // Page width is in inches, convert to pixels at 96dpi
-    const pageWidthPx = pageWidth * 96;
+    const pageWidthPx = pageWidth * 102; // NOTE: Manually edited this to taste
     const maxScaleWidth = availableWidth / pageWidthPx;
 
     // Also consider height if needed
@@ -928,12 +933,21 @@ function ScreenplayPrint({
         estimateSize: () => {
             // Estimate full page height including gap between pages
             // Pages are absolutely positioned, so we just need the visual height after scaling plus the gap
-            const pageGap = continuous ? 0 : 32;
+            // Gap between pages: 0.5" converted to pixels and scaled
+            const pageGapInches = 0.5; // 0.5" vertical gap between pages in paged mode
+            const pageGapPx = pageGapInches * 96; // Convert inches to pixels (96 DPI)
+            const scaledGap = continuous ? 0 : pageGapPx * scale; // Scale the gap with the page
             const scaledHeight = pageHeightPx * scale;
-            return scaledHeight + pageGap;
+            return scaledHeight + scaledGap;
         },
         overscan: 2, // Pre-render 2 pages above/below for smooth scrolling
     });
+
+    // Recalculate virtualizer measurements when scale changes
+    // This ensures page positions update when drawer is resized
+    useEffect(() => {
+        pageVirtualizer.measure();
+    }, [scale, pageVirtualizer]);
 
     const virtualPages = pageVirtualizer.getVirtualItems();
     const totalSize = pageVirtualizer.getTotalSize();
@@ -964,7 +978,7 @@ function ScreenplayPrint({
                     (printContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
                 }
             }}
-            className="screenplay-print-container w-full h-full overflow-auto p-2 outline-none"
+            className="screenplay-print-container w-full h-full overflow-auto outline-none"
             tabIndex={0}
             onClick={(e) => {
                 // Clear Cell selection when clicking anywhere in Print view
@@ -992,7 +1006,7 @@ function ScreenplayPrint({
                 </div>
             ) : continuous ? (
                 /* Continuous mode: single page with all elements */
-                <div className={`screenplay-page ${backgroundColor} text-grey-50 ${drawerPosition === "bottom" ? "mx-auto" : ""}`} style={pageStyle}>
+                <div className={`screenplay-page ${backgroundColor} text-grey-50 border-2 border-white/30 ${drawerPosition === "bottom" ? "mx-auto" : ""}`} style={pageStyle}>
                     {/* Screenplay elements - all on one continuous page */}
                     <div className="screenplay-content relative">
                         {elements.map((element, index) => {
@@ -1024,7 +1038,8 @@ function ScreenplayPrint({
                                 headers[editingCell.col] === element.columnName;
 
                             // Create a unique key for this element
-                            const elementKey = `${element.rowIndex}-${element.columnName}`;
+                            // Include splitIndex for split dialogue elements
+                            const elementKey = `${element.rowIndex}-${element.columnName}${element.splitIndex !== undefined ? `-split${element.splitIndex}` : ""}`;
 
                             // Create ref callback to store element ref
                             const setRef = (el: HTMLDivElement | null) => {
@@ -1078,7 +1093,7 @@ function ScreenplayPrint({
                         <div
                             key={virtualPage.key}
                             data-index={virtualPage.index}
-                            className={`screenplay-page ${backgroundColor} text-grey-50`}
+                            className={`screenplay-page ${backgroundColor} border-2 border-white/30 text-grey-50`}
                             style={{
                                 ...pageStyle,
                                 position: "absolute",
@@ -1104,8 +1119,11 @@ function ScreenplayPrint({
                         <div className="screenplay-content relative">
                             {page.elements.map((element) => {
                                 // Find the global index of this element in the full elements array
+                                // For split dialogue, we need to match splitIndex too
                                 const globalIndex = elements.findIndex(
-                                    (e) => e.rowIndex === element.rowIndex && e.columnName === element.columnName
+                                    (e) => e.rowIndex === element.rowIndex &&
+                                           e.columnName === element.columnName &&
+                                           (e.splitIndex ?? -1) === (element.splitIndex ?? -1)
                                 );
 
                                 // Check if this element corresponds to the cell being edited
@@ -1136,7 +1154,8 @@ function ScreenplayPrint({
                                     headers[editingCell.col] === element.columnName;
 
                                 // Create a unique key for this element
-                                const elementKey = `${element.rowIndex}-${element.columnName}`;
+                                // Include splitIndex for split dialogue elements
+                                const elementKey = `${element.rowIndex}-${element.columnName}${element.splitIndex !== undefined ? `-split${element.splitIndex}` : ""}`;
 
                                 // Create ref callback to store element ref
                                 const setRef = (el: HTMLDivElement | null) => {

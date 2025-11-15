@@ -41,6 +41,7 @@ function App() {
         showColumnSeparators,
         autoFitColumns,
         hoverHighlightMode,
+        appFont,
     } = useSettingsStore();
 
     // Load global config and file configs on app startup
@@ -101,6 +102,17 @@ function App() {
     useEffect(() => {
         document.body.style.zoom = `${zoomLevel}%`;
     }, [zoomLevel]);
+
+    // Apply app font to document
+    useEffect(() => {
+        const fontMap: Record<string, string> = {
+            system: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+            "courier-prime": "\"Courier Prime\", \"Courier New\", Courier, monospace",
+        };
+
+        const fontFamily = fontMap[appFont] || fontMap.system;
+        document.documentElement.style.setProperty("--font-app", fontFamily);
+    }, [appFont]);
 
     // Autosave for temp files
     useEffect(() => {
