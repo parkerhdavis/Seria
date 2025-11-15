@@ -8,10 +8,6 @@ import Papa from "papaparse";
 import { CellData } from "@/types/cellData";
 import type {
     WorkerResponse,
-    MetadataMessage,
-    ChunkMessage,
-    CompleteMessage,
-    ErrorMessage,
 } from "./cellParser.worker";
 
 /**
@@ -193,7 +189,7 @@ export function parseCellsProgressive(
         const message = e.data;
 
         switch (message.type) {
-            case "metadata":
+            case "metadata": {
                 // Extract delimiter from the raw content (PapaParse detection)
                 const quickParse = Papa.parse(fileContent, {
                     preview: 1,
@@ -204,22 +200,26 @@ export function parseCellsProgressive(
 
                 callbacks.onMetadata(message.headers, message.estimatedRows, delimiter);
                 break;
+            }
 
-            case "chunk":
+            case "chunk": {
                 callbacks.onChunk(message.data, message.progress);
                 break;
+            }
 
-            case "complete":
+            case "complete": {
                 callbacks.onComplete();
                 // Clean up worker after completion
                 worker.terminate();
                 break;
+            }
 
-            case "error":
+            case "error": {
                 callbacks.onError(message.message);
                 // Clean up worker after error
                 worker.terminate();
                 break;
+            }
         }
     });
 

@@ -10,7 +10,6 @@
  * Note: In Tauri 2.0, file dialogs are handled by the tauri-plugin-dialog
  * from the frontend instead of custom Rust commands.
  */
-
 use std::fs;
 use std::path::Path;
 use serde::{Deserialize, Serialize};

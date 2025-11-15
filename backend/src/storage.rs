@@ -11,7 +11,6 @@
  * - macOS: ~/Library/Application Support/seria
  * - Linux: ~/.config/seria
  */
-
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};

@@ -5,7 +5,7 @@
  * to keep UI responsive with large files (20k+ rows).
  */
 
-import type { RecipeConfiguration } from "@/types/printRecipe";
+import type { RecipeConfiguration, RecipeFieldMapping } from "@/types/printRecipe";
 
 interface CardData {
     index: number;
@@ -36,42 +36,30 @@ interface ErrorResponse {
     message: string;
 }
 
-type WorkerResponse = CalculateResponse | ErrorResponse;
-
 /**
  * Get mapped column name from configuration
  * fieldMappings is an array of {ingredientId, cellColumn, ...}
  */
 function getMappedColumn(fieldMappings: RecipeConfiguration["fieldMappings"], fieldName: string): string | undefined {
     if (Array.isArray(fieldMappings)) {
-        const mapping = fieldMappings.find((m: any) => m.ingredientId === fieldName);
-        return mapping?.cellColumn || undefined;
+        const mapping = fieldMappings.find((m: RecipeFieldMapping) => m.ingredientId === fieldName);
+        return mapping?.cellColumn ?? undefined;
     }
-    // Fallback for object structure (if it exists)
-    const mapping = (fieldMappings as any)[fieldName];
-    return mapping?.csvColumn || undefined;
+    return undefined;
 }
 
 /**
  * Get mapped column names (for multi-value fields)
- * For arrays like content fields, cellColumn might be an array
+ * For content fields, we need to find all mappings with the same ingredientId
  */
 function getMappedColumns(fieldMappings: RecipeConfiguration["fieldMappings"], fieldName: string): string[] {
     if (Array.isArray(fieldMappings)) {
-        const mapping = fieldMappings.find((m: any) => m.ingredientId === fieldName);
-        if (!mapping) return [];
-        if (Array.isArray(mapping.cellColumn)) {
-            return mapping.cellColumn;
-        }
-        return mapping.cellColumn ? [mapping.cellColumn] : [];
+        const mappings = fieldMappings.filter((m: RecipeFieldMapping) => m.ingredientId === fieldName);
+        return mappings
+            .map(m => m.cellColumn)
+            .filter((col): col is string => col !== null);
     }
-    // Fallback for object structure
-    const mapping = (fieldMappings as any)[fieldName];
-    if (!mapping) return [];
-    if (Array.isArray(mapping.csvColumn)) {
-        return mapping.csvColumn;
-    }
-    return mapping.csvColumn ? [mapping.csvColumn] : [];
+    return [];
 }
 
 self.addEventListener("message", (e: MessageEvent<CalculateRequest>) => {

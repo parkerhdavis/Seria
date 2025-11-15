@@ -13,7 +13,6 @@
  * - Dialogue: ~10-15 spaces indent, regular case
  * - Transition: ~55+ spaces indent, ALL CAPS, often ends with ":"
  */
-
 use serde::{Deserialize, Serialize};
 
 /// Element types in a screenplay
@@ -172,13 +171,13 @@ fn classify_line(line: &str, prev_type: Option<ElementType>) -> ElementType {
 
     // Dialogue: ANY indent (3+) + previous was Character, Parenthetical, or Dialogue
     // More permissive to handle different screenplay formatting conventions
-    if indent >= 3 {
-        if matches!(
+    if indent >= 3
+        && matches!(
             prev_type,
             Some(ElementType::Character) | Some(ElementType::Parenthetical) | Some(ElementType::Dialogue)
-        ) {
-            return ElementType::Dialogue;
-        }
+        )
+    {
+        return ElementType::Dialogue;
     }
 
     // Default to Action (left-aligned, regular text)
@@ -528,7 +527,7 @@ fn elements_to_screenplay(elements: &[ScreenplayElement]) -> String {
         if !screenplay.is_empty() {
             match element.element_type {
                 ElementType::Scene | ElementType::Character => {
-                    screenplay.push_str("\n");
+                    screenplay.push('\n');
                 }
                 _ => {}
             }

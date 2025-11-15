@@ -182,7 +182,10 @@ clean:
 	@rm -rf frontend/node_modules
 	@rm -rf frontend/dist
 	@rm -rf node_modules
-	@rm -rf target
+	@if [ -d target ]; then \
+		echo "  → Cleaning target/ (preserving README.md and upload-to-gitlab.sh)..."; \
+		find target -mindepth 1 -maxdepth 1 ! -name 'README.md' ! -name 'upload-to-gitlab.sh' -exec rm -rf {} + ; \
+	fi
 	@echo "✅ Cleanup complete"
 
 .DEFAULT_GOAL := help

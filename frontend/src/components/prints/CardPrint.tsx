@@ -6,7 +6,7 @@
  * Cards can be dragged to reorder them.
  */
 
-import { useState, useEffect, useRef, useMemo, memo } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 import { getMappedColumn, getMappedColumns } from "@/utils/printRecipeMapper";
@@ -193,11 +193,15 @@ function Card({
                     e.preventDefault();
                     return;
                 }
-                !isEditingFromPrint && onDragStart(card.index);
+                if (!isEditingFromPrint) {
+                    onDragStart(card.index);
+                }
             }}
             onDragOver={(e) => {
                 e.preventDefault();
-                !isEditingFromPrint && onDragOver(card.index);
+                if (!isEditingFromPrint) {
+                    onDragOver(card.index);
+                }
             }}
             onDrop={onDrop}
             onDragEnd={onDrop}
@@ -774,16 +778,6 @@ function CardPrint({
 
     const virtualRows = cardVirtualizer.getVirtualItems();
     const totalSize = cardVirtualizer.getTotalSize();
-
-    // Calculate grid layout
-    const gridStyle = {
-        display: "grid",
-        gridTemplateColumns: `repeat(${columns}, ${cardWidth}px)`,
-        gap: `${cardSpacing}px`,
-        padding: `${cardSpacing}px`,
-        justifyContent: drawerPosition === "right" ? "start" : "center",
-        alignContent: drawerPosition === "bottom" ? "start" : "flex-start",
-    };
 
     const cardStyle = {
         width: `${cardWidth}px`,

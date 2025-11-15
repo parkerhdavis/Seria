@@ -15,8 +15,19 @@
 
 import { jsPDF } from "jspdf";
 import { writeFile } from "@tauri-apps/plugin-fs";
-import type { ExportSettings, ExportProgress } from "@/components/prints/ExportDialog";
-import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
+import type { ExportSettings } from "@/components/prints/ExportDialog";
+import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
+
+// Extended jsPDF interface to include setGState (not in official types)
+interface ExtendedJsPDF extends jsPDF {
+    setGState(state: { opacity: number }): jsPDF;
+}
+
+// Extended style type for screenplay-specific properties
+type ScreenplayIngredientStyle = RecipeIngredient["style"] & {
+    lineHeight?: number;
+    maxWidth?: string;
+};
 
 /**
  * Screenplay element with its formatting information
@@ -101,16 +112,16 @@ function splitDialogueText(
     pdf: jsPDF,
     dialogueText: string,
     availableHeight: number,
-    dialogueConfig: any,
+    dialogueConfig: RecipeIngredient,
     recipe: PrintRecipe,
     marginLeft: number,
     rightEdge: number,
     reserveHeightForMore: number
 ): [string, string] | null {
-    const style = dialogueConfig.style;
+    const style = dialogueConfig.style as ScreenplayIngredientStyle;
     const fontSize = style.fontSize ?? 12;
     const fontSizeInches = fontSize / 72;
-    const lineHeightMultiplier = (style as any).lineHeight ?? 1.25;
+    const lineHeightMultiplier = style.lineHeight ?? 1.25;
     const lineHeight = fontSizeInches * lineHeightMultiplier;
 
     // Calculate how many lines can fit (including reserve for (MORE))
@@ -124,14 +135,12 @@ function splitDialogueText(
     // Get max width for dialogue
     const textAlign = style.textAlign || "left";
     const xMargin = style.xMargin ?? 0;
-    const maxWidthStr = (style as any).maxWidth;
+    const maxWidthStr = style.maxWidth;
     const availableWidth = textAlign === "left"
         ? rightEdge - (marginLeft + xMargin)
         : rightEdge - marginLeft;
 
-    // Account for px-2 padding (same as in estimateElementHeight and renderElement)
-    const textPadding = 0.167; // px-2 class horizontal padding in inches
-    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth) - textPadding;
+    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
 
     // Estimate characters per line based on maxWidth
     const charsPerLine = Math.floor(maxWidth * 10); // Rough estimate: 10 chars per inch
@@ -323,7 +332,6 @@ export async function exportScreenplayToPDF(
 
         // Group elements into blocks for page break logic
         const rightEdge = pageWidth - marginRight;
-        const usableHeight = pageHeight - marginTop - marginBottom;
         const blocks = groupIntoBlocks(elements, pdf, recipe, marginLeft, rightEdge);
 
         // Render all blocks with sophisticated page break rules
@@ -644,33 +652,28 @@ function parseMaxWidth(maxWidthStr: string | undefined, defaultWidth: number): n
 function estimateElementHeight(
     pdf: jsPDF,
     element: ScreenplayElement,
-    elementConfig: any,
+    elementConfig: RecipeIngredient,
     recipe: PrintRecipe,
     marginLeft: number,
     rightEdge: number,
     excludeSpaceAfter: boolean = false
 ): number {
-    const style = elementConfig.style;
+    const style = elementConfig.style as ScreenplayIngredientStyle;
     const textAlign = style.textAlign || "left";
     const xMargin = style.xMargin ?? 0;
 
     // Get max width from recipe
-    const maxWidthStr = (style as any).maxWidth;
+    const maxWidthStr = style.maxWidth;
     // Available width is from the element's start position to the right edge
     const availableWidth = textAlign === "left"
         ? rightEdge - (marginLeft + xMargin)  // Left-aligned: from indent to right edge
         : rightEdge - marginLeft;             // Right-aligned: from left edge to right edge
-
-    // In ScreenplayPrint, text elements have px-2 class (0.5rem padding each side = 1rem total)
-    // This reduces the effective text width by approximately 0.167 inches (1rem at 96 DPI)
-    // Subtract this to match Print view text wrapping
-    const textPadding = 0.167; // px-2 class horizontal padding in inches
-    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth) - textPadding;
+    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
 
     // Get line height from font size and recipe lineHeight multiplier
-    const fontSize = elementConfig.style.fontSize ?? 12;
+    const fontSize = style.fontSize ?? 12;
     const fontSizeInches = fontSize / 72; // Convert pt to inches
-    const lineHeightMultiplier = (elementConfig.style as any).lineHeight ?? 1.25; // Default to 1.25 if not specified
+    const lineHeightMultiplier = style.lineHeight ?? 1.25; // Default to 1.25 if not specified
     const lineHeight = fontSizeInches * lineHeightMultiplier;
 
     // Wrap text if needed for parentheticals (add parentheses)
@@ -711,10 +714,10 @@ function renderElement(
         return { y: currentY, spaceAfter: 0 };
     }
 
-    const style = elementConfig.style;
+    const style = elementConfig.style as ScreenplayIngredientStyle;
     const fontSize = style.fontSize ?? 12;
     const fontSizeInches = fontSize / 72; // Convert pt to inches
-    const lineHeightMultiplier = (style as any).lineHeight ?? 1.25; // Default to 1.25 if not specified
+    const lineHeightMultiplier = style.lineHeight ?? 1.25; // Default to 1.25 if not specified
     const lineHeight = fontSizeInches * lineHeightMultiplier;
 
     // Get indentation from recipe
@@ -724,17 +727,12 @@ function renderElement(
     const indent = textAlign === "left" ? marginLeft + xMargin : rightEdge - xMargin;
 
     // Get max width from recipe
-    const maxWidthStr = (style as any).maxWidth;
+    const maxWidthStr = style.maxWidth;
     // Available width is from the element's start position to the right edge
     const availableWidth = textAlign === "left"
         ? rightEdge - (marginLeft + xMargin)  // Left-aligned: from indent to right edge
         : rightEdge - marginLeft;             // Right-aligned: from left edge to right edge
-
-    // In ScreenplayPrint, text elements have px-2 class (0.5rem padding each side = 1rem total)
-    // This reduces the effective text width by approximately 0.167 inches (1rem at 96 DPI)
-    // Subtract this to match Print view text wrapping
-    const textPadding = 0.167; // px-2 class horizontal padding in inches
-    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth) - textPadding;
+    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
 
     // Apply spacing before element with CSS-style margin collapsing
     // In CSS, adjacent vertical margins collapse to the larger of the two
@@ -846,7 +844,7 @@ function addWatermark(
 
         // Save graphics state before changing opacity
         pdf.saveGraphicsState();
-        (pdf as any).setGState({ opacity: watermark.opacity });
+        (pdf as ExtendedJsPDF).setGState({ opacity: watermark.opacity });
 
         const x = pageWidth / 2;
         const y = pageHeight / 2;
@@ -890,7 +888,7 @@ function addHeaders(pdf: jsPDF, headerText: string, textColor: string, pageWidth
 
         // Save graphics state before changing opacity
         pdf.saveGraphicsState();
-        (pdf as any).setGState({ opacity: 0.7 });
+        (pdf as ExtendedJsPDF).setGState({ opacity: 0.7 });
 
         pdf.text(headerText, pageWidth / 2, 0.5, {
             align: "center",
@@ -921,7 +919,7 @@ function addFooters(
 
         // Save graphics state before changing opacity
         pdf.saveGraphicsState();
-        (pdf as any).setGState({ opacity: 0.7 });
+        (pdf as ExtendedJsPDF).setGState({ opacity: 0.7 });
 
         pdf.text(footerText, pageWidth / 2, pageHeight - 0.5, { align: "center" });
 

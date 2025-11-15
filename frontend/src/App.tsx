@@ -29,7 +29,7 @@ function App() {
     const [zoomLevel, setZoomLevel] = useState(100);
     const [isInitializing, setIsInitializing] = useState(true);
     const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
-    const { saveCells, loadCells, loadCellsProgressive, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile, isTempFile, isDirty, data, headers, isLoading } = useCellStore();
+    const { saveCells, loadCells, loadCellsProgressive, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile, isTempFile, isDirty, data, headers } = useCellStore();
     const { openFind, openReplace } = useFindReplaceStore();
     const { position: printPreviewPosition, togglePosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
     const { loadConfigs } = useFileConfigStore();

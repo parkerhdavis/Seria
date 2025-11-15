@@ -21,6 +21,9 @@ import ExportDialog, { type ExportSettings, type ExportProgress } from "@compone
 import { exportPrintToPDF } from "@/utils/pdfExport";
 import { exportScreenplayToPDF } from "@/utils/pdfExportScreenplay";
 
+// Title bar height constant (matches TitleBar.tsx h-10 = 40px)
+const TITLE_BAR_HEIGHT = 40;
+
 interface PrintPreviewDrawerProps {
     isOpen: boolean;
     position: "right" | "bottom";
@@ -257,7 +260,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
     }
 
     const positionStyles = position === "right"
-        ? { top: 0, right: 0, height: "100vh", width: `${size}px` }
+        ? { top: `${TITLE_BAR_HEIGHT}px`, right: 0, height: `calc(100vh - ${TITLE_BAR_HEIGHT}px)`, width: `${size}px` }
         : { bottom: 0, left: 0, right: 0, height: `${size}px` };
 
     const resizeHandleClasses = position === "right"
@@ -371,7 +374,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
     return (
         <div
             ref={drawerRef}
-            className={`fixed bg-base-200 shadow-black shadow-md border-black/50 z-50 flex ${position === "right" ? "flex-col border-l-4" : "flex-row border-t-4"}`}
+            className={`fixed bg-base-300 shadow-black shadow-md border-black/50 z-50 flex ${position === "right" ? "flex-col border-l-4" : "flex-row border-t-4"}`}
             style={positionStyles}
         >
             {/* Resize handle */}
@@ -484,7 +487,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
 
                                 if (position === "right") {
                                     containerWidth = size - contentPadding;
-                                    containerHeight = window.innerHeight - headerSize - contentPadding;
+                                    containerHeight = window.innerHeight - TITLE_BAR_HEIGHT - headerSize - contentPadding;
                                 } else {
                                     containerWidth = window.innerWidth - contentPadding;
                                     containerHeight = size - headerSize - contentPadding;
