@@ -19,6 +19,7 @@ import PrintToolbar from "@components/prints/PrintToolbar";
 import MappingModal from "@components/prints/MappingModal";
 import ExportDialog, { type ExportSettings, type ExportProgress } from "@components/prints/ExportDialog";
 import { exportPrintToPDF } from "@/utils/pdfExport";
+import { exportScreenplayToPDF } from "@/utils/pdfExportScreenplay";
 
 interface PrintPreviewDrawerProps {
     isOpen: boolean;
@@ -121,11 +122,6 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
 
     // Handle PDF export with progress tracking
     const handleExport = async (settings: ExportSettings) => {
-        if (!printContainerRef.current) {
-            console.error("Print container not found");
-            return;
-        }
-
         try {
             // Show export progress modal
             setIsExporting(true);
@@ -136,24 +132,49 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                 percentage: 0,
             });
 
-            // Find the screenplay-print-container or print-content within the ref
-            const printElement = printContainerRef.current.querySelector(
-                ".screenplay-print-container, .print-content"
-            ) as HTMLElement;
+            // Get the current recipe
+            const recipe = recipes.find((r) => r.id === selectedRecipeId);
+            const config = selectedRecipeId ? configurations[selectedRecipeId] : null;
 
-            if (!printElement) {
-                console.error("Print element not found");
+            if (!recipe || !config) {
+                console.error("Recipe or configuration not found");
                 setIsExporting(false);
                 return;
             }
 
-            // Export with progress tracking
-            await exportPrintToPDF(printElement, {
-                ...settings,
-                onProgress: (progress) => {
-                    setExportProgress(progress);
-                },
-            });
+            // Use text-based export for screenplay format
+            if (recipe.type === "screenplay") {
+                await exportScreenplayToPDF(data, headers, recipe, config, {
+                    ...settings,
+                    onProgress: (progress) => {
+                        setExportProgress(progress);
+                    },
+                });
+            } else {
+                // Fall back to image-based export for other print types
+                if (!printContainerRef.current) {
+                    console.error("Print container not found");
+                    setIsExporting(false);
+                    return;
+                }
+
+                const printElement = printContainerRef.current.querySelector(
+                    ".screenplay-print-container, .print-content"
+                ) as HTMLElement;
+
+                if (!printElement) {
+                    console.error("Print element not found");
+                    setIsExporting(false);
+                    return;
+                }
+
+                await exportPrintToPDF(printElement, {
+                    ...settings,
+                    onProgress: (progress) => {
+                        setExportProgress(progress);
+                    },
+                });
+            }
 
             // Wait briefly to show completion message before closing modal
             // This gives users visual confirmation that the export finished successfully
