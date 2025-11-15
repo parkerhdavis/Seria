@@ -400,15 +400,33 @@ function splitIntoPages(
 
                     if (dialogueEls.length > 0) {
                         const mainDialogue = dialogueEls[0];
-                        const characterHeight = calculateElementHeight(characterEl, recipe);
-                        const moreHeight = calculateElementHeight({
-                            type: "parenthetical",
+
+                        // Calculate reserve height with margin collapsing (starting fresh page, so previousSpaceAfter = 0)
+                        let simulatedSpaceAfter = 0;
+                        let reserveHeight = 0;
+
+                        // Add character height
+                        const charResult = calculateElementHeightWithCollapsing(characterEl, recipe, simulatedSpaceAfter);
+                        reserveHeight += charResult.heightAdded;
+                        simulatedSpaceAfter = charResult.spaceAfter;
+
+                        // Add parentheticals height
+                        for (const paren of parentheticalEls) {
+                            const parenResult = calculateElementHeightWithCollapsing(paren, recipe, simulatedSpaceAfter);
+                            reserveHeight += parenResult.heightAdded;
+                            simulatedSpaceAfter = parenResult.spaceAfter;
+                        }
+
+                        // Add (MORE) height
+                        const moreElement = {
+                            type: "parenthetical" as const,
                             content: "(MORE)",
                             rowIndex: characterEl.rowIndex,
                             columnName: characterEl.columnName,
-                        }, recipe);
+                        };
+                        const moreResult = calculateElementHeightWithCollapsing(moreElement, recipe, simulatedSpaceAfter);
+                        reserveHeight += moreResult.heightAdded;
 
-                        const reserveHeight = characterHeight + moreHeight;
                         console.log("[Page Break Rule #1 Extended] Calling splitDialogueText with usableHeight:", usableHeight, "reserveHeight:", reserveHeight);
                         const split = splitDialogueText(mainDialogue.content, usableHeight, recipe, reserveHeight);
 
@@ -530,22 +548,38 @@ function splitIntoPages(
                     // Calculate available space on current page
                     const availableHeight = usableHeight - currentPageHeight;
 
-                    // Calculate heights for character and (MORE)
-                    const characterHeight = calculateElementHeight(characterEl, recipe);
-                    const moreHeight = calculateElementHeight({
-                        type: "parenthetical",
-                        content: "(MORE)",
-                        rowIndex: characterEl.rowIndex,
-                        columnName: characterEl.columnName,
-                    }, recipe);
-
                     // Check if we need to add the character to this page (if it's not already there)
                     const needCharacterOnThisPage = currentPage.every(el =>
                         !(el.type === "character" && el.rowIndex === characterEl.rowIndex)
                     );
 
-                    // Calculate space needed for character (if needed) + at least one line of dialogue + (MORE)
-                    const reserveHeight = (needCharacterOnThisPage ? characterHeight : 0) + moreHeight;
+                    // Calculate reserve height with margin collapsing
+                    let simulatedSpaceAfter = previousSpaceAfter;
+                    let reserveHeight = 0;
+
+                    // Add character height if needed
+                    if (needCharacterOnThisPage) {
+                        const charResult = calculateElementHeightWithCollapsing(characterEl, recipe, simulatedSpaceAfter);
+                        reserveHeight += charResult.heightAdded;
+                        simulatedSpaceAfter = charResult.spaceAfter;
+                    }
+
+                    // Add parentheticals height
+                    for (const paren of parentheticalEls) {
+                        const parenResult = calculateElementHeightWithCollapsing(paren, recipe, simulatedSpaceAfter);
+                        reserveHeight += parenResult.heightAdded;
+                        simulatedSpaceAfter = parenResult.spaceAfter;
+                    }
+
+                    // Add (MORE) height
+                    const moreElement = {
+                        type: "parenthetical" as const,
+                        content: "(MORE)",
+                        rowIndex: characterEl.rowIndex,
+                        columnName: characterEl.columnName,
+                    };
+                    const moreResult = calculateElementHeightWithCollapsing(moreElement, recipe, simulatedSpaceAfter);
+                    reserveHeight += moreResult.heightAdded;
 
                     console.log("[Page Break Rule #2] availableHeight:", availableHeight, "needCharacter:", needCharacterOnThisPage, "reserveHeight:", reserveHeight);
 
