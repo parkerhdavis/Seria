@@ -158,17 +158,43 @@ function splitDialogueText(
     const targetLines = maxLines;
     const targetChars = targetLines * charsPerLine;
 
-    // Find a good break point (prefer breaking at spaces)
+    // Find a good break point (prefer sentence endings over other breaks)
     let breakPoint = Math.min(targetChars, dialogueContent.length);
 
-    // Try to break at a space or punctuation
+    // Try to break at a sentence ending first (. ! ?)
     if (breakPoint < dialogueContent.length) {
-        // Look backwards for a good break point
-        for (let i = breakPoint; i > Math.max(0, breakPoint - charsPerLine); i--) {
+        // First pass: Look for sentence endings (period, exclamation, question mark)
+        // Search back up to 3 lines worth of text to find a good sentence break
+        const searchBackLimit = Math.max(0, breakPoint - (charsPerLine * 3));
+        let sentenceBreak = -1;
+
+        for (let i = breakPoint - 1; i >= searchBackLimit; i--) {
             const char = dialogueContent[i];
-            if (char === ' ' || char === '.' || char === '!' || char === '?') {
-                breakPoint = i + 1;
-                break;
+            if (char === '.' || char === '!' || char === '?') {
+                // Check if there's a space after the punctuation (end of sentence)
+                if (i + 1 < dialogueContent.length && (dialogueContent[i + 1] === ' ' || dialogueContent[i + 1] === '\n')) {
+                    sentenceBreak = i + 2; // Include the space after punctuation
+                    break;
+                }
+                // Also check if it's at the end of the text
+                if (i + 1 === dialogueContent.length) {
+                    sentenceBreak = i + 1;
+                    break;
+                }
+            }
+        }
+
+        // If we found a sentence break, use it
+        if (sentenceBreak !== -1) {
+            breakPoint = sentenceBreak;
+        } else {
+            // Second pass: Fall back to any space within one line
+            for (let i = breakPoint - 1; i >= Math.max(0, breakPoint - charsPerLine); i--) {
+                const char = dialogueContent[i];
+                if (char === ' ') {
+                    breakPoint = i + 1;
+                    break;
+                }
             }
         }
     }
