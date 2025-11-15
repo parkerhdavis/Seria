@@ -6,7 +6,7 @@
  * capitalization, and element positioning.
  */
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
 import { getMappedColumn } from "@/utils/printRecipeMapper";
@@ -23,6 +23,7 @@ interface ScreenplayPrintProps {
     containerHeight?: number;              // Available height in pixels
     continuous?: boolean;                  // If false, shows gaps between pages (default: true)
     followCell?: boolean;                  // If false, won't scroll when Cell is edited (default: true)
+    onLoadingChange?: (isLoading: boolean) => void;  // Callback for loading state changes
 }
 
 /**
@@ -307,9 +308,19 @@ function ScreenplayPrint({
     containerHeight,
     continuous = true,
     followCell = true,
+    onLoadingChange,
 }: ScreenplayPrintProps) {
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
-    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell, clearSelection } = useCellStore();
+
+    // Use selectors to only subscribe to needed values - prevents re-renders on unrelated store changes
+    const editingCell = useCellStore(state => state.editingCell);
+    const editingValue = useCellStore(state => state.editingValue);
+    const setEditingCell = useCellStore(state => state.setEditingCell);
+    const updateEditingValue = useCellStore(state => state.updateEditingValue);
+    const updateCell = useCellStore(state => state.updateCell);
+    const clearEditingCell = useCellStore(state => state.clearEditingCell);
+    const clearSelection = useCellStore(state => state.clearSelection);
+
     const elementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     // State for Print view selection and editing
@@ -320,6 +331,12 @@ function ScreenplayPrint({
     const [isEditingFromPrint, setIsEditingFromPrint] = useState(false);
     const [cutElements, setCutElements] = useState<SelectedPrintElement[]>([]);
     const printContainerRef = useRef<HTMLDivElement>(null);
+
+    // Worker state for background calculations
+    const [isCalculating, setIsCalculating] = useState(false);
+    const [elements, setElements] = useState<ScreenplayElement[]>([]);
+    const [pages, setPages] = useState<{ elements: ScreenplayElement[]; pageNumber: number }[]>([]);
+    const workerRef = useRef<Worker | null>(null);
 
     // Context menu state
     const [contextMenu, setContextMenu] = useState<{
@@ -838,112 +855,66 @@ function ScreenplayPrint({
         }
     };
 
-    // Transform Cell Data into screenplay elements
-    // Use editingValue for real-time preview if a cell is being edited
-    // PERFORMANCE: Memoize to avoid recalculating on every render (expensive with large files)
-    const elements = useMemo(() => {
-        const result: ScreenplayElement[] = [];
-        let sceneCounter = 0; // Counter for scene numbering
+    // Notify parent of loading state changes
+    useEffect(() => {
+        onLoadingChange?.(isCalculating);
+    }, [isCalculating, onLoadingChange]);
 
-        // Helper to get cell value (either from data or editingValue if being edited)
-        const getCellValue = (rowIndex: number, colIndex: number): string => {
-            if (editingCell && editingCell.row === rowIndex && editingCell.col === colIndex) {
-                return editingValue;
-            }
-            return data[rowIndex]?.[colIndex] || "";
-        };
+    // Use web worker for expensive calculations
+    // PERFORMANCE: Offload to background thread to keep UI responsive with large files
+    useEffect(() => {
+        // Clean up previous worker if it exists
+        if (workerRef.current) {
+            workerRef.current.terminate();
+        }
 
-        data.forEach((row, rowIndex) => {
-            // Determine element type and content based on which columns have data
-            // Priority order: transition > scene_heading > character > parenthetical > dialogue > action
+        setIsCalculating(true);
 
-            const sceneHeadingIdx = sceneHeadingColumn ? headers.indexOf(sceneHeadingColumn) : -1;
-            const actionIdx = actionColumn ? headers.indexOf(actionColumn) : -1;
-            const characterIdx = characterColumn ? headers.indexOf(characterColumn) : -1;
-            const dialogueIdx = dialogueColumn ? headers.indexOf(dialogueColumn) : -1;
-            const parentheticalIdx = parentheticalColumn ? headers.indexOf(parentheticalColumn) : -1;
-            const transitionIdx = transitionColumn ? headers.indexOf(transitionColumn) : -1;
+        // Create new worker
+        const worker = new Worker(new URL("@/utils/screenplayPrint.worker.ts", import.meta.url), {
+            type: "module",
+        });
+        workerRef.current = worker;
 
-            // Check for transition (appears before scene heading)
-            if (transitionIdx >= 0) {
-                const content = getCellValue(rowIndex, transitionIdx);
-                if (content.trim()) {
-                    result.push({
-                        type: "transition",
-                        content,
-                        rowIndex,
-                        columnName: headers[transitionIdx],
-                    });
-                }
-            }
-
-            // Check for scene heading
-            if (sceneHeadingIdx >= 0) {
-                const content = getCellValue(rowIndex, sceneHeadingIdx);
-                if (content.trim()) {
-                    sceneCounter++; // Increment scene number
-                    result.push({
-                        type: "scene_heading",
-                        content,
-                        rowIndex,
-                        columnName: headers[sceneHeadingIdx],
-                        sceneNumber: sceneCounter,
-                    });
-                }
-            }
-
-            // Check for character (if we have dialogue, we need a character)
-            if (characterIdx >= 0 && dialogueIdx >= 0) {
-                const characterContent = getCellValue(rowIndex, characterIdx);
-                const dialogueContent = getCellValue(rowIndex, dialogueIdx);
-
-                if (characterContent.trim() && dialogueContent.trim()) {
-                    result.push({
-                        type: "character",
-                        content: characterContent,
-                        rowIndex,
-                        columnName: headers[characterIdx],
-                    });
-
-                    // Check for parenthetical
-                    if (parentheticalIdx >= 0) {
-                        const parentheticalContent = getCellValue(rowIndex, parentheticalIdx);
-                        if (parentheticalContent.trim()) {
-                            result.push({
-                                type: "parenthetical",
-                                content: parentheticalContent,
-                                rowIndex,
-                                columnName: headers[parentheticalIdx],
-                            });
-                        }
-                    }
-
-                    // Add dialogue
-                    result.push({
-                        type: "dialogue",
-                        content: dialogueContent,
-                        rowIndex,
-                        columnName: headers[dialogueIdx],
-                    });
-                }
-            }
-
-            // Check for action
-            if (actionIdx >= 0) {
-                const content = getCellValue(rowIndex, actionIdx);
-                if (content.trim()) {
-                    result.push({
-                        type: "action",
-                        content,
-                        rowIndex,
-                        columnName: headers[actionIdx],
-                    });
-                }
+        // Listen for results
+        worker.addEventListener("message", (e) => {
+            const message = e.data;
+            if (message.type === "result") {
+                setElements(message.elements);
+                setPages(message.pages);
+                setIsCalculating(false);
+            } else if (message.type === "error") {
+                console.error("ScreenplayPrint worker error:", message.message);
+                setElements([]);
+                setPages([{ elements: [], pageNumber: 1 }]);
+                setIsCalculating(false);
             }
         });
 
-        return result;
-    }, [data, headers, editingCell, editingValue, sceneHeadingColumn, actionColumn, characterColumn, dialogueColumn, parentheticalColumn, transitionColumn]);
+        // Listen for worker errors
+        worker.addEventListener("error", (e) => {
+            console.error("ScreenplayPrint worker error event:", e);
+            setElements([]);
+            setPages([{ elements: [], pageNumber: 1 }]);
+            setIsCalculating(false);
+        });
+
+        // Send calculation request
+        worker.postMessage({
+            type: "calculate",
+            data,
+            headers,
+            configuration,
+            recipe,
+            editingCell,
+            editingValue,
+        });
+
+        // Cleanup on unmount
+        return () => {
+            worker.terminate();
+        };
+    }, [data, headers, configuration, recipe, editingCell, editingValue]);
 
     /**
      * Calculate approximate height of a screenplay element in inches
@@ -1033,67 +1004,6 @@ function ScreenplayPrint({
         return blocks;
     };
 
-    /**
-     * Split screenplay element blocks into pages based on pageHeight
-     * Returns array of pages, each containing elements that fit within the page
-     */
-    interface PageWithElements {
-        elements: ScreenplayElement[];
-        pageNumber: number;
-    }
-
-    // Split elements into pages
-    // PERFORMANCE: Memoize to avoid recalculating on every render
-    const pages = useMemo(() => {
-        const splitIntoPages = (): PageWithElements[] => {
-            const pagesResult: PageWithElements[] = [];
-            const usableHeight = pageHeight - marginTop - marginBottom;
-            const blocks = groupIntoBlocks();
-
-            let currentPage: ScreenplayElement[] = [];
-            let currentPageHeight = 0;
-            let pageNumber = 1;
-
-            blocks.forEach((block, index) => {
-                // Check if adding this block would exceed page height
-                if (currentPageHeight + block.totalHeight > usableHeight && currentPage.length > 0) {
-                    // Save current page and start new one
-                    pagesResult.push({
-                        elements: currentPage,
-                        pageNumber: pageNumber,
-                    });
-                    pageNumber++;
-                    currentPage = [];
-                    currentPageHeight = 0;
-                }
-
-                // Add all elements from this block to current page
-                currentPage.push(...block.elements);
-                currentPageHeight += block.totalHeight;
-
-                // If this is the last block, save the current page
-                if (index === blocks.length - 1) {
-                    pagesResult.push({
-                        elements: currentPage,
-                        pageNumber: pageNumber,
-                    });
-                }
-            });
-
-            // Handle edge case: if no pages were created, create one empty page
-            if (pagesResult.length === 0) {
-                pagesResult.push({
-                    elements: [],
-                    pageNumber: 1,
-                });
-            }
-
-            return pagesResult;
-        };
-
-        return splitIntoPages();
-    }, [elements, pageHeight, marginTop, marginBottom, recipe, continuous]);
-
     // ===== PAGE VIRTUALIZATION =====
     /**
      * Performance optimization: Only render visible pages
@@ -1163,6 +1073,7 @@ function ScreenplayPrint({
         >
             {/* Show empty state if no elements */}
             {elements.length === 0 ? (
+                /* Show empty state if no elements */
                 <div className="flex items-center justify-center h-full text-base-content/50">
                     <div className="text-center">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1356,4 +1267,6 @@ function ScreenplayPrint({
     );
 }
 
-export default ScreenplayPrint;
+// Memoize to prevent re-renders when only selectedCell changes (not data/editingCell/etc)
+// PERFORMANCE: Prevents expensive reconciliation of thousands of elements on every cell selection
+export default memo(ScreenplayPrint);

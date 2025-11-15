@@ -1,4 +1,4 @@
-.PHONY: help dev build build-linux build-windows lint format test clean setup install dev-frontend check
+.PHONY: help dev build build-linux build-windows upload upload-dry lint format test clean setup install dev-frontend check
 
 help:
 	@echo "════════════════════════════════════════════════════════════════════════════════"
@@ -17,6 +17,8 @@ help:
 	@echo "  build              # Build for ALL platforms (Linux + Windows)"
 	@echo "  build-linux        # Build Linux installers only (.deb, .rpm, AppImage)"
 	@echo "  build-windows      # Build Windows installers only (.exe, .msi)"
+	@echo "  upload             # Upload release artifacts to GitLab Package Registry"
+	@echo "  upload-dry         # Show what would be uploaded without uploading"
 	@echo "  check              # Run Rust compiler checks without building"
 	@echo ""
 	@echo "Quality:"
@@ -127,6 +129,24 @@ check:
 	@echo "🔍 Running Rust compiler checks..."
 	@cd backend && cargo check
 	@echo "✅ Rust checks passed"
+
+upload:
+	@echo "📦 Uploading release artifacts to GitLab Package Registry..."
+	@if [ ! -f target/upload-to-gitlab.sh ]; then \
+		echo "❌ Upload script not found at target/upload-to-gitlab.sh"; \
+		exit 1; \
+	fi
+	@cd target && ./upload-to-gitlab.sh
+	@echo ""
+
+upload-dry:
+	@echo "🔍 Dry run - checking what would be uploaded..."
+	@if [ ! -f target/upload-to-gitlab.sh ]; then \
+		echo "❌ Upload script not found at target/upload-to-gitlab.sh"; \
+		exit 1; \
+	fi
+	@cd target && ./upload-to-gitlab.sh --dry-run
+	@echo ""
 
 # -------------
 # Quality

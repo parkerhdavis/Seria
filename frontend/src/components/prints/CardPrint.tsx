@@ -6,7 +6,7 @@
  * Cards can be dragged to reorder them.
  */
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 import { getMappedColumn, getMappedColumns } from "@/utils/printRecipeMapper";
@@ -22,6 +22,7 @@ interface CardPrintProps {
     containerWidth?: number;               // Available width in pixels
     containerHeight?: number;              // Available height in pixels
     followCell?: boolean;                  // If false, won't scroll when Cell is edited (default: true)
+    onLoadingChange?: (isLoading: boolean) => void;  // Callback for loading state changes
 }
 
 interface CardData {
@@ -390,11 +391,21 @@ function CardPrint({
     containerWidth,
     containerHeight,
     followCell = true,
+    onLoadingChange,
 }: CardPrintProps) {
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
-    const { editingCell, editingValue, setEditingCell, updateEditingValue, updateCell, clearEditingCell, clearSelection } = useCellStore();
+
+    // Use selectors to only subscribe to needed values - prevents re-renders on unrelated store changes
+    const editingCell = useCellStore(state => state.editingCell);
+    const editingValue = useCellStore(state => state.editingValue);
+    const setEditingCell = useCellStore(state => state.setEditingCell);
+    const updateEditingValue = useCellStore(state => state.updateEditingValue);
+    const updateCell = useCellStore(state => state.updateCell);
+    const clearEditingCell = useCellStore(state => state.clearEditingCell);
+    const clearSelection = useCellStore(state => state.clearSelection);
+
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
     // State for Print view selection and editing
@@ -411,6 +422,11 @@ function CardPrint({
         contentIndex?: number;
         columnName: string;
     } | null>(null);
+
+    // Worker state for background calculations
+    const [isCalculating, setIsCalculating] = useState(false);
+    const [cards, setCards] = useState<CardData[]>([]);
+    const workerRef = useRef<Worker | null>(null);
 
     // Get field mappings
     const titleColumn = getMappedColumn(configuration.fieldMappings, "title");
@@ -657,35 +673,55 @@ function CardPrint({
         });
     };
 
-    // Transform Cell Data into card data
-    // PERFORMANCE: Memoize to avoid recalculating on every render (expensive with large files)
-    const cards: CardData[] = useMemo(() => {
-        // Helper to get cell value (either from data or editingValue if being edited)
-        const getCellValue = (rowIndex: number, colIndex: number): string => {
-            if (editingCell && editingCell.row === rowIndex && editingCell.col === colIndex) {
-                return editingValue;
-            }
-            return data[rowIndex]?.[colIndex] || "";
-        };
+    // Notify parent of loading state changes
+    useEffect(() => {
+        onLoadingChange?.(isCalculating);
+    }, [isCalculating, onLoadingChange]);
 
-        return data.map((row, index) => {
-            const titleIdx = titleColumn ? headers.indexOf(titleColumn) : -1;
-            const subtitleIdx = subtitleColumn ? headers.indexOf(subtitleColumn) : -1;
-            const contentIndices = contentColumns
-                .map(col => headers.indexOf(col))
-                .filter(idx => idx >= 0);
+    // Use web worker for expensive calculations
+    // PERFORMANCE: Offload to background thread to keep UI responsive with large files
+    useEffect(() => {
+        // Clean up previous worker if it exists
+        if (workerRef.current) {
+            workerRef.current.terminate();
+        }
 
-            return {
-                index,
-                title: titleIdx >= 0 ? getCellValue(index, titleIdx) : "",
-                subtitle: subtitleIdx >= 0 ? getCellValue(index, subtitleIdx) : "",
-                content: contentIndices.map(idx => getCellValue(index, idx)).filter(text => text && text.trim()),
-                titleColumnName: titleColumn ?? undefined,
-                subtitleColumnName: subtitleColumn ?? undefined,
-                contentColumnNames: contentColumns,
-            };
+        setIsCalculating(true);
+
+        // Create new worker
+        const worker = new Worker(new URL("@/utils/cardPrint.worker.ts", import.meta.url), {
+            type: "module",
         });
-    }, [data, headers, editingCell, editingValue, titleColumn, subtitleColumn, contentColumns]);
+        workerRef.current = worker;
+
+        // Listen for results
+        worker.addEventListener("message", (e) => {
+            const message = e.data;
+            if (message.type === "result") {
+                setCards(message.cards);
+                setIsCalculating(false);
+            } else if (message.type === "error") {
+                console.error("CardPrint worker error:", message.message);
+                setCards([]);
+                setIsCalculating(false);
+            }
+        });
+
+        // Send calculation request
+        worker.postMessage({
+            type: "calculate",
+            data,
+            headers,
+            configuration,
+            editingCell,
+            editingValue,
+        });
+
+        // Cleanup on unmount
+        return () => {
+            worker.terminate();
+        };
+    }, [data, headers, configuration, editingCell, editingValue]);
 
     // Calculate how many cards fit based on drawer orientation
     let columns: number;
@@ -780,6 +816,7 @@ function CardPrint({
         >
             {/* Show empty state if no cards */}
             {cards.length === 0 ? (
+                /* Show empty state if no cards */
                 <div className="flex items-center justify-center h-full text-base-content/50">
                     <div className="text-center">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -939,4 +976,6 @@ function CardPrint({
     );
 }
 
-export default CardPrint;
+// Memoize to prevent re-renders when only selectedCell changes (not data/editingCell/etc)
+// PERFORMANCE: Prevents expensive reconciliation of thousands of cards on every cell selection
+export default memo(CardPrint);

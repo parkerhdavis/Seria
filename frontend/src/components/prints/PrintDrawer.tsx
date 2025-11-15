@@ -39,6 +39,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
     const [isResizing, setIsResizing] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
+    const [isPrintLoading, setIsPrintLoading] = useState(false);
     const drawerRef = useRef<HTMLDivElement>(null);
     const { startDrag, endDrag } = useDrag();
 
@@ -243,6 +244,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                                 containerWidth={containerWidth}
                                                 containerHeight={containerHeight}
                                                 followCell={recipeSettings.followCell}
+                                                onLoadingChange={setIsPrintLoading}
                                             />
                                         );
                                     case "screenplay":
@@ -257,6 +259,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                                 containerHeight={containerHeight}
                                                 continuous={recipeSettings.continuous}
                                                 followCell={recipeSettings.followCell}
+                                                onLoadingChange={setIsPrintLoading}
                                             />
                                         );
                                     case "graph":
@@ -317,7 +320,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                     </button>
 
                     {/* Recipe selector (center) */}
-                    <div className="flex items-center justify-center flex-1">
+                    <div className="flex items-center justify-center flex-1 gap-2">
                         <select
                             className="select select-bordered select-md"
                             style={{ textAlign: "center", textAlignLast: "center", minWidth: "200px" }}
@@ -330,6 +333,9 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                 </option>
                             ))}
                         </select>
+                        {isPrintLoading && (
+                            <div className="loading loading-spinner loading-sm text-primary"></div>
+                        )}
                     </div>
 
                     {/* Fullscreen button (right) */}
@@ -417,6 +423,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                                 containerWidth={containerWidth}
                                                 containerHeight={containerHeight}
                                                 followCell={recipeSettings.followCell}
+                                                onLoadingChange={setIsPrintLoading}
                                             />
                                         );
                                     case "screenplay":
@@ -431,6 +438,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                                 containerHeight={containerHeight}
                                                 continuous={recipeSettings.continuous}
                                                 followCell={recipeSettings.followCell}
+                                                onLoadingChange={setIsPrintLoading}
                                             />
                                         );
                                     case "graph":

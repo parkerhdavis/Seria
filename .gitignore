@@ -23,8 +23,9 @@ frontend/pnpm-lock.yaml
 # Build Artifacts & Distribution
 # ────────────────────────────────────────────────────────────────────────────────
 # Rust/Tauri
-target/
+target/*
 !target/README.md
+!target/upload-to-gitlab.sh
 **/*.rs.bk
 *.pdb
 Cargo.lock
