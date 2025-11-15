@@ -58,8 +58,8 @@ export const SCREENPLAY_RECIPE: ScreenplayRecipe = {
         pageHeight: 11,
 
         // Screenplay margins (FadeIn flavor)
-        marginTop: 1.05,
-        marginBottom: 0.9,
+        marginTop: 1,
+        marginBottom: 1,
         marginLeft: 0,  // set on each element
         marginRight: 0, // set on each element
 

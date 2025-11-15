@@ -128,7 +128,10 @@ function splitDialogueText(
     const availableWidth = textAlign === "left"
         ? rightEdge - (marginLeft + xMargin)
         : rightEdge - marginLeft;
-    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
+
+    // Account for px-2 padding (same as in estimateElementHeight and renderElement)
+    const textPadding = 0.167; // px-2 class horizontal padding in inches
+    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth) - textPadding;
 
     // Estimate characters per line based on maxWidth
     const charsPerLine = Math.floor(maxWidth * 10); // Rough estimate: 10 chars per inch
@@ -182,7 +185,8 @@ function groupIntoBlocks(
         if (element.type === "character") {
             const blockElements: ScreenplayElement[] = [element];
             const elementConfig = recipe.ingredients[element.type];
-            let blockHeight = estimateElementHeight(pdf, element, elementConfig, recipe, marginLeft, rightEdge);
+            // Exclude spaceAfter for height calculation (margin collapsing means it won't advance Y)
+            let blockHeight = estimateElementHeight(pdf, element, elementConfig, recipe, marginLeft, rightEdge, true);
             let j = i + 1;
 
             // Group character with its parentheticals and dialogue
@@ -191,7 +195,8 @@ function groupIntoBlocks(
                 if (nextElement.type === "parenthetical" || nextElement.type === "dialogue") {
                     blockElements.push(nextElement);
                     const nextConfig = recipe.ingredients[nextElement.type];
-                    blockHeight += estimateElementHeight(pdf, nextElement, nextConfig, recipe, marginLeft, rightEdge);
+                    // Exclude spaceAfter for all elements (margin collapsing)
+                    blockHeight += estimateElementHeight(pdf, nextElement, nextConfig, recipe, marginLeft, rightEdge, true);
                     j++;
                 } else {
                     break;
@@ -204,7 +209,8 @@ function groupIntoBlocks(
             const elementConfig = recipe.ingredients[element.type];
             blocks.push({
                 elements: [element],
-                totalHeight: estimateElementHeight(pdf, element, elementConfig, recipe, marginLeft, rightEdge),
+                // Exclude spaceAfter (margin collapsing means it won't advance Y)
+                totalHeight: estimateElementHeight(pdf, element, elementConfig, recipe, marginLeft, rightEdge, true),
             });
             i++;
         }
@@ -297,6 +303,7 @@ export async function exportScreenplayToPDF(
         // Render all blocks with sophisticated page break rules
         let currentY = marginTop;
         let elementsRendered = 0;
+        let previousElementSpaceAfter = 0; // Track previous element's spaceAfterElement for margin collapsing
 
         for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
             const block = blocks[blockIndex];
@@ -314,16 +321,8 @@ export async function exportScreenplayToPDF(
             // Check if this is a character-dialogue block
             const isDialogueBlock = block.elements.length > 1 && block.elements[0].type === "character";
 
-            // For dialogue blocks, recalculate height excluding spaceAfterElement from dialogue
-            let effectiveBlockHeight = block.totalHeight;
-            if (isDialogueBlock) {
-                effectiveBlockHeight = 0;
-                block.elements.forEach(el => {
-                    const elementConfig = recipe.ingredients[el.type];
-                    const excludeSpaceAfter = el.type === "dialogue";
-                    effectiveBlockHeight += estimateElementHeight(pdf, el, elementConfig, recipe, marginLeft, rightEdge, excludeSpaceAfter);
-                });
-            }
+            // Use totalHeight directly - it already excludes spaceAfter due to margin collapsing
+            const effectiveBlockHeight = block.totalHeight;
 
             const blockWouldExceedPage = currentY + effectiveBlockHeight > pageHeight - marginBottom;
             const hasContentOnPage = currentY > marginTop;
@@ -362,12 +361,16 @@ export async function exportScreenplayToPDF(
                         const [firstPart, remainingPart] = split;
 
                         // Add character (block hasn't been rendered yet, so character always needs to be added)
-                        currentY = renderElement(pdf, characterEl, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                        let result = renderElement(pdf, characterEl, currentY, recipe, marginLeft, rightEdge, showSceneNumbers, previousElementSpaceAfter);
+                        currentY = result.y;
+                        previousElementSpaceAfter = result.spaceAfter;
                         elementsRendered++;
 
                         // Add parentheticals before dialogue
                         for (const paren of parentheticalEls) {
-                            currentY = renderElement(pdf, paren, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                            result = renderElement(pdf, paren, currentY, recipe, marginLeft, rightEdge, showSceneNumbers, previousElementSpaceAfter);
+                            currentY = result.y;
+                            previousElementSpaceAfter = result.spaceAfter;
                             elementsRendered++;
                         }
 
@@ -377,10 +380,14 @@ export async function exportScreenplayToPDF(
                             text: firstPart,
                             splitIndex: 0
                         };
-                        currentY = renderElement(pdf, firstDialogue, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                        result = renderElement(pdf, firstDialogue, currentY, recipe, marginLeft, rightEdge, showSceneNumbers, previousElementSpaceAfter);
+                        currentY = result.y;
+                        previousElementSpaceAfter = result.spaceAfter;
 
                         // Add (MORE) marker
-                        currentY = renderElement(pdf, moreElement, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                        result = renderElement(pdf, moreElement, currentY, recipe, marginLeft, rightEdge, showSceneNumbers, previousElementSpaceAfter);
+                        currentY = result.y;
+                        previousElementSpaceAfter = result.spaceAfter;
 
                         // Start new page
                         pdf.addPage();
@@ -388,13 +395,16 @@ export async function exportScreenplayToPDF(
                         pdf.rect(0, 0, pageWidth, pageHeight, "F");
                         pdf.setTextColor(settings.textColor);
                         currentY = marginTop;
+                        previousElementSpaceAfter = 0; // Reset for new page
 
                         // Add character (CONT'D) at start of next page
                         const contdCharacter: ScreenplayElement = {
                             ...characterEl,
                             text: `${characterEl.text} (CONT'D)`
                         };
-                        currentY = renderElement(pdf, contdCharacter, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                        result = renderElement(pdf, contdCharacter, currentY, recipe, marginLeft, rightEdge, showSceneNumbers, previousElementSpaceAfter);
+                        currentY = result.y;
+                        previousElementSpaceAfter = result.spaceAfter;
 
                         // Add remaining part of dialogue
                         const remainingDialogue: ScreenplayElement = {
@@ -402,12 +412,16 @@ export async function exportScreenplayToPDF(
                             text: remainingPart,
                             splitIndex: 1
                         };
-                        currentY = renderElement(pdf, remainingDialogue, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                        result = renderElement(pdf, remainingDialogue, currentY, recipe, marginLeft, rightEdge, showSceneNumbers, previousElementSpaceAfter);
+                        currentY = result.y;
+                        previousElementSpaceAfter = result.spaceAfter;
                         elementsRendered++;
 
                         // Add remaining dialogue elements if any
                         for (let i = 1; i < dialogueEls.length; i++) {
-                            currentY = renderElement(pdf, dialogueEls[i], currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                            result = renderElement(pdf, dialogueEls[i], currentY, recipe, marginLeft, rightEdge, showSceneNumbers, previousElementSpaceAfter);
+                            currentY = result.y;
+                            previousElementSpaceAfter = result.spaceAfter;
                             elementsRendered++;
                         }
 
@@ -425,11 +439,14 @@ export async function exportScreenplayToPDF(
                 pdf.rect(0, 0, pageWidth, pageHeight, "F");
                 pdf.setTextColor(settings.textColor);
                 currentY = marginTop;
+                previousElementSpaceAfter = 0; // Reset for new page
             }
 
             // Add entire block to current page
             for (const element of block.elements) {
-                currentY = renderElement(pdf, element, currentY, recipe, marginLeft, rightEdge, showSceneNumbers);
+                const result = renderElement(pdf, element, currentY, recipe, marginLeft, rightEdge, showSceneNumbers, previousElementSpaceAfter);
+                currentY = result.y;
+                previousElementSpaceAfter = result.spaceAfter;
                 elementsRendered++;
             }
         }
@@ -617,7 +634,12 @@ function estimateElementHeight(
     const availableWidth = textAlign === "left"
         ? rightEdge - (marginLeft + xMargin)  // Left-aligned: from indent to right edge
         : rightEdge - marginLeft;             // Right-aligned: from left edge to right edge
-    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
+
+    // In ScreenplayPrint, text elements have px-2 class (0.5rem padding each side = 1rem total)
+    // This reduces the effective text width by approximately 0.167 inches (1rem at 96 DPI)
+    // Subtract this to match Print view text wrapping
+    const textPadding = 0.167; // px-2 class horizontal padding in inches
+    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth) - textPadding;
 
     // Get line height from font size and recipe lineHeight multiplier
     const fontSize = elementConfig.style.fontSize ?? 12;
@@ -645,6 +667,7 @@ function estimateElementHeight(
 
 /**
  * Renders a single screenplay element to the PDF using recipe configuration
+ * Returns an object with the new Y position and the element's spaceAfterElement value
  */
 function renderElement(
     pdf: jsPDF,
@@ -653,12 +676,13 @@ function renderElement(
     recipe: PrintRecipe,
     marginLeft: number,
     rightEdge: number,
-    showSceneNumbers: boolean
-): number {
+    showSceneNumbers: boolean,
+    previousElementSpaceAfter: number = 0
+): { y: number; spaceAfter: number } {
     const elementConfig = recipe.ingredients[element.type];
     if (!elementConfig) {
         console.warn(`No ingredient config found for type: ${element.type}`);
-        return currentY;
+        return { y: currentY, spaceAfter: 0 };
     }
 
     const style = elementConfig.style;
@@ -679,17 +703,26 @@ function renderElement(
     const availableWidth = textAlign === "left"
         ? rightEdge - (marginLeft + xMargin)  // Left-aligned: from indent to right edge
         : rightEdge - marginLeft;             // Right-aligned: from left edge to right edge
-    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
 
-    // Apply spacing before element (em units relative to font size, not line height)
+    // In ScreenplayPrint, text elements have px-2 class (0.5rem padding each side = 1rem total)
+    // This reduces the effective text width by approximately 0.167 inches (1rem at 96 DPI)
+    // Subtract this to match Print view text wrapping
+    const textPadding = 0.167; // px-2 class horizontal padding in inches
+    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth) - textPadding;
+
+    // Apply spacing before element with CSS-style margin collapsing
+    // In CSS, adjacent vertical margins collapse to the larger of the two
+    // previousElementSpaceAfter is the spaceAfterElement from the previous element
     const spaceBeforeElement = style.spaceBeforeElement ?? 0;
-    let y = currentY + spaceBeforeElement * fontSizeInches;
+    const collapsedSpacing = Math.max(previousElementSpaceAfter, spaceBeforeElement);
+    let y = currentY + collapsedSpacing * fontSizeInches;
 
     // Render scene numbers if this is a scene heading and they're enabled
     if (element.type === "scene_heading" && showSceneNumbers && element.sceneNumber) {
-        // Scene numbers appear 0.7" outside the left and right margins (matching ScreenplayPrint)
-        const sceneNumLeft = marginLeft - 0.7;
-        const sceneNumRight = rightEdge + 0.7;
+        // Scene numbers appear 0.5" from the page edges (matching ScreenplayPrint)
+        const pageWidth = (recipe.documentSettings.pageWidth as number) ?? 8.5;
+        const sceneNumLeft = 0.5;
+        const sceneNumRight = pageWidth - 0.5;
 
         pdf.setFontSize(fontSize);
         pdf.text(`${element.sceneNumber}.`, sceneNumLeft, y, { align: "left" });
@@ -734,11 +767,11 @@ function renderElement(
         y += lineHeight;
     }
 
-    // Apply spacing after element (em units relative to font size, not line height)
+    // Don't add spaceAfterElement here - it will be used for margin collapsing with the next element
+    // Return both the current Y position and the spaceAfterElement value
     const spaceAfterElement = style.spaceAfterElement ?? 0;
-    y += spaceAfterElement * fontSizeInches;
 
-    return y;
+    return { y, spaceAfter: spaceAfterElement };
 }
 
 /**
