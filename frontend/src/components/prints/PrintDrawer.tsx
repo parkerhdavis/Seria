@@ -17,6 +17,8 @@ import CardPrint from "@components/prints/CardPrint";
 import ScreenplayPrint from "@components/prints/ScreenplayPrint";
 import PrintToolbar from "@components/prints/PrintToolbar";
 import MappingModal from "@components/prints/MappingModal";
+import ExportDialog, { type ExportSettings, type ExportProgress } from "@components/prints/ExportDialog";
+import { exportPrintToPDF } from "@/utils/pdfExport";
 
 interface PrintPreviewDrawerProps {
     isOpen: boolean;
@@ -39,8 +41,12 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
     const [isResizing, setIsResizing] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
+    const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
     const [isPrintLoading, setIsPrintLoading] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
     const drawerRef = useRef<HTMLDivElement>(null);
+    const printContainerRef = useRef<HTMLDivElement>(null);
     const { startDrag, endDrag } = useDrag();
 
     // Get the current size based on position
@@ -112,6 +118,58 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
     };
 
     const recipeSettings = getRecipeSettings();
+
+    // Handle PDF export with progress tracking
+    const handleExport = async (settings: ExportSettings) => {
+        if (!printContainerRef.current) {
+            console.error("Print container not found");
+            return;
+        }
+
+        try {
+            // Show export progress modal
+            setIsExporting(true);
+            setExportProgress({
+                stage: "Starting export",
+                current: 0,
+                total: 100,
+                percentage: 0,
+            });
+
+            // Find the screenplay-print-container or print-content within the ref
+            const printElement = printContainerRef.current.querySelector(
+                ".screenplay-print-container, .print-content"
+            ) as HTMLElement;
+
+            if (!printElement) {
+                console.error("Print element not found");
+                setIsExporting(false);
+                return;
+            }
+
+            // Export with progress tracking
+            await exportPrintToPDF(printElement, {
+                ...settings,
+                onProgress: (progress) => {
+                    setExportProgress(progress);
+                },
+            });
+
+            // Wait briefly to show completion message before closing modal
+            // This gives users visual confirmation that the export finished successfully
+            await new Promise((resolve) => setTimeout(resolve, 800));
+
+            // Export complete - close modals
+            setIsExporting(false);
+            setExportProgress(null);
+            setIsExportDialogOpen(false);
+        } catch (error) {
+            console.error("Export failed:", error);
+            setIsExporting(false);
+            setExportProgress(null);
+            // TODO: Show error toast/notification to user
+        }
+    };
 
     // Load recipes and set Cell headers on mount/update
     useEffect(() => {
@@ -361,13 +419,14 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                             settings={recipeSettings}
                             onSettingsChange={saveRecipeSettings}
                             onMappingClick={() => setIsMappingModalOpen(true)}
+                            onExportClick={() => setIsExportDialogOpen(true)}
                         />
                     );
                 })()}
             </div>
 
             {/* Content */}
-            <div className="print-drawer-content flex-1 overflow-auto">
+            <div ref={printContainerRef} className="print-drawer-content flex-1 overflow-auto">
                 {!fileInfo ? (
                     <div className="flex flex-col items-center justify-center h-full text-base-content/50">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -485,6 +544,66 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                     />
                 );
             })()}
+
+            {/* Export Dialog */}
+            {selectedRecipeId && (() => {
+                const recipe = recipes.find(r => r.id === selectedRecipeId);
+                if (!recipe) return null;
+
+                // Generate default filename from file info
+                const defaultFilename = fileInfo?.path
+                    ? fileInfo.path.split("/").pop()?.replace(/\.(csv|tsv)$/i, "") || "screenplay"
+                    : "screenplay";
+
+                // Count total pages if in paged mode (for page range selection)
+                // This would need to be passed from the Print component in a real implementation
+                // For now, we'll just set it to undefined
+                const totalPages = undefined; // TODO: Pass from Print component if needed
+
+                return (
+                    <ExportDialog
+                        isOpen={isExportDialogOpen}
+                        onClose={() => setIsExportDialogOpen(false)}
+                        onExport={handleExport}
+                        defaultFilename={defaultFilename}
+                        totalPages={totalPages}
+                        continuous={recipeSettings.continuous}
+                    />
+                );
+            })()}
+
+            {/* Export Progress Modal */}
+            {isExporting && exportProgress && (
+                <div className="modal modal-open">
+                    <div className="modal-box">
+                        <h3 className="font-bold text-lg mb-4">Exporting to PDF</h3>
+
+                        {/* Progress bar */}
+                        <div className="mb-4">
+                            <progress
+                                className="progress progress-primary w-full h-4"
+                                value={exportProgress.percentage}
+                                max="100"
+                            ></progress>
+                        </div>
+
+                        {/* Progress text */}
+                        <div className="text-center space-y-2">
+                            <p className="text-base-content font-semibold">
+                                {exportProgress.stage}
+                            </p>
+                            <p className="text-base-content/60 text-sm">
+                                {exportProgress.current} of {exportProgress.total} elements processed
+                            </p>
+                            <p className="text-base-content/60 text-sm">
+                                {Math.round(exportProgress.percentage)}%
+                            </p>
+                        </div>
+
+                        {/* Note: No cancel button - export process can't be safely interrupted */}
+                    </div>
+                </div>
+            )}
 
             {/* Scrollbar styling - matches Cell grid */}
             <style>{`

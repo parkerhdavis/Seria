@@ -27,6 +27,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
     const reloadCells = useCellStore((state) => state.reloadCells);
     const createNew = useCellStore((state) => state.createNew);
     const importFromScreenplay = useCellStore((state) => state.importFromScreenplay);
+    const exportToScreenplay = useCellStore((state) => state.exportToScreenplay);
 
     const [isMaximized, setIsMaximized] = useState(false);
     const [showReloadConfirm, setShowReloadConfirm] = useState(false);
@@ -176,7 +177,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
         await createNew();
     };
 
-    const handleImport = async () => {
+    const handleImportAsScreenplay = async () => {
         onFilePickerOpenChange(true);
         try {
             const filePath = await open({
@@ -185,7 +186,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                     { name: "Screenplay Files", extensions: ["txt"] },
                     { name: "All Files", extensions: ["*"] },
                 ],
-                title: "Import Screenplay File",
+                title: "Import as Screenplay",
             });
 
             if (filePath && typeof filePath === "string") {
@@ -201,6 +202,60 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
             console.error("Failed to import file:", error);
             onFilePickerOpenChange(false);
         }
+    };
+
+    // Placeholder handlers for future import formats
+    const handleImportAsFountain = async () => {
+        // TODO: Implement Fountain import
+        console.log("Fountain import coming soon");
+    };
+
+    const handleImportAsPDF = async () => {
+        // TODO: Implement PDF screenplay import
+        console.log("PDF import coming soon");
+    };
+
+    // Export handlers
+    const handleExportAsScreenplay = async () => {
+        if (!fileInfo) {
+            console.error("No file is currently open");
+            return;
+        }
+
+        onFilePickerOpenChange(true);
+        try {
+            // Generate default filename
+            const defaultFilename = fileInfo.path
+                .split("/")
+                .pop()
+                ?.replace(/\.(csv|tsv)$/i, ".txt") || "screenplay.txt";
+
+            const filePath = await save({
+                filters: [
+                    { name: "Text Files", extensions: ["txt"] },
+                    { name: "All Files", extensions: ["*"] },
+                ],
+                title: "Export as Screenplay",
+                defaultPath: defaultFilename,
+            });
+
+            if (filePath) {
+                await exportToScreenplay(filePath);
+                if (document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                }
+            }
+            onFilePickerOpenChange(false);
+        } catch (error) {
+            console.error("Failed to export screenplay:", error);
+            onFilePickerOpenChange(false);
+        }
+    };
+
+    // Placeholder handlers for future export formats
+    const handleExportAsFountain = async () => {
+        // TODO: Implement Fountain export
+        console.log("Fountain export coming soon");
     };
 
     return (
@@ -272,9 +327,48 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                                 </a>
                             </li>
                             <li>
-                                <a onClick={handleImport} className="text-sm">
-                                    Import...
-                                </a>
+                                <details>
+                                    <summary className="text-sm">Import...</summary>
+                                    <ul className="p-1 bg-base-100 rounded-box shadow-lg border border-base-300">
+                                        <li>
+                                            <a onClick={handleImportAsScreenplay} className="text-sm">
+                                                as Screenplay
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a onClick={handleImportAsFountain} className="text-sm opacity-50">
+                                                as Fountain
+                                                <span className="ml-auto text-xs opacity-60">Soon</span>
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a onClick={handleImportAsPDF} className="text-sm opacity-50">
+                                                as PDF Screenplay
+                                                <span className="ml-auto text-xs opacity-60">Soon</span>
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </details>
+                            </li>
+                            <li>
+                                <details>
+                                    <summary className={`text-sm ${!fileInfo || isLoading ? "disabled opacity-50" : ""}`}>
+                                        Export...
+                                    </summary>
+                                    <ul className="p-1 bg-base-100 rounded-box shadow-lg border border-base-300">
+                                        <li>
+                                            <a onClick={handleExportAsScreenplay} className={`text-sm ${!fileInfo || isLoading ? "disabled opacity-50 pointer-events-none" : ""}`}>
+                                                as Screenplay
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a onClick={handleExportAsFountain} className="text-sm opacity-50">
+                                                as Fountain
+                                                <span className="ml-auto text-xs opacity-60">Soon</span>
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </details>
                             </li>
                         </ul>
                     </div>
