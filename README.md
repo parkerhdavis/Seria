@@ -1,7 +1,7 @@
 ![Seria Icon](./backend/icons/128x128.png)
 # Seria
 
-**Multimodal serialized data editor for game writers and narrative designers.** Seria lets you work directly with primitive data files (**CSV and TSV**, with **JSON coming soon**) while viewing and editing your content in writer-friendly formats like Screenplay and Corkboard views, as well as data-friendly views like Graph and Record editors. Changes made in any view sync instantly across all views - no import/export step, no duplication, just your raw data in whatever format feels best for what you're doing.
+**Multimodal serialized-data editor for game writers and narrative designers.** Seria lets you work directly with primitive data files (**CSV and TSV**, with **JSON coming soon**) while viewing and editing your content in writer-friendly formats like Screenplay and Corkboard views, as well as data-friendly views like Graph and Record editors. Changes made in any view sync instantly across all views - no import/export step, no duplication, just your raw data in whatever format feels best for what you're doing.
 
 - **GitLab (main repo):** [https://gitlab.com/parkerhdavis/Seria](https://gitlab.com/parkerhdavis/Seria)
 - **GitHub (mirror repo):** [https://github.com/parkerhdavis/Seria](https://github.com/parkerhdavis/Seria)
@@ -18,7 +18,7 @@
 
 ## The Problem
 
-Game writers need primitive data sources, but the tools available force painful trade-offs:
+Game writing workflows benefit from primitive data sources, but the tools available force painful trade-offs:
 
 ### Spreadsheets (Excel, Google Sheets, Unreal Data Tables)
 
