@@ -85,7 +85,8 @@ function isMultiLineElement(type: ElementType): boolean {
 
 /**
  * Calculate approximate height of a screenplay element in inches
- * @param excludeSpaceAfter - If true, excludes spaceAfterElement from calculation (useful for dialogue split calculations)
+ * Returns an object with contentHeight (text + spaceBeforeElement) and spaceAfterElement separately
+ * This allows for proper CSS-style margin collapsing
  */
 function calculateElementHeight(element: ScreenplayElement, recipe: PrintRecipe, excludeSpaceAfter: boolean = false): number {
     const elementConfig = getElementStyle(recipe, element.type);
@@ -116,6 +117,46 @@ function calculateElementHeight(element: ScreenplayElement, recipe: PrintRecipe,
 
     // Note: py-1 class and mb-3 class were removed - recipe settings have full control over spacing
     return spacingBeforeInches + contentHeight + spacingAfterInches;
+}
+
+/**
+ * Calculate how much height an element will add with CSS-style margin collapsing
+ * @param previousSpaceAfter - The spaceAfterElement from the previous element (0 if first element on page)
+ */
+function calculateElementHeightWithCollapsing(
+    element: ScreenplayElement,
+    recipe: PrintRecipe,
+    previousSpaceAfter: number
+): { heightAdded: number; spaceAfter: number } {
+    const elementConfig = getElementStyle(recipe, element.type);
+    const fontSize = elementConfig.fontSize || 12;
+    const fontSizeInches = fontSize / 72;
+    const spaceBeforeElement = elementConfig.spaceBeforeElement || 0;
+    const spaceAfterElement = elementConfig.spaceAfterElement || 0;
+
+    const lineHeightMultiplier = (elementConfig as any).lineHeight ?? 1.25;
+    const lineHeightInches = fontSizeInches * lineHeightMultiplier;
+
+    // Estimate number of lines
+    let numLines = 1;
+    if (isMultiLineElement(element.type)) {
+        const maxWidth = ("maxWidth" in elementConfig ? (elementConfig as {maxWidth?: string}).maxWidth : undefined) || "6in";
+        const widthInches = parseFloat(maxWidth.replace("in", ""));
+        const charsPerLine = Math.floor(widthInches * 10);
+        numLines = Math.max(1, Math.ceil(element.content.length / charsPerLine));
+    }
+
+    const spacingBeforeInches = spaceBeforeElement * fontSizeInches;
+    const spacingAfterInches = spaceAfterElement * fontSizeInches;
+    const contentHeight = numLines * lineHeightInches;
+
+    // CSS margin collapsing: use the larger of previousSpaceAfter and current spaceBeforeElement
+    const collapsedSpacing = Math.max(previousSpaceAfter, spacingBeforeInches);
+
+    return {
+        heightAdded: collapsedSpacing + contentHeight,
+        spaceAfter: spacingAfterInches,
+    };
 }
 
 /**
@@ -281,28 +322,49 @@ function splitIntoPages(
 
     let currentPage: ScreenplayElement[] = [];
     let currentPageHeight = 0;
+    let previousSpaceAfter = 0; // Track for CSS-style margin collapsing
     let pageNumber = 1;
 
     blocks.forEach((block, index) => {
         // Check if this is a character-dialogue block
         const isDialogueBlock = block.elements.length > 1 && block.elements[0].type === "character";
 
-        // For dialogue blocks, recalculate height excluding spaceAfterElement from dialogue
-        // This ensures we only split when the text itself doesn't fit, not when just the trailing space doesn't fit
-        let effectiveBlockHeight = block.totalHeight;
-        if (isDialogueBlock) {
-            effectiveBlockHeight = 0;
-            block.elements.forEach(el => {
-                const excludeSpaceAfter = el.type === "dialogue";
-                effectiveBlockHeight += calculateElementHeight(el, recipe, excludeSpaceAfter);
-            });
+        // Calculate how much height this block would add with proper margin collapsing
+        let simulatedHeight = currentPageHeight;
+        let simulatedSpaceAfter = previousSpaceAfter;
+
+        for (const el of block.elements) {
+            const { heightAdded, spaceAfter } = calculateElementHeightWithCollapsing(el, recipe, simulatedSpaceAfter);
+            simulatedHeight += heightAdded;
+            simulatedSpaceAfter = spaceAfter;
         }
 
-        const blockWouldExceedPage = currentPageHeight + effectiveBlockHeight > usableHeight;
+        // For dialogue blocks, also check without trailing dialogue spaceAfter
+        // This ensures we only split when the text itself doesn't fit
+        let effectiveHeight = simulatedHeight;
+        if (isDialogueBlock) {
+            // Recalculate without dialogue's trailing space
+            effectiveHeight = currentPageHeight;
+            let tempSpaceAfter = previousSpaceAfter;
+            for (const el of block.elements) {
+                const excludeSpaceAfter = el.type === "dialogue";
+                if (excludeSpaceAfter) {
+                    const { heightAdded } = calculateElementHeightWithCollapsing(el, recipe, tempSpaceAfter);
+                    effectiveHeight += heightAdded;
+                    tempSpaceAfter = 0; // Don't carry forward dialogue's spaceAfter
+                } else {
+                    const { heightAdded, spaceAfter } = calculateElementHeightWithCollapsing(el, recipe, tempSpaceAfter);
+                    effectiveHeight += heightAdded;
+                    tempSpaceAfter = spaceAfter;
+                }
+            }
+        }
+
+        const blockWouldExceedPage = effectiveHeight > usableHeight;
         const hasContentOnPage = currentPage.length > 0;
 
         if (isDialogueBlock && blockWouldExceedPage) {
-            console.log("[Page Break] Dialogue block would exceed page. currentPageHeight:", currentPageHeight, "effectiveBlockHeight:", effectiveBlockHeight, "originalBlockHeight:", block.totalHeight, "usableHeight:", usableHeight, "hasContent:", hasContentOnPage);
+            console.log("[Page Break] Dialogue block would exceed page. currentPageHeight:", currentPageHeight, "effectiveHeight:", effectiveHeight, "usableHeight:", usableHeight, "hasContent:", hasContentOnPage);
         }
 
         // PAGE BREAK RULE #1: Never orphan a Character element without its dialogue/parentheticals
@@ -326,6 +388,7 @@ function splitIntoPages(
                 pageNumber++;
                 currentPage = [];
                 currentPageHeight = 0;
+                previousSpaceAfter = 0; // Reset for new page
 
                 // After moving to new page, check if block is too large for even a fresh page
                 // If so, we need to split it
@@ -352,32 +415,44 @@ function splitIntoPages(
                         if (split !== null) {
                             const [firstPart, remainingPart] = split;
 
-                            // Add character
+                            // Add character with margin collapsing
                             currentPage.push(characterEl);
-                            currentPageHeight += characterHeight;
+                            const charResult = calculateElementHeightWithCollapsing(characterEl, recipe, previousSpaceAfter);
+                            currentPageHeight += charResult.heightAdded;
+                            previousSpaceAfter = charResult.spaceAfter;
 
-                            // Add parentheticals
+                            // Add parentheticals with margin collapsing
                             parentheticalEls.forEach(el => {
                                 currentPage.push(el);
-                                currentPageHeight += calculateElementHeight(el, recipe);
+                                const parenResult = calculateElementHeightWithCollapsing(el, recipe, previousSpaceAfter);
+                                currentPageHeight += parenResult.heightAdded;
+                                previousSpaceAfter = parenResult.spaceAfter;
                             });
 
                             // Add first part of dialogue
-                            currentPage.push({
-                                type: "dialogue",
+                            const firstDialoguePart = {
+                                type: "dialogue" as const,
                                 content: firstPart,
                                 rowIndex: mainDialogue.rowIndex,
                                 columnName: mainDialogue.columnName,
                                 splitIndex: 0,
-                            });
+                            };
+                            currentPage.push(firstDialoguePart);
+                            const firstDialogueResult = calculateElementHeightWithCollapsing(firstDialoguePart, recipe, previousSpaceAfter);
+                            currentPageHeight += firstDialogueResult.heightAdded;
+                            previousSpaceAfter = firstDialogueResult.spaceAfter;
 
                             // Add (MORE) marker
-                            currentPage.push({
-                                type: "parenthetical",
+                            const moreElement = {
+                                type: "parenthetical" as const,
                                 content: "(MORE)",
                                 rowIndex: characterEl.rowIndex,
                                 columnName: characterEl.columnName,
-                            });
+                            };
+                            currentPage.push(moreElement);
+                            const moreResult = calculateElementHeightWithCollapsing(moreElement, recipe, previousSpaceAfter);
+                            currentPageHeight += moreResult.heightAdded;
+                            previousSpaceAfter = moreResult.spaceAfter;
 
                             // Close current page
                             pagesResult.push({
@@ -387,31 +462,33 @@ function splitIntoPages(
                             pageNumber++;
                             currentPage = [];
                             currentPageHeight = 0;
+                            previousSpaceAfter = 0; // Reset for new page
 
                             // Add character (CONT'D) at start of next page
-                            currentPage.push({
-                                type: "character",
+                            const contdCharacter = {
+                                type: "character" as const,
                                 content: `${characterEl.content} (CONT'D)`,
                                 rowIndex: characterEl.rowIndex,
                                 columnName: characterEl.columnName,
                                 sceneNumber: characterEl.sceneNumber,
-                            });
-                            currentPageHeight += calculateElementHeight(characterEl, recipe);
+                            };
+                            currentPage.push(contdCharacter);
+                            const contdCharResult = calculateElementHeightWithCollapsing(contdCharacter, recipe, previousSpaceAfter);
+                            currentPageHeight += contdCharResult.heightAdded;
+                            previousSpaceAfter = contdCharResult.spaceAfter;
 
                             // Add remaining part of dialogue
-                            currentPage.push({
-                                type: "dialogue",
+                            const remainingDialoguePart = {
+                                type: "dialogue" as const,
                                 content: remainingPart,
                                 rowIndex: mainDialogue.rowIndex,
                                 columnName: mainDialogue.columnName,
                                 splitIndex: 1,
-                            });
-                            currentPageHeight += calculateElementHeight({
-                                type: "dialogue",
-                                content: remainingPart,
-                                rowIndex: mainDialogue.rowIndex,
-                                columnName: mainDialogue.columnName,
-                            }, recipe);
+                            };
+                            currentPage.push(remainingDialoguePart);
+                            const remainingResult = calculateElementHeightWithCollapsing(remainingDialoguePart, recipe, previousSpaceAfter);
+                            currentPageHeight += remainingResult.heightAdded;
+                            previousSpaceAfter = remainingResult.spaceAfter;
 
                             // Handle last block
                             if (index === blocks.length - 1) {
@@ -483,31 +560,43 @@ function splitIntoPages(
                         // Add character if not already on page
                         if (needCharacterOnThisPage) {
                             currentPage.push(characterEl);
-                            currentPageHeight += characterHeight;
+                            const charResult = calculateElementHeightWithCollapsing(characterEl, recipe, previousSpaceAfter);
+                            currentPageHeight += charResult.heightAdded;
+                            previousSpaceAfter = charResult.spaceAfter;
                         }
 
                         // Add parentheticals before dialogue
                         parentheticalEls.forEach(el => {
                             currentPage.push(el);
-                            currentPageHeight += calculateElementHeight(el, recipe);
+                            const parenResult = calculateElementHeightWithCollapsing(el, recipe, previousSpaceAfter);
+                            currentPageHeight += parenResult.heightAdded;
+                            previousSpaceAfter = parenResult.spaceAfter;
                         });
 
                         // Add first part of dialogue
-                        currentPage.push({
-                            type: "dialogue",
+                        const firstDialoguePart = {
+                            type: "dialogue" as const,
                             content: firstPart,
                             rowIndex: mainDialogue.rowIndex,
                             columnName: mainDialogue.columnName,
                             splitIndex: 0,
-                        });
+                        };
+                        currentPage.push(firstDialoguePart);
+                        const firstDialogueResult = calculateElementHeightWithCollapsing(firstDialoguePart, recipe, previousSpaceAfter);
+                        currentPageHeight += firstDialogueResult.heightAdded;
+                        previousSpaceAfter = firstDialogueResult.spaceAfter;
 
                         // Add (MORE) marker
-                        currentPage.push({
-                            type: "parenthetical",
+                        const moreElement = {
+                            type: "parenthetical" as const,
                             content: "(MORE)",
                             rowIndex: characterEl.rowIndex,
                             columnName: characterEl.columnName,
-                        });
+                        };
+                        currentPage.push(moreElement);
+                        const moreResult = calculateElementHeightWithCollapsing(moreElement, recipe, previousSpaceAfter);
+                        currentPageHeight += moreResult.heightAdded;
+                        previousSpaceAfter = moreResult.spaceAfter;
 
                         // Close current page
                         pagesResult.push({
@@ -517,36 +606,40 @@ function splitIntoPages(
                         pageNumber++;
                         currentPage = [];
                         currentPageHeight = 0;
+                        previousSpaceAfter = 0; // Reset for new page
 
                         // Add character (CONT'D) at start of next page
-                        currentPage.push({
-                            type: "character",
+                        const contdCharacter = {
+                            type: "character" as const,
                             content: `${characterEl.content} (CONT'D)`,
                             rowIndex: characterEl.rowIndex,
                             columnName: characterEl.columnName,
                             sceneNumber: characterEl.sceneNumber,
-                        });
-                        currentPageHeight += calculateElementHeight(characterEl, recipe);
+                        };
+                        currentPage.push(contdCharacter);
+                        const contdCharResult = calculateElementHeightWithCollapsing(contdCharacter, recipe, previousSpaceAfter);
+                        currentPageHeight += contdCharResult.heightAdded;
+                        previousSpaceAfter = contdCharResult.spaceAfter;
 
                         // Add remaining part of dialogue
-                        currentPage.push({
-                            type: "dialogue",
+                        const remainingDialoguePart = {
+                            type: "dialogue" as const,
                             content: remainingPart,
                             rowIndex: mainDialogue.rowIndex,
                             columnName: mainDialogue.columnName,
                             splitIndex: 1,
-                        });
-                        currentPageHeight += calculateElementHeight({
-                            type: "dialogue",
-                            content: remainingPart,
-                            rowIndex: mainDialogue.rowIndex,
-                            columnName: mainDialogue.columnName,
-                        }, recipe);
+                        };
+                        currentPage.push(remainingDialoguePart);
+                        const remainingResult = calculateElementHeightWithCollapsing(remainingDialoguePart, recipe, previousSpaceAfter);
+                        currentPageHeight += remainingResult.heightAdded;
+                        previousSpaceAfter = remainingResult.spaceAfter;
 
                         // Add remaining dialogue elements if any
                         for (let i = 1; i < dialogueEls.length; i++) {
                             currentPage.push(dialogueEls[i]);
-                            currentPageHeight += calculateElementHeight(dialogueEls[i], recipe);
+                            const dialogueResult = calculateElementHeightWithCollapsing(dialogueEls[i], recipe, previousSpaceAfter);
+                            currentPageHeight += dialogueResult.heightAdded;
+                            previousSpaceAfter = dialogueResult.spaceAfter;
                         }
 
                         return; // Skip the normal block addition below
@@ -564,11 +657,16 @@ function splitIntoPages(
             pageNumber++;
             currentPage = [];
             currentPageHeight = 0;
+            previousSpaceAfter = 0; // Reset for new page
         }
 
-        // Add entire block to current page
-        currentPage.push(...block.elements);
-        currentPageHeight += block.totalHeight;
+        // Add entire block to current page with proper margin collapsing
+        for (const element of block.elements) {
+            currentPage.push(element);
+            const { heightAdded, spaceAfter } = calculateElementHeightWithCollapsing(element, recipe, previousSpaceAfter);
+            currentPageHeight += heightAdded;
+            previousSpaceAfter = spaceAfter;
+        }
 
         // Handle last block
         if (index === blocks.length - 1) {

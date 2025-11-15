@@ -388,7 +388,7 @@ function ScreenplayPrint({
 
     // Calculate zoom scale to fit page width in available space
     // Page width is in inches, convert to pixels at 96dpi
-    const pageWidthPx = pageWidth * 96;
+    const pageWidthPx = pageWidth * 102; // NOTE: Manually edited this to taste
     const maxScaleWidth = availableWidth / pageWidthPx;
 
     // Also consider height if needed
@@ -1006,7 +1006,7 @@ function ScreenplayPrint({
                 </div>
             ) : continuous ? (
                 /* Continuous mode: single page with all elements */
-                <div className={`screenplay-page ${backgroundColor} text-grey-50 ${drawerPosition === "bottom" ? "mx-auto" : ""}`} style={pageStyle}>
+                <div className={`screenplay-page ${backgroundColor} text-grey-50 border-2 border-white/30 ${drawerPosition === "bottom" ? "mx-auto" : ""}`} style={pageStyle}>
                     {/* Screenplay elements - all on one continuous page */}
                     <div className="screenplay-content relative">
                         {elements.map((element, index) => {
@@ -1093,7 +1093,7 @@ function ScreenplayPrint({
                         <div
                             key={virtualPage.key}
                             data-index={virtualPage.index}
-                            className={`screenplay-page ${backgroundColor} text-grey-50`}
+                            className={`screenplay-page ${backgroundColor} border-2 border-white/30 text-grey-50`}
                             style={{
                                 ...pageStyle,
                                 position: "absolute",
