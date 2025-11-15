@@ -33,11 +33,11 @@ export interface RecipeIngredient {
         italic?: boolean;
         underline?: boolean;
         textTransform?: TextTransform;  // Optional text transformation
-        textAlign: string;
-        leftMargin: number;             // Left margin in inches (beyond document margin)
-        rightMargin?: number;           // Right margin in inches (beyond document margin)
-        lineSpaceBefore: number;        // Space before element (in line heights)
-        lineSpaceAfter: number;         // Space after element (in line heights)
+        textAlign: string;              // "left" or "right" - determines which edge margin is measured from
+        xMargin: number;                 // Distance from edge in inches (left edge if textAlign="left", right edge if textAlign="right")
+        lineHeight?: number;            // Line height multiplier for multi-line text (e.g., 1.0 = single-spaced, 1.25 = tight, 1.5 = 1.5x, 2.0 = double-spaced; default 1.25)
+        spaceBeforeElement: number;        // Space before element (in em units)
+        spaceAfterElement: number;         // Space after element (in em units)
     };
 }
 

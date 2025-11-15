@@ -69,9 +69,9 @@ function getElementStyle(recipe: PrintRecipe, elementType: ElementType): RecipeI
         fontFamily: "Courier",
         fontSize: 12,
         textAlign: "left",
-        leftMargin: 0,
-        lineSpaceBefore: 0,
-        lineSpaceAfter: 0,
+        xMargin: 0,
+        spaceBeforeElement: 0,
+        spaceAfterElement: 0,
     };
 }
 
@@ -88,14 +88,15 @@ function isMultiLineElement(type: ElementType): boolean {
 function calculateElementHeight(element: ScreenplayElement, recipe: PrintRecipe): number {
     const elementConfig = getElementStyle(recipe, element.type);
     const fontSize = elementConfig.fontSize || 12; // in points
-    const lineSpaceBefore = elementConfig.lineSpaceBefore || 0;
-    const lineSpaceAfter = elementConfig.lineSpaceAfter || 0;
+    const spaceBeforeElement = elementConfig.spaceBeforeElement || 0;
+    const spaceAfterElement = elementConfig.spaceAfterElement || 0;
 
     // Convert font size to inches
     const fontSizeInches = fontSize / 72;
 
-    // Calculate base line height (CSS uses leading-tight = 1.25)
-    const lineHeightInches = fontSizeInches * 1.25;
+    // Get line height from recipe (default 1.25 if not specified)
+    const lineHeightMultiplier = (elementConfig as any).lineHeight ?? 1.25;
+    const lineHeightInches = fontSizeInches * lineHeightMultiplier;
 
     // Estimate number of lines
     let numLines = 1;
@@ -107,17 +108,16 @@ function calculateElementHeight(element: ScreenplayElement, recipe: PrintRecipe)
     }
 
     // CSS uses em units for spacing, which are relative to font size (not line height)
-    const spacingBeforeInches = lineSpaceBefore * fontSizeInches;
-    const spacingAfterInches = lineSpaceAfter * fontSizeInches;
+    const spacingBeforeInches = spaceBeforeElement * fontSizeInches;
+    const spacingAfterInches = spaceAfterElement * fontSizeInches;
     const contentHeight = numLines * lineHeightInches;
 
-    // Account for CSS classes applied to elements:
-    // - mb-3 = 0.75rem = 12px at 16px base = 0.125 inches (margin-bottom)
-    // - py-1 = 0.25rem top + 0.25rem bottom = 8px total = 0.083 inches (padding)
-    const elementMarginBottom = 0.125;
+    // Account for CSS padding applied to elements:
+    // - py-1 = 0.25rem top + 0.25rem bottom = 8px total at 16px base = 0.083 inches (padding)
+    // Note: mb-3 class was removed - recipe's spaceBeforeElement/spaceAfterElement have full control over spacing
     const elementPadding = 0.083;
 
-    return spacingBeforeInches + contentHeight + spacingAfterInches + elementMarginBottom + elementPadding;
+    return spacingBeforeInches + contentHeight + spacingAfterInches + elementPadding;
 }
 
 /**
@@ -166,7 +166,16 @@ function groupIntoBlocks(elements: ScreenplayElement[], recipe: PrintRecipe): El
 }
 
 /**
- * Split elements into pages
+ * Split elements into pages with special handling for dialogue and action
+ *
+ * PAGE BREAK RULES (Screenplay-specific overrides to recipe settings):
+ * 1. Character names must stay with their dialogue/parentheticals
+ *    - If a page break would orphan a Character element without its dialogue, move entire block to next page
+ * 2. Dialogue blocks too large for one page split with (MORE) and (CONT'D)
+ *    - Add "(MORE)" parenthetical at end of first page
+ *    - Repeat character name with " (CONT'D)" appended at start of next page
+ * 3. Action elements never split across pages
+ *    - If an action doesn't fit, move it entirely to the next page
  */
 function splitIntoPages(
     elements: ScreenplayElement[],
@@ -184,7 +193,128 @@ function splitIntoPages(
     let pageNumber = 1;
 
     blocks.forEach((block, index) => {
-        if (currentPageHeight + block.totalHeight > usableHeight && currentPage.length > 0) {
+        const blockWouldExceedPage = currentPageHeight + block.totalHeight > usableHeight;
+        const hasContentOnPage = currentPage.length > 0;
+
+        // Check if this is a character-dialogue block
+        const isDialogueBlock = block.elements.length > 1 && block.elements[0].type === "character";
+
+        // PAGE BREAK RULE #1: Never orphan a Character element without its dialogue/parentheticals
+        // Check if adding this dialogue block would result in Character on current page but dialogue on next page
+        if (isDialogueBlock && hasContentOnPage) {
+            const characterEl = block.elements[0];
+            const characterHeight = calculateElementHeight(characterEl, recipe);
+            const characterWouldFit = currentPageHeight + characterHeight <= usableHeight;
+            const fullBlockWouldNotFit = currentPageHeight + block.totalHeight > usableHeight;
+
+            // If Character would fit but the full block wouldn't, we'd orphan the Character
+            // Move the entire block to the next page instead
+            if (characterWouldFit && fullBlockWouldNotFit) {
+                // Close current page and start new page
+                pagesResult.push({
+                    elements: currentPage,
+                    pageNumber: pageNumber,
+                });
+                pageNumber++;
+                currentPage = [];
+                currentPageHeight = 0;
+                // Fall through to add entire block to new page
+                currentPage.push(...block.elements);
+                currentPageHeight += block.totalHeight;
+
+                // Handle last block
+                if (index === blocks.length - 1) {
+                    pagesResult.push({
+                        elements: currentPage,
+                        pageNumber: pageNumber,
+                    });
+                }
+                return; // Skip the rest of the logic for this block
+            }
+        }
+
+        if (blockWouldExceedPage && hasContentOnPage) {
+            // PAGE BREAK RULE #2: Dialogue blocks too large for one page split with (MORE) and (CONT'D)
+            // Check if this is a dialogue block that's too large to fit on one page
+            // Only split dialogue if the block itself is larger than a page
+            const blockTooLargeForOnePage = block.totalHeight > usableHeight;
+
+            if (isDialogueBlock && blockTooLargeForOnePage) {
+                // This dialogue block is too large to fit on a single page, so we need to split it
+                // Find dialogue element(s) in the block
+                const characterEl = block.elements[0];
+                const dialogueEls = block.elements.filter(el => el.type === "dialogue");
+                const parentheticalEls = block.elements.filter(el => el.type === "parenthetical");
+
+                if (dialogueEls.length > 0) {
+                    // Calculate available space on current page
+                    const availableHeight = usableHeight - currentPageHeight;
+
+                    // Calculate height needed for (MORE) parenthetical
+                    const moreHeight = calculateElementHeight({
+                        type: "parenthetical",
+                        content: "(MORE)",
+                        rowIndex: characterEl.rowIndex,
+                        columnName: characterEl.columnName,
+                    }, recipe);
+
+                    // If we have enough space for at least one line of dialogue + (MORE)
+                    const fontSize = (recipe.ingredients.dialogue?.style?.fontSize ?? 12) / 72; // Convert pt to inches
+                    const lineHeightMultiplier = (recipe.ingredients.dialogue?.style as any)?.lineHeight ?? 1.25;
+                    const lineHeight = fontSize * lineHeightMultiplier;
+                    const minDialogueSpace = lineHeight + moreHeight;
+
+                    if (availableHeight >= minDialogueSpace) {
+                        // Split dialogue: add character, some dialogue, and (MORE) on current page
+                        // Then character (cont'd) and remaining dialogue on next page
+                        // For now, we'll keep the block together and add (MORE) + (cont'd) markers
+                        // This is a simplified implementation - full implementation would split dialogue text
+
+                        // Add (MORE) at end of current page
+                        currentPage.push({
+                            type: "parenthetical",
+                            content: "(MORE)",
+                            rowIndex: characterEl.rowIndex,
+                            columnName: characterEl.columnName,
+                        });
+
+                        // Close current page
+                        pagesResult.push({
+                            elements: currentPage,
+                            pageNumber: pageNumber,
+                        });
+                        pageNumber++;
+                        currentPage = [];
+                        currentPageHeight = 0;
+
+                        // Add character (cont'd) at start of next page
+                        currentPage.push({
+                            type: "character",
+                            content: `${characterEl.content} (CONT'D)`,
+                            rowIndex: characterEl.rowIndex,
+                            columnName: characterEl.columnName,
+                            sceneNumber: characterEl.sceneNumber,
+                        });
+                        currentPageHeight += calculateElementHeight(characterEl, recipe);
+
+                        // Add remaining elements (parentheticals and dialogue)
+                        parentheticalEls.forEach(el => {
+                            currentPage.push(el);
+                            currentPageHeight += calculateElementHeight(el, recipe);
+                        });
+                        dialogueEls.forEach(el => {
+                            currentPage.push(el);
+                            currentPageHeight += calculateElementHeight(el, recipe);
+                        });
+
+                        return; // Skip the normal block addition below
+                    }
+                }
+            }
+
+            // PAGE BREAK RULE #3: Move entire block to next page
+            // This handles action elements (which are single-element blocks) and
+            // dialogue blocks that don't fit but aren't large enough to split
             pagesResult.push({
                 elements: currentPage,
                 pageNumber: pageNumber,
@@ -194,9 +324,11 @@ function splitIntoPages(
             currentPageHeight = 0;
         }
 
+        // Add entire block to current page
         currentPage.push(...block.elements);
         currentPageHeight += block.totalHeight;
 
+        // Handle last block
         if (index === blocks.length - 1) {
             pagesResult.push({
                 elements: currentPage,

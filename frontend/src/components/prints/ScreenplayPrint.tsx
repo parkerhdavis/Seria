@@ -77,8 +77,8 @@ function getElementStyle(recipe: PrintRecipe, elementType: ElementType): RecipeI
         fontSize: 12,
         textAlign: "left",
         leftMargin: 0,
-        lineSpaceBefore: 0,
-        lineSpaceAfter: 0,
+        spaceBeforeElement: 0,
+        spaceAfterElement: 0,
     };
 }
 
@@ -129,18 +129,24 @@ function ScreenplayElementView({
     const elementConfig = getElementStyle(recipe, element.type);
 
     // Build style object from recipe configuration with sensible defaults
+    // margin is interpreted based on textAlign: left edge for "left", right edge for "right"
+    const textAlign = elementConfig.textAlign || "left";
+    const margin = elementConfig.xMargin ?? 0;
+
     const style = {
-        marginLeft: elementConfig.leftMargin ? `${elementConfig.leftMargin}in` : undefined,
-        marginRight: elementConfig.rightMargin ? `${elementConfig.rightMargin}in` : undefined,
-        textAlign: elementConfig.textAlign || "left",
+        fontFamily: elementConfig.fontFamily || "Courier, monospace",
+        marginLeft: textAlign === "left" ? `${margin}in` : undefined,
+        marginRight: textAlign === "right" ? `${margin}in` : undefined,
+        textAlign: textAlign,
         textTransform: elementConfig.textTransform || "none",
         fontWeight: elementConfig.fontWeight || 400,
         fontSize: elementConfig.fontSize ? `${elementConfig.fontSize}pt` : undefined,
-        maxWidth: elementConfig.textAlign !== "right" ?
+        lineHeight: elementConfig.lineHeight ?? 1.25, // Default to 1.25 if not specified
+        maxWidth: textAlign !== "right" ?
             (("maxWidth" in elementConfig ? (elementConfig as {maxWidth?: string}).maxWidth : undefined) || "100%") :
             undefined,
-        marginTop: elementConfig.lineSpaceBefore ? `${elementConfig.lineSpaceBefore}em` : undefined,
-        marginBottom: elementConfig.lineSpaceAfter ? `${elementConfig.lineSpaceAfter}em` : undefined,
+        marginTop: elementConfig.spaceBeforeElement ? `${elementConfig.spaceBeforeElement}em` : undefined,
+        marginBottom: elementConfig.spaceAfterElement ? `${elementConfig.spaceAfterElement}em` : undefined,
     };
 
     // Auto-focus input/textarea when editing starts from Print view
@@ -179,7 +185,7 @@ function ScreenplayElementView({
     return (
         <div
             ref={setRef}
-            className={`screenplay-element mb-3 relative cursor-pointer ${isBeingEdited ? "editing-indicator" : ""} ${isSelected ? "selected-indicator" : ""} ${isCut ? "cut-indicator" : ""}`}
+            className={`screenplay-element relative cursor-pointer ${isBeingEdited ? "editing-indicator" : ""} ${isSelected ? "selected-indicator" : ""} ${isCut ? "cut-indicator" : ""}`}
             onClick={onClick}
             onDoubleClick={onDoubleClick}
             onContextMenu={onContextMenu}
@@ -928,12 +934,21 @@ function ScreenplayPrint({
         estimateSize: () => {
             // Estimate full page height including gap between pages
             // Pages are absolutely positioned, so we just need the visual height after scaling plus the gap
-            const pageGap = continuous ? 0 : 32;
+            // Gap between pages: 0.5" converted to pixels and scaled
+            const pageGapInches = 0.5; // 0.5" vertical gap between pages in paged mode
+            const pageGapPx = pageGapInches * 96; // Convert inches to pixels (96 DPI)
+            const scaledGap = continuous ? 0 : pageGapPx * scale; // Scale the gap with the page
             const scaledHeight = pageHeightPx * scale;
-            return scaledHeight + pageGap;
+            return scaledHeight + scaledGap;
         },
         overscan: 2, // Pre-render 2 pages above/below for smooth scrolling
     });
+
+    // Recalculate virtualizer measurements when scale changes
+    // This ensures page positions update when drawer is resized
+    useEffect(() => {
+        pageVirtualizer.measure();
+    }, [scale, pageVirtualizer]);
 
     const virtualPages = pageVirtualizer.getVirtualItems();
     const totalSize = pageVirtualizer.getTotalSize();

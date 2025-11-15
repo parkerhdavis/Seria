@@ -24,64 +24,20 @@ import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 interface ScreenplayElement {
     type: string; // scene_heading, action, character, dialogue, parenthetical, transition
     text: string;
-    sceneNumber?: string; // For Scene elements
+    sceneNumber?: number; // For Scene elements (auto-generated counter)
 }
 
 /**
- * Mapping of ingredient IDs to display names
+ * Element ordering priority for when multiple elements appear in the same row
+ * Lower number = rendered first
  */
-const ELEMENT_TYPE_NAMES: Record<string, string> = {
-    scene_heading: "Scene",
-    action: "Action",
-    character: "Character",
-    dialogue: "Dialogue",
-    parenthetical: "Parenthetical",
-    transition: "Transition",
-};
-
-/**
- * Screenplay formatting constants (in inches)
- * Based on industry-standard screenplay format
- */
-const SCREENPLAY_FORMAT = {
-    // Page dimensions (US Letter)
-    PAGE_WIDTH: 8.5,
-    PAGE_HEIGHT: 11,
-
-    // Standard margins
-    MARGIN_LEFT: 1.5,
-    MARGIN_RIGHT: 1.0,
-    MARGIN_TOP: 1.0,
-    MARGIN_BOTTOM: 1.0,
-
-    // Element indentation (from left edge of page)
-    SCENE_INDENT: 1.5,
-    ACTION_INDENT: 1.5,
-    CHARACTER_INDENT: 3.7,
-    DIALOGUE_INDENT: 2.5,
-    PARENTHETICAL_INDENT: 3.1,
-    TRANSITION_INDENT: 6.0,
-
-    // Element widths (maximum width before wrapping)
-    ACTION_WIDTH: 6.0,
-    DIALOGUE_WIDTH: 3.5,
-    PARENTHETICAL_WIDTH: 2.0,
-
-    // Line spacing
-    LINE_HEIGHT: 12 / 72, // 12pt in inches
-    FONT_SIZE: 12,
-
-    // Extra spacing
-    SCENE_SPACING_AFTER: 12 / 72, // Extra line after scene headings
-    ACTION_SPACING_AFTER: 12 / 72, // Extra line between consecutive actions
-    CHARACTER_SPACING_AFTER: 0, // No extra space after character name
-    PARENTHETICAL_SPACING_AFTER: 0,
-    DIALOGUE_SPACING_AFTER: 12 / 72,
-    TRANSITION_SPACING_AFTER: 12 / 72,
-
-    // Scene number position (from edges)
-    SCENE_NUMBER_LEFT: 0.5,
-    SCENE_NUMBER_RIGHT: 7.5,
+const ELEMENT_ORDER_PRIORITY: Record<string, number> = {
+    transition: 1,
+    scene_heading: 2,
+    action: 3,
+    character: 4,
+    parenthetical: 5,
+    dialogue: 6,
 };
 
 /**
@@ -112,6 +68,7 @@ export async function exportScreenplayToPDF(
         });
 
         // Parse CSV data into screenplay elements
+        // Elements are already sorted per-row during parsing
         const elements = parseScreenplayElements(data, headers, recipe, configuration);
         console.log(`[Screenplay PDF Export] Parsed ${elements.length} screenplay elements`);
 
@@ -122,29 +79,32 @@ export async function exportScreenplayToPDF(
             percentage: 10,
         });
 
+        // Get page dimensions and margins from recipe
+        const pageWidth = (recipe.documentSettings.pageWidth as number) ?? 8.5;
+        const pageHeight = (recipe.documentSettings.pageHeight as number) ?? 11;
+        const marginTop = (recipe.documentSettings.marginTop as number) ?? 1;
+        const marginBottom = (recipe.documentSettings.marginBottom as number) ?? 1;
+        const marginLeft = (recipe.documentSettings.marginLeft as number) ?? 1.5;
+        const marginRight = (recipe.documentSettings.marginRight as number) ?? 1;
+        const showSceneNumbers = (recipe.documentSettings.sceneNumbering as boolean) ?? false;
+
         // Create PDF document
         const pdf = new jsPDF({
             orientation: "portrait",
             unit: "in",
-            format: "letter",
+            format: [pageWidth, pageHeight],
         });
 
         // Set background color
         pdf.setFillColor(settings.backgroundColor);
-        pdf.rect(
-            0,
-            0,
-            SCREENPLAY_FORMAT.PAGE_WIDTH,
-            SCREENPLAY_FORMAT.PAGE_HEIGHT,
-            "F"
-        );
+        pdf.rect(0, 0, pageWidth, pageHeight, "F");
 
         // Set text color
         pdf.setTextColor(settings.textColor);
 
         // Set font (Courier is the screenplay standard)
         pdf.setFont("courier");
-        pdf.setFontSize(SCREENPLAY_FORMAT.FONT_SIZE);
+        pdf.setFontSize(12);
 
         settings.onProgress?.({
             stage: "Rendering screenplay text",
@@ -154,7 +114,7 @@ export async function exportScreenplayToPDF(
         });
 
         // Render all elements
-        let currentY = SCREENPLAY_FORMAT.MARGIN_TOP;
+        let currentY = marginTop;
         let previousElementType: string | null = null;
 
         for (let i = 0; i < elements.length; i++) {
@@ -170,34 +130,42 @@ export async function exportScreenplayToPDF(
                 });
             }
 
+            // Get element config from recipe for accurate height estimation
+            const elementConfig = recipe.ingredients[element.type];
+            if (!elementConfig) {
+                console.warn(`No ingredient config found for type: ${element.type}`);
+                continue;
+            }
+
             // Add page break if needed
-            const elementHeight = estimateElementHeight(pdf, element);
-            if (
-                currentY + elementHeight >
-                SCREENPLAY_FORMAT.PAGE_HEIGHT - SCREENPLAY_FORMAT.MARGIN_BOTTOM
-            ) {
+            const elementHeight = estimateElementHeight(pdf, element, elementConfig, marginLeft, marginRight);
+            if (currentY + elementHeight > pageHeight - marginBottom) {
                 pdf.addPage();
                 // Set background color for new page
                 pdf.setFillColor(settings.backgroundColor);
-                pdf.rect(
-                    0,
-                    0,
-                    SCREENPLAY_FORMAT.PAGE_WIDTH,
-                    SCREENPLAY_FORMAT.PAGE_HEIGHT,
-                    "F"
-                );
+                pdf.rect(0, 0, pageWidth, pageHeight, "F");
                 pdf.setTextColor(settings.textColor);
-                currentY = SCREENPLAY_FORMAT.MARGIN_TOP;
+                currentY = marginTop;
                 previousElementType = null; // Reset for new page
             }
 
             // Add extra spacing between consecutive Action elements
             if (element.type === "action" && previousElementType === "action") {
-                currentY += SCREENPLAY_FORMAT.ACTION_SPACING_AFTER;
+                // Get line spacing from recipe
+                const lineHeight = (elementConfig.style.fontSize ?? 12) / 72; // Convert pt to inches
+                currentY += lineHeight;
             }
 
             // Render the element
-            currentY = renderElement(pdf, element, currentY);
+            currentY = renderElement(
+                pdf,
+                element,
+                currentY,
+                recipe,
+                marginLeft,
+                pageWidth - marginRight,
+                showSceneNumbers
+            );
 
             previousElementType = element.type;
         }
@@ -211,20 +179,20 @@ export async function exportScreenplayToPDF(
 
         // Add page numbers if enabled
         if (settings.includePageNumbers) {
-            addPageNumbers(pdf, settings.textColor);
+            addPageNumbers(pdf, recipe, settings.textColor);
         }
 
         // Add watermark if enabled
         if (settings.watermark) {
-            addWatermark(pdf, settings.watermark, settings.textColor);
+            addWatermark(pdf, settings.watermark, settings.textColor, pageWidth, pageHeight);
         }
 
         // Add headers/footers if enabled
         if (settings.includeHeaders && settings.headerText) {
-            addHeaders(pdf, settings.headerText, settings.textColor);
+            addHeaders(pdf, settings.headerText, settings.textColor, pageWidth);
         }
         if (settings.includeFooters && settings.footerText) {
-            addFooters(pdf, settings.footerText, settings.textColor);
+            addFooters(pdf, settings.footerText, settings.textColor, pageWidth, pageHeight);
         }
 
         settings.onProgress?.({
@@ -304,168 +272,229 @@ function parseScreenplayElements(
         }
     }
 
-    // Get scene number column if mapped
-    const sceneNumberColumn = getMappedColumn(configuration.fieldMappings, "scene_number");
-    const sceneNumberIndex = sceneNumberColumn ? headers.indexOf(sceneNumberColumn) : -1;
-
     if (columnMappings.size === 0) {
         throw new Error("No screenplay element columns are mapped");
     }
 
+    // Auto-generate scene numbers (like ScreenplayPrint worker does)
+    let sceneCounter = 0;
+
     // Parse each row
     for (const row of data) {
+        // Collect all elements for this row
+        const rowElements: ScreenplayElement[] = [];
+
         // Check each ingredient type to see if this row has content for it
         columnMappings.forEach((columnIndex, ingredientId) => {
             const text = row[columnIndex]?.trim() || "";
 
             if (text) {
-                // Get scene number if this is a scene heading
-                const sceneNumber =
-                    ingredientId === "scene_heading" && sceneNumberIndex !== -1
-                        ? row[sceneNumberIndex]?.trim() || undefined
-                        : undefined;
+                // Auto-increment scene counter for scene headings
+                let sceneNumber: number | undefined = undefined;
+                if (ingredientId === "scene_heading") {
+                    sceneCounter++;
+                    sceneNumber = sceneCounter;
+                }
 
-                elements.push({
+                rowElements.push({
                     type: ingredientId,
                     text,
                     sceneNumber,
                 });
             }
         });
+
+        // Sort elements within this row by priority
+        // (Transition -> Scene -> Action -> Character -> Parenthetical -> Dialogue)
+        rowElements.sort((a, b) => {
+            const priorityA = ELEMENT_ORDER_PRIORITY[a.type] ?? 999;
+            const priorityB = ELEMENT_ORDER_PRIORITY[b.type] ?? 999;
+            return priorityA - priorityB;
+        });
+
+        // Add this row's elements to the main array
+        elements.push(...rowElements);
     }
 
     return elements;
 }
 
 /**
- * Estimates the height needed for an element (for page break calculation)
+ * Parses maxWidth from CSS string (e.g., "3.3in" -> 3.3)
  */
-function estimateElementHeight(pdf: jsPDF, element: ScreenplayElement): number {
-    const format = SCREENPLAY_FORMAT;
-
-    // Get the appropriate width for text wrapping
-    let maxWidth: number;
-    switch (element.type) {
-        case "dialogue":
-            maxWidth = format.DIALOGUE_WIDTH;
-            break;
-        case "parenthetical":
-            maxWidth = format.PARENTHETICAL_WIDTH;
-            break;
-        default:
-            maxWidth = format.ACTION_WIDTH;
-    }
-
-    // Split text into lines that fit within maxWidth
-    const lines = pdf.splitTextToSize(element.text, maxWidth);
-    const numLines = Array.isArray(lines) ? lines.length : 1;
-
-    return numLines * format.LINE_HEIGHT;
+function parseMaxWidth(maxWidthStr: string | undefined, defaultWidth: number): number {
+    if (!maxWidthStr) return defaultWidth;
+    const match = maxWidthStr.match(/^([\d.]+)in$/);
+    return match ? parseFloat(match[1]) : defaultWidth;
 }
 
 /**
- * Renders a single screenplay element to the PDF
+ * Estimates the height needed for an element (for page break calculation)
+ */
+function estimateElementHeight(
+    pdf: jsPDF,
+    element: ScreenplayElement,
+    elementConfig: any,
+    marginLeft: number,
+    rightEdge: number
+): number {
+    const style = elementConfig.style;
+    const textAlign = style.textAlign || "left";
+    const margin = style.margin ?? 0;
+
+    // Get max width from recipe
+    const maxWidthStr = (style as any).maxWidth;
+    // Available width is from the element's start position to the right edge
+    const availableWidth = textAlign === "left"
+        ? rightEdge - (marginLeft + margin)  // Left-aligned: from indent to right edge
+        : rightEdge - marginLeft;             // Right-aligned: from left edge to right edge
+    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
+
+    // Get line height from font size and recipe lineHeight multiplier
+    const fontSize = elementConfig.style.fontSize ?? 12;
+    const fontSizeInches = fontSize / 72; // Convert pt to inches
+    const lineHeightMultiplier = (elementConfig.style as any).lineHeight ?? 1.25; // Default to 1.25 if not specified
+    const lineHeight = fontSizeInches * lineHeightMultiplier;
+
+    // Wrap text if needed for parentheticals (add parentheses)
+    let textToMeasure = element.text;
+    if (element.type === "parenthetical" && !textToMeasure.startsWith("(")) {
+        textToMeasure = `(${textToMeasure})`;
+    }
+
+    // Split text into lines that fit within maxWidth
+    const lines = pdf.splitTextToSize(textToMeasure, maxWidth);
+    const numLines = Array.isArray(lines) ? lines.length : 1;
+
+    // Calculate total height including spacing before/after
+    // spaceBeforeElement/After are in em units, relative to font size (not line height)
+    const spaceBeforeElement = elementConfig.style.spaceBeforeElement ?? 0;
+    const spaceAfterElement = elementConfig.style.spaceAfterElement ?? 0;
+
+    return spaceBeforeElement * fontSizeInches + numLines * lineHeight + spaceAfterElement * fontSizeInches;
+}
+
+/**
+ * Renders a single screenplay element to the PDF using recipe configuration
  */
 function renderElement(
     pdf: jsPDF,
     element: ScreenplayElement,
-    currentY: number
+    currentY: number,
+    recipe: PrintRecipe,
+    marginLeft: number,
+    rightEdge: number,
+    showSceneNumbers: boolean
 ): number {
-    const format = SCREENPLAY_FORMAT;
-    let y = currentY;
-
-    // Determine indent and width based on element type
-    let indent: number;
-    let maxWidth: number;
-    let align: "left" | "right" = "left";
-
-    switch (element.type) {
-        case "scene_heading":
-            indent = format.SCENE_INDENT;
-            maxWidth = format.ACTION_WIDTH;
-            // Render scene numbers if present
-            if (element.sceneNumber) {
-                // Left scene number
-                pdf.text(element.sceneNumber, format.SCENE_NUMBER_LEFT, y, {
-                    align: "left",
-                });
-                // Right scene number
-                pdf.text(element.sceneNumber, format.SCENE_NUMBER_RIGHT, y, {
-                    align: "right",
-                });
-            }
-            break;
-        case "character":
-            indent = format.CHARACTER_INDENT;
-            maxWidth = format.ACTION_WIDTH;
-            break;
-        case "dialogue":
-            indent = format.DIALOGUE_INDENT;
-            maxWidth = format.DIALOGUE_WIDTH;
-            break;
-        case "parenthetical":
-            indent = format.PARENTHETICAL_INDENT;
-            maxWidth = format.PARENTHETICAL_WIDTH;
-            break;
-        case "transition":
-            indent = format.TRANSITION_INDENT;
-            maxWidth = format.ACTION_WIDTH;
-            align = "right";
-            break;
-        case "action":
-        default:
-            indent = format.ACTION_INDENT;
-            maxWidth = format.ACTION_WIDTH;
-            break;
+    const elementConfig = recipe.ingredients[element.type];
+    if (!elementConfig) {
+        console.warn(`No ingredient config found for type: ${element.type}`);
+        return currentY;
     }
 
+    const style = elementConfig.style;
+    const fontSize = style.fontSize ?? 12;
+    const fontSizeInches = fontSize / 72; // Convert pt to inches
+    const lineHeightMultiplier = (style as any).lineHeight ?? 1.25; // Default to 1.25 if not specified
+    const lineHeight = fontSizeInches * lineHeightMultiplier;
+
+    // Get indentation from recipe (relative to page margins)
+    // margin is interpreted based on textAlign: left edge for "left", right edge for "right"
+    const textAlign = style.textAlign || "left";
+    const margin = style.xMargin ?? 0;
+    const indent = textAlign === "left" ? marginLeft + margin : rightEdge - margin;
+
+    // Get max width from recipe
+    const maxWidthStr = (style as any).maxWidth;
+    // Available width is from the element's start position to the right edge
+    const availableWidth = textAlign === "left"
+        ? rightEdge - (marginLeft + margin)  // Left-aligned: from indent to right edge
+        : rightEdge - marginLeft;             // Right-aligned: from left edge to right edge
+    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
+
+    // Apply spacing before element (em units relative to font size, not line height)
+    const spaceBeforeElement = style.spaceBeforeElement ?? 0;
+    let y = currentY + spaceBeforeElement * fontSizeInches;
+
+    // Render scene numbers if this is a scene heading and they're enabled
+    if (element.type === "scene_heading" && showSceneNumbers && element.sceneNumber) {
+        // Scene numbers appear 0.7" outside the left and right margins (matching ScreenplayPrint)
+        const sceneNumLeft = marginLeft - 0.7;
+        const sceneNumRight = rightEdge + 0.7;
+
+        pdf.setFontSize(fontSize);
+        pdf.text(`${element.sceneNumber}.`, sceneNumLeft, y, { align: "left" });
+        pdf.text(`${element.sceneNumber}.`, sceneNumRight, y, { align: "right" });
+    }
+
+    // Wrap text in parentheses for parenthetical elements
+    let textToRender = element.text;
+    if (element.type === "parenthetical" && !textToRender.startsWith("(")) {
+        textToRender = `(${textToRender})`;
+    }
+
+    // Apply text transform
+    if (style.textTransform === "uppercase") {
+        textToRender = textToRender.toUpperCase();
+    }
+
+    // Set font weight (normal or bold)
+    const fontWeight = style.fontWeight ?? 400;
+    if (fontWeight >= 700) {
+        pdf.setFont("courier", "bold");
+    } else {
+        pdf.setFont("courier", "normal");
+    }
+
+    // Set font size
+    pdf.setFontSize(fontSize);
+
     // Split text into lines that fit within maxWidth
-    const lines = pdf.splitTextToSize(element.text, maxWidth);
+    const lines = pdf.splitTextToSize(textToRender, maxWidth);
     const linesArray = Array.isArray(lines) ? lines : [lines];
 
     // Render each line
     for (const line of linesArray) {
-        pdf.text(line, indent, y, { align });
-        y += format.LINE_HEIGHT;
+        if (textAlign === "right") {
+            // For right-aligned elements (transitions), use indent which is already calculated as rightEdge - margin
+            pdf.text(line, indent, y, { align: "right" });
+        } else {
+            // Left-aligned (most elements), indent is already calculated as marginLeft + margin
+            pdf.text(line, indent, y, { align: "left" });
+        }
+        y += lineHeight;
     }
 
-    // Add spacing after element based on type
-    switch (element.type) {
-        case "scene_heading":
-            y += format.SCENE_SPACING_AFTER;
-            break;
-        case "character":
-            y += format.CHARACTER_SPACING_AFTER;
-            break;
-        case "parenthetical":
-            y += format.PARENTHETICAL_SPACING_AFTER;
-            break;
-        case "dialogue":
-            y += format.DIALOGUE_SPACING_AFTER;
-            break;
-        case "transition":
-            y += format.TRANSITION_SPACING_AFTER;
-            break;
-        // Action spacing is handled in the main loop (consecutive actions)
-    }
+    // Apply spacing after element (em units relative to font size, not line height)
+    const spaceAfterElement = style.spaceAfterElement ?? 0;
+    y += spaceAfterElement * fontSizeInches;
 
     return y;
 }
 
 /**
- * Adds page numbers to all pages
+ * Adds page numbers to all pages using recipe configuration
  */
-function addPageNumbers(pdf: jsPDF, textColor: string): void {
+function addPageNumbers(pdf: jsPDF, recipe: PrintRecipe, textColor: string): void {
     const totalPages = pdf.getNumberOfPages();
+    const startPageNumber = (recipe.documentSettings.startPageNumber as number) ?? 1;
+    const pageNumberMarginTop = (recipe.documentSettings.pageNumberMarginTop as number) ?? 0.25;
+    const pageWidth = (recipe.documentSettings.pageWidth as number) ?? 8.5;
+    const marginRight = (recipe.documentSettings.marginRight as number) ?? 1;
 
     for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(12);
+        pdf.setFont("courier", "normal");
         pdf.setTextColor(textColor);
 
-        // Page numbers in top-right corner (screenplay standard)
-        const pageNumText = `${i}.`;
-        pdf.text(pageNumText, 7.5, 0.5, { align: "right" });
+        // Calculate page number to display
+        const displayPageNum = startPageNumber + i - 1;
+
+        // Page numbers in top-right corner at right margin (screenplay standard)
+        const pageNumText = `${displayPageNum}.`;
+        const xPos = pageWidth - marginRight;
+        pdf.text(pageNumText, xPos, pageNumberMarginTop, { align: "right" });
     }
 }
 
@@ -475,21 +504,24 @@ function addPageNumbers(pdf: jsPDF, textColor: string): void {
 function addWatermark(
     pdf: jsPDF,
     watermark: NonNullable<ExportSettings["watermark"]>,
-    defaultTextColor: string
+    defaultTextColor: string,
+    pageWidth: number,
+    pageHeight: number
 ): void {
     const totalPages = pdf.getNumberOfPages();
 
     for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(96);
+        pdf.setFont("courier", "bold");
         pdf.setTextColor(watermark.color);
 
         // Save graphics state before changing opacity
         pdf.saveGraphicsState();
         (pdf as any).setGState({ opacity: watermark.opacity });
 
-        const x = SCREENPLAY_FORMAT.PAGE_WIDTH / 2;
-        const y = SCREENPLAY_FORMAT.PAGE_HEIGHT / 2;
+        const x = pageWidth / 2;
+        const y = pageHeight / 2;
 
         switch (watermark.position) {
             case "diagonal":
@@ -504,7 +536,7 @@ function addWatermark(
                 break;
             case "footer":
                 pdf.setFontSize(24);
-                pdf.text(watermark.text, x, SCREENPLAY_FORMAT.PAGE_HEIGHT - 0.5, {
+                pdf.text(watermark.text, x, pageHeight - 0.5, {
                     align: "center",
                 });
                 break;
@@ -519,19 +551,20 @@ function addWatermark(
 /**
  * Adds headers to all pages
  */
-function addHeaders(pdf: jsPDF, headerText: string, textColor: string): void {
+function addHeaders(pdf: jsPDF, headerText: string, textColor: string, pageWidth: number): void {
     const totalPages = pdf.getNumberOfPages();
 
     for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(10);
+        pdf.setFont("courier", "normal");
         pdf.setTextColor(textColor);
 
         // Save graphics state before changing opacity
         pdf.saveGraphicsState();
         (pdf as any).setGState({ opacity: 0.7 });
 
-        pdf.text(headerText, SCREENPLAY_FORMAT.PAGE_WIDTH / 2, 0.5, {
+        pdf.text(headerText, pageWidth / 2, 0.5, {
             align: "center",
         });
 
@@ -543,24 +576,26 @@ function addHeaders(pdf: jsPDF, headerText: string, textColor: string): void {
 /**
  * Adds footers to all pages
  */
-function addFooters(pdf: jsPDF, footerText: string, textColor: string): void {
+function addFooters(
+    pdf: jsPDF,
+    footerText: string,
+    textColor: string,
+    pageWidth: number,
+    pageHeight: number
+): void {
     const totalPages = pdf.getNumberOfPages();
 
     for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(10);
+        pdf.setFont("courier", "normal");
         pdf.setTextColor(textColor);
 
         // Save graphics state before changing opacity
         pdf.saveGraphicsState();
         (pdf as any).setGState({ opacity: 0.7 });
 
-        pdf.text(
-            footerText,
-            SCREENPLAY_FORMAT.PAGE_WIDTH / 2,
-            SCREENPLAY_FORMAT.PAGE_HEIGHT - 0.5,
-            { align: "center" }
-        );
+        pdf.text(footerText, pageWidth / 2, pageHeight - 0.5, { align: "center" });
 
         // Restore graphics state (resets opacity)
         pdf.restoreGraphicsState();
