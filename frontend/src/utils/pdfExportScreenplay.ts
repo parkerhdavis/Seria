@@ -140,9 +140,7 @@ function splitDialogueText(
         ? rightEdge - (marginLeft + xMargin)
         : rightEdge - marginLeft;
 
-    // Account for px-2 padding (same as in estimateElementHeight and renderElement)
-    const textPadding = 0.167; // px-2 class horizontal padding in inches
-    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth) - textPadding;
+    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
 
     // Estimate characters per line based on maxWidth
     const charsPerLine = Math.floor(maxWidth * 10); // Rough estimate: 10 chars per inch
@@ -670,12 +668,7 @@ function estimateElementHeight(
     const availableWidth = textAlign === "left"
         ? rightEdge - (marginLeft + xMargin)  // Left-aligned: from indent to right edge
         : rightEdge - marginLeft;             // Right-aligned: from left edge to right edge
-
-    // In ScreenplayPrint, text elements have px-2 class (0.5rem padding each side = 1rem total)
-    // This reduces the effective text width by approximately 0.167 inches (1rem at 96 DPI)
-    // Subtract this to match Print view text wrapping
-    const textPadding = 0.167; // px-2 class horizontal padding in inches
-    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth) - textPadding;
+    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
 
     // Get line height from font size and recipe lineHeight multiplier
     const fontSize = style.fontSize ?? 12;
@@ -739,12 +732,7 @@ function renderElement(
     const availableWidth = textAlign === "left"
         ? rightEdge - (marginLeft + xMargin)  // Left-aligned: from indent to right edge
         : rightEdge - marginLeft;             // Right-aligned: from left edge to right edge
-
-    // In ScreenplayPrint, text elements have px-2 class (0.5rem padding each side = 1rem total)
-    // This reduces the effective text width by approximately 0.167 inches (1rem at 96 DPI)
-    // Subtract this to match Print view text wrapping
-    const textPadding = 0.167; // px-2 class horizontal padding in inches
-    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth) - textPadding;
+    const maxWidth = parseMaxWidth(maxWidthStr, availableWidth);
 
     // Apply spacing before element with CSS-style margin collapsing
     // In CSS, adjacent vertical margins collapse to the larger of the two

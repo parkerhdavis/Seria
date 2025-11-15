@@ -255,7 +255,7 @@ function ScreenplayElementView({
                 isMultiLine ? (
                     <textarea
                         ref={textareaRef}
-                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 resize-none overflow-hidden relative z-10"
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded resize-none overflow-hidden relative z-10"
                         style={{
                             ...style as React.CSSProperties,
                             minHeight: "1.5rem",
@@ -281,7 +281,7 @@ function ScreenplayElementView({
                     <input
                         ref={inputRef}
                         type="text"
-                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded px-2 relative z-10"
+                        className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary ring-inset rounded relative z-10"
                         style={style as React.CSSProperties}
                         value={editingValue}
                         onChange={(e) => onEditingValueChange(e.target.value)}
@@ -291,7 +291,7 @@ function ScreenplayElementView({
                 )
             ) : (
                 <p
-                    className={`font-mono text-base leading-tight rounded px-2 transition-colors relative z-10 ${isBeingEdited ? "ring-2 ring-primary ring-inset bg-primary/10" : ""} ${isSelected ? "bg-primary/20" : ""} ${isCut ? "ring-2 ring-dashed ring-primary ring-inset opacity-60" : ""}`}
+                    className={`font-mono text-base leading-tight rounded transition-colors relative z-10 ${isBeingEdited ? "ring-2 ring-primary ring-inset bg-primary/10" : ""} ${isSelected ? "bg-primary/20" : ""} ${isCut ? "ring-2 ring-dashed ring-primary ring-inset opacity-60" : ""}`}
                     style={style as React.CSSProperties}
                 >
                     {formatContent(element.content)}
