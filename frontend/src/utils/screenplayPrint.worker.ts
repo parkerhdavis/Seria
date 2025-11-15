@@ -25,6 +25,7 @@ interface CalculateRequest {
     recipe: PrintRecipe;
     editingCell: { row: number; col: number } | null;
     editingValue: string;
+    continuous: boolean;
 }
 
 interface PageWithElements {
@@ -52,11 +53,11 @@ type WorkerResponse = CalculateResponse | ErrorResponse;
 function getMappedColumn(fieldMappings: RecipeConfiguration["fieldMappings"], fieldName: string): string | undefined {
     if (Array.isArray(fieldMappings)) {
         const mapping = fieldMappings.find((m: any) => m.ingredientId === fieldName);
-        return mapping?.cellColumn;
+        return mapping?.cellColumn || undefined;
     }
     // Fallback for object structure (if it exists)
     const mapping = (fieldMappings as any)[fieldName];
-    return mapping?.csvColumn;
+    return mapping?.csvColumn || undefined;
 }
 
 /**
@@ -90,8 +91,11 @@ function calculateElementHeight(element: ScreenplayElement, recipe: PrintRecipe)
     const lineSpaceBefore = elementConfig.lineSpaceBefore || 0;
     const lineSpaceAfter = elementConfig.lineSpaceAfter || 0;
 
-    // Calculate base line height
-    const lineHeightInches = (fontSize / 72) * 1.2;
+    // Convert font size to inches
+    const fontSizeInches = fontSize / 72;
+
+    // Calculate base line height (CSS uses leading-tight = 1.25)
+    const lineHeightInches = fontSizeInches * 1.25;
 
     // Estimate number of lines
     let numLines = 1;
@@ -102,11 +106,18 @@ function calculateElementHeight(element: ScreenplayElement, recipe: PrintRecipe)
         numLines = Math.max(1, Math.ceil(element.content.length / charsPerLine));
     }
 
-    const spacingBeforeInches = lineSpaceBefore * lineHeightInches;
-    const spacingAfterInches = lineSpaceAfter * lineHeightInches;
+    // CSS uses em units for spacing, which are relative to font size (not line height)
+    const spacingBeforeInches = lineSpaceBefore * fontSizeInches;
+    const spacingAfterInches = lineSpaceAfter * fontSizeInches;
     const contentHeight = numLines * lineHeightInches;
 
-    return spacingBeforeInches + contentHeight + spacingAfterInches;
+    // Account for CSS classes applied to elements:
+    // - mb-3 = 0.75rem = 12px at 16px base = 0.125 inches (margin-bottom)
+    // - py-1 = 0.25rem top + 0.25rem bottom = 8px total = 0.083 inches (padding)
+    const elementMarginBottom = 0.125;
+    const elementPadding = 0.083;
+
+    return spacingBeforeInches + contentHeight + spacingAfterInches + elementMarginBottom + elementPadding;
 }
 
 /**
@@ -209,7 +220,7 @@ self.addEventListener("message", (e: MessageEvent<CalculateRequest>) => {
 
     if (message.type === "calculate") {
         try {
-            const { data, headers, configuration, recipe, editingCell, editingValue } = message;
+            const { data, headers, configuration, recipe, editingCell, editingValue, continuous } = message;
 
             // Get field mappings
             const sceneHeadingColumn = getMappedColumn(configuration.fieldMappings, "scene_heading");
@@ -315,12 +326,22 @@ self.addEventListener("message", (e: MessageEvent<CalculateRequest>) => {
                 }
             });
 
-            // Calculate pages
-            const pageHeight = recipe.documentSettings.pageHeight ?? 11;
-            const marginTop = recipe.documentSettings.marginTop ?? 1;
-            const marginBottom = recipe.documentSettings.marginBottom ?? 1;
+            // Calculate pages (only if not continuous mode)
+            let pages: PageWithElements[];
 
-            const pages = splitIntoPages(elements, recipe, pageHeight, marginTop, marginBottom);
+            if (continuous) {
+                // Continuous mode: single page with all elements
+                pages = [{
+                    elements,
+                    pageNumber: 1,
+                }];
+            } else {
+                // Paged mode: calculate page breaks
+                const pageHeight = recipe.documentSettings.pageHeight ?? 11;
+                const marginTop = recipe.documentSettings.marginTop ?? 1;
+                const marginBottom = recipe.documentSettings.marginBottom ?? 1;
+                pages = splitIntoPages(elements, recipe, pageHeight, marginTop, marginBottom);
+            }
 
             // Send result back
             const response: CalculateResponse = {

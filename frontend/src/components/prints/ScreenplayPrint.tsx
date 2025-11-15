@@ -21,7 +21,7 @@ interface ScreenplayPrintProps {
     drawerPosition?: "right" | "bottom";  // Drawer orientation
     containerWidth?: number;               // Available width in pixels
     containerHeight?: number;              // Available height in pixels
-    continuous?: boolean;                  // If false, shows gaps between pages (default: true)
+    continuous?: boolean;                  // If true, renders as single continuous page; if false, renders with page breaks (default: true)
     followCell?: boolean;                  // If false, won't scroll when Cell is edited (default: true)
     onLoadingChange?: (isLoading: boolean) => void;  // Callback for loading state changes
 }
@@ -361,8 +361,7 @@ function ScreenplayPrint({
     const pageWidth = recipe.documentSettings.pageWidth ?? 8.5;
     const pageHeight = recipe.documentSettings.pageHeight ?? 11;
     const marginTop = recipe.documentSettings.marginTop ?? 1;
-    // In continuous mode, use 0 bottom margin so content flows seamlessly
-    const marginBottom = continuous ? 0 : (recipe.documentSettings.marginBottom ?? 1);
+    const marginBottom = recipe.documentSettings.marginBottom ?? 1;
     const marginLeft = recipe.documentSettings.marginLeft ?? 1.5;
     const marginRight = recipe.documentSettings.marginRight ?? 1;
     const backgroundColor = recipe.documentSettings.backgroundColor ?? "bg-white";
@@ -908,101 +907,14 @@ function ScreenplayPrint({
             recipe,
             editingCell,
             editingValue,
+            continuous,
         });
 
         // Cleanup on unmount
         return () => {
             worker.terminate();
         };
-    }, [data, headers, configuration, recipe, editingCell, editingValue]);
-
-    /**
-     * Calculate approximate height of a screenplay element in inches
-     * Based on font size, line spacing, and content length
-     */
-    const calculateElementHeight = (element: ScreenplayElement): number => {
-        const elementConfig = getElementStyle(recipe, element.type);
-        const fontSize = elementConfig.fontSize || 12; // in points
-        const lineSpaceBefore = elementConfig.lineSpaceBefore || 0;
-        const lineSpaceAfter = elementConfig.lineSpaceAfter || 0;
-
-        // Calculate base line height
-        // Courier 12pt has ~6 lines per inch in screenplay format
-        const lineHeightInches = (fontSize / 72) * 1.2; // Convert points to inches with 1.2 line height multiplier
-
-        // Estimate number of lines based on content length and element type
-        // For multi-line elements (action, dialogue), estimate based on character width
-        let numLines = 1;
-        if (isMultiLineElement(element.type)) {
-            // Courier 12pt at 6in width = ~60 characters per line
-            const maxWidth = ("maxWidth" in elementConfig ? (elementConfig as {maxWidth?: string}).maxWidth : undefined) || "6in";
-            const widthInches = parseFloat(maxWidth.replace("in", ""));
-            const charsPerLine = Math.floor(widthInches * 10); // Approximation: ~10 chars per inch in Courier 12pt
-            numLines = Math.max(1, Math.ceil(element.content.length / charsPerLine));
-        }
-
-        // Total height = spacing before + (lines * line height) + spacing after
-        const spacingBeforeInches = lineSpaceBefore * lineHeightInches;
-        const spacingAfterInches = lineSpaceAfter * lineHeightInches;
-        const contentHeight = numLines * lineHeightInches;
-
-        return spacingBeforeInches + contentHeight + spacingAfterInches;
-    };
-
-    /**
-     * Group elements into blocks that should stay together across page breaks
-     * Dialogue blocks (Character + Parenthetical + Dialogue from same row) must not be split
-     */
-    interface ElementBlock {
-        elements: ScreenplayElement[];
-        totalHeight: number;
-    }
-
-    const groupIntoBlocks = (): ElementBlock[] => {
-        const blocks: ElementBlock[] = [];
-        let i = 0;
-
-        while (i < elements.length) {
-            const element = elements[i];
-
-            // Check if this is the start of a dialogue block (Character element)
-            if (element.type === "character") {
-                // Collect all elements from this dialogue block (same rowIndex)
-                const blockElements: ScreenplayElement[] = [element];
-                let blockHeight = calculateElementHeight(element);
-                let j = i + 1;
-
-                // Look ahead for Parenthetical and/or Dialogue from same row
-                while (j < elements.length && elements[j].rowIndex === element.rowIndex) {
-                    const nextElement = elements[j];
-                    if (nextElement.type === "parenthetical" || nextElement.type === "dialogue") {
-                        blockElements.push(nextElement);
-                        blockHeight += calculateElementHeight(nextElement);
-                        j++;
-                    } else {
-                        break;
-                    }
-                }
-
-                blocks.push({
-                    elements: blockElements,
-                    totalHeight: blockHeight,
-                });
-
-                // Skip past the elements we just added to the block
-                i = j;
-            } else {
-                // Non-dialogue element - create a single-element block
-                blocks.push({
-                    elements: [element],
-                    totalHeight: calculateElementHeight(element),
-                });
-                i++;
-            }
-        }
-
-        return blocks;
-    };
+    }, [data, headers, configuration, recipe, editingCell, editingValue, continuous]);
 
     // ===== PAGE VIRTUALIZATION =====
     /**
@@ -1014,11 +926,11 @@ function ScreenplayPrint({
         count: pages.length,
         getScrollElement: () => printContainerRef.current,
         estimateSize: () => {
-            // Estimate full page height including margins and scale
+            // Estimate full page height including gap between pages
+            // Pages are absolutely positioned, so we just need the visual height after scaling plus the gap
             const pageGap = continuous ? 0 : 32;
             const scaledHeight = pageHeightPx * scale;
-            const marginCompensation = (1 - scale) * pageHeightPx;
-            return scaledHeight - marginCompensation + pageGap;
+            return scaledHeight + pageGap;
         },
         overscan: 2, // Pre-render 2 pages above/below for smooth scrolling
     });
@@ -1030,23 +942,18 @@ function ScreenplayPrint({
     // For right drawer, align left; for bottom drawer, center
     const transformOrigin = drawerPosition === "right" ? "top left" : "top center";
 
-    // Calculate margin bottom based on continuous mode
-    // When using transform: scale(), the element shrinks visually but still occupies its original layout space.
-    // We need negative margin to compensate. The formula subtracts the "wasted" space from the desired gap.
-    const pageGap = continuous ? 0 : 32; // 32px gap when not continuous
-
+    // Page style differs between continuous and paged modes
+    // Continuous: minHeight allows page to grow with content
+    // Paged: fixed height ensures consistent virtualizer calculations
     const pageStyle = {
         width: `${pageWidth}in`,
-        minHeight: `${pageHeight}in`,
+        ...(continuous ? { minHeight: `${pageHeight}in` } : { height: `${pageHeight}in` }),
         paddingTop: `${marginTop}in`,
         paddingBottom: `${marginBottom}in`,
         paddingLeft: `${marginLeft}in`,
         paddingRight: `${marginRight}in`,
         transform: `scale(${scale})`,
         transformOrigin,
-        // Negative margin compensates for scaled element's layout space
-        // pageGap adds the desired visual gap between pages
-        marginBottom: `${pageGap - (1 - scale) * pageHeightPx}px`,
     };
 
     return (
@@ -1057,7 +964,7 @@ function ScreenplayPrint({
                     (printContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
                 }
             }}
-            className="screenplay-print-container w-full h-full p-2 outline-none"
+            className="screenplay-print-container w-full h-full overflow-auto p-2 outline-none"
             tabIndex={0}
             onClick={(e) => {
                 // Clear Cell selection when clicking anywhere in Print view
@@ -1083,8 +990,75 @@ function ScreenplayPrint({
                         <p className="text-xs">Make sure your Cell columns are mapped to screenplay elements</p>
                     </div>
                 </div>
+            ) : continuous ? (
+                /* Continuous mode: single page with all elements */
+                <div className={`screenplay-page ${backgroundColor} text-grey-50 ${drawerPosition === "bottom" ? "mx-auto" : ""}`} style={pageStyle}>
+                    {/* Screenplay elements - all on one continuous page */}
+                    <div className="screenplay-content relative">
+                        {elements.map((element, index) => {
+                            // Check if this element corresponds to the cell being edited
+                            const isBeingEdited = editingCell !== null &&
+                                editingCell.row === element.rowIndex &&
+                                headers[editingCell.col] === element.columnName;
+
+                            // Check if this element is selected (in primary or additional selection)
+                            const isSelected =
+                                (printSelection.primary !== null &&
+                                    printSelection.primary.rowIndex === element.rowIndex &&
+                                    printSelection.primary.columnName === element.columnName) ||
+                                printSelection.additional.some(sel =>
+                                    sel.rowIndex === element.rowIndex &&
+                                    sel.columnName === element.columnName
+                                );
+
+                            // Check if this element is cut
+                            const isCut = cutElements.some(sel =>
+                                sel.rowIndex === element.rowIndex &&
+                                sel.columnName === element.columnName
+                            );
+
+                            // Check if this element is being edited from Print view
+                            const isEditingThisFromPrint = isEditingFromPrint &&
+                                editingCell !== null &&
+                                editingCell.row === element.rowIndex &&
+                                headers[editingCell.col] === element.columnName;
+
+                            // Create a unique key for this element
+                            const elementKey = `${element.rowIndex}-${element.columnName}`;
+
+                            // Create ref callback to store element ref
+                            const setRef = (el: HTMLDivElement | null) => {
+                                if (el) {
+                                    elementRefs.current.set(elementKey, el);
+                                } else {
+                                    elementRefs.current.delete(elementKey);
+                                }
+                            };
+
+                            return (
+                                <ScreenplayElementView
+                                    key={`continuous-${index}`}
+                                    element={element}
+                                    recipe={recipe}
+                                    showRowNumbers={false}
+                                    showSceneNumbers={sceneNumbering}
+                                    isBeingEdited={isBeingEdited}
+                                    isSelected={isSelected}
+                                    isCut={isCut}
+                                    isEditingFromPrint={isEditingThisFromPrint}
+                                    editingValue={editingValue}
+                                    onEditingValueChange={updateEditingValue}
+                                    onClick={(e) => handleElementClick(e, element, index)}
+                                    onDoubleClick={() => handleElementDoubleClick(element, index)}
+                                    onContextMenu={(e) => handleElementContextMenu(e, element, index)}
+                                    setRef={setRef}
+                                />
+                            );
+                        })}
+                    </div>
+                </div>
             ) : (
-                /* Virtualized pages container */
+                /* Paged mode: virtualized pages container */
                 <div
                     style={{
                         height: `${totalSize}px`,
@@ -1098,20 +1072,22 @@ function ScreenplayPrint({
                     // Calculate page number to display (accounting for startPageNumber offset)
                     const displayPageNumber = startPageNumber + page.pageNumber - 1;
                     // Determine if this page should show page number
-                    const shouldShowPageNumber = !continuous && showPageNumbers && (firstPageNumbered || page.pageNumber > 1);
+                    const shouldShowPageNumber = showPageNumbers && (firstPageNumbered || page.pageNumber > 1);
 
                     return (
                         <div
                             key={virtualPage.key}
                             data-index={virtualPage.index}
-                            className={`screenplay-page ${backgroundColor} text-grey-50 ${drawerPosition === "bottom" ? "mx-auto" : ""}`}
+                            className={`screenplay-page ${backgroundColor} text-grey-50`}
                             style={{
                                 ...pageStyle,
                                 position: "absolute",
-                                top: 0,
-                                left: 0,
+                                top: `${virtualPage.start}px`,
+                                left: drawerPosition === "bottom" ? "50%" : 0,
                                 width: `${pageWidth}in`,
-                                transform: `translateY(${virtualPage.start}px) scale(${scale})`,
+                                transform: drawerPosition === "bottom"
+                                    ? `translateX(-50%) scale(${scale})`
+                                    : `scale(${scale})`,
                             }}
                         >
                         {/* Page number (top right, only if enabled) */}

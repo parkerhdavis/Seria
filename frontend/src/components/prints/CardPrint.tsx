@@ -799,7 +799,7 @@ function CardPrint({
                     (printContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
                 }
             }}
-            className="card-print-container w-full h-full bg-black/30 outline-none"
+            className="card-print-container w-full h-full overflow-auto bg-black/30 outline-none"
             tabIndex={0}
             onClick={(e) => {
                 // Clear Cell selection when clicking anywhere in Print view
