@@ -92,11 +92,10 @@ Traditional CSV editing with powerful features:
 
 ### Print Views (Writer-Friendly Formats)
 View and edit your CSV data in rich formats:
-- **Screenplay** - Industry-standard screenplay format for cinematics
-- **Dialogue** - Clean dialogue view for conversations and barks
+- **Screenplay** - Industry-standard screenplay format
 - **Corkboard** - Card-based view for story beats and planning
-- **Record Editor** - Database-style forms for detailed editing
-- **Charts** - Visual data representations for relationships and flow
+- **Record** - Database-style forms for detailed editing
+- **Graph** - Visual data representations for relationships and flow
 - **Custom Prints** - Create your own formats specific to your workflow
 
 → [Print View Guide](wiki/03_Print%20View/02.00_The%20Print%20View.md)
