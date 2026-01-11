@@ -103,7 +103,6 @@ if [ "$OS" = "linux" ]; then
 
     # List of required packages for Tauri 2.0
     # Note: Tauri 2.0 requires webkit2gtk-4.1 (not 4.0)
-    # LLVM, lld, and clang are required for Windows cross-compilation (cargo-xwin)
     REQUIRED_PACKAGES=(
         "libwebkit2gtk-4.1-dev"
         "build-essential"
@@ -114,9 +113,6 @@ if [ "$OS" = "linux" ]; then
         "libgtk-3-dev"
         "libayatana-appindicator3-dev"
         "librsvg2-dev"
-        "llvm"
-        "lld"
-        "clang"
     )
 
     MISSING_PACKAGES=()
@@ -175,18 +171,6 @@ elif [ "$OS" = "macos" ]; then
         echo ""
     else
         echo "✅ Homebrew installed"
-
-        # Optional: Check for LLVM (for Windows cross-compilation from macOS)
-        if ! brew list llvm &> /dev/null; then
-            echo ""
-            echo "ℹ️  LLVM not installed (optional - needed for Windows cross-compilation)"
-            echo "   To enable Windows builds from macOS, run:"
-            echo "     brew install llvm"
-            echo ""
-            echo "   Note: Xcode Command Line Tools provides clang, which is also required"
-        else
-            echo "✅ LLVM installed (Windows cross-compilation ready)"
-        fi
     fi
 
 elif [ "$OS" = "windows" ]; then
@@ -214,44 +198,6 @@ elif [ "$OS" = "windows" ]; then
         echo "   Select 'Desktop development with C++' workload"
         echo ""
         MISSING_DEPS_MESSAGE="${MISSING_DEPS_MESSAGE}\n  • Install Visual Studio C++ Build Tools (see above)"
-    fi
-fi
-
-# ────────────────────────────────────────────────────────────────────────────────
-# Windows Cross-Compilation Setup (Linux/macOS only)
-# ────────────────────────────────────────────────────────────────────────────────
-if [ "$OS" = "linux" ] || [ "$OS" = "macos" ]; then
-    echo ""
-    echo "🔍 Checking Windows cross-compilation tools (optional)..."
-
-    CROSS_COMPILE_READY=true
-
-    # Check for Windows Rust target
-    if ! rustup target list --installed | grep -q "x86_64-pc-windows-msvc"; then
-        echo "  ⚠️  Windows Rust target not installed"
-        echo "      Run: rustup target add x86_64-pc-windows-msvc"
-        CROSS_COMPILE_READY=false
-    else
-        echo "  ✅ Windows Rust target (x86_64-pc-windows-msvc) installed"
-    fi
-
-    # Check for cargo-xwin
-    if ! command -v cargo-xwin &> /dev/null; then
-        echo "  ⚠️  cargo-xwin not installed"
-        echo "      Run: cargo install cargo-xwin"
-        CROSS_COMPILE_READY=false
-    else
-        echo "  ✅ cargo-xwin installed"
-    fi
-
-    if [ "$CROSS_COMPILE_READY" = true ]; then
-        echo ""
-        echo "✅ Windows cross-compilation is ready! You can use 'make build-windows'"
-    else
-        echo ""
-        echo "ℹ️  To enable Windows cross-compilation from $OS, run:"
-        echo "      rustup target add x86_64-pc-windows-msvc"
-        echo "      cargo install cargo-xwin"
     fi
 fi
 
