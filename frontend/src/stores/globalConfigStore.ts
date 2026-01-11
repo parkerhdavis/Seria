@@ -54,6 +54,73 @@ const DEFAULT_CONFIG: GlobalConfig = {
     confirmBeforeExit: true,
 };
 
+/**
+ * Validates and sanitizes a loaded config object
+ * Returns a valid config merged with defaults, or null if completely invalid
+ */
+function validateConfig(data: unknown): GlobalConfig | null {
+    // Must be an object
+    if (typeof data !== "object" || data === null || Array.isArray(data)) {
+        return null;
+    }
+
+    const config = data as Record<string, unknown>;
+    const result: GlobalConfig = { ...DEFAULT_CONFIG };
+
+    // Validate lastOpenedFile (string or null)
+    if (config.lastOpenedFile !== undefined) {
+        if (typeof config.lastOpenedFile === "string" || config.lastOpenedFile === null) {
+            result.lastOpenedFile = config.lastOpenedFile;
+        }
+        // Invalid type - use default (null)
+    }
+
+    // Validate recentFiles (array of strings)
+    if (config.recentFiles !== undefined) {
+        if (Array.isArray(config.recentFiles)) {
+            result.recentFiles = config.recentFiles.filter(
+                (item): item is string => typeof item === "string"
+            );
+        }
+        // Invalid type - use default ([])
+    }
+
+    // Validate autoReopenLastFile (boolean)
+    if (config.autoReopenLastFile !== undefined) {
+        if (typeof config.autoReopenLastFile === "boolean") {
+            result.autoReopenLastFile = config.autoReopenLastFile;
+        }
+        // Invalid type - use default (true)
+    }
+
+    // Validate confirmBeforeExit (boolean)
+    if (config.confirmBeforeExit !== undefined) {
+        if (typeof config.confirmBeforeExit === "boolean") {
+            result.confirmBeforeExit = config.confirmBeforeExit;
+        }
+        // Invalid type - use default (true)
+    }
+
+    // Validate optional window state fields (numbers)
+    if (typeof config.lastWindowWidth === "number" && Number.isFinite(config.lastWindowWidth)) {
+        result.lastWindowWidth = config.lastWindowWidth;
+    }
+    if (typeof config.lastWindowHeight === "number" && Number.isFinite(config.lastWindowHeight)) {
+        result.lastWindowHeight = config.lastWindowHeight;
+    }
+    if (typeof config.lastWindowX === "number" && Number.isFinite(config.lastWindowX)) {
+        result.lastWindowX = config.lastWindowX;
+    }
+    if (typeof config.lastWindowY === "number" && Number.isFinite(config.lastWindowY)) {
+        result.lastWindowY = config.lastWindowY;
+    }
+    if (typeof config.wasMaximized === "boolean") {
+        result.wasMaximized = config.wasMaximized;
+    }
+
+    return result;
+}
+
 export const useGlobalConfigStore = create<GlobalConfigStore>((set, get) => ({
     // Initial state
     config: null,
@@ -64,10 +131,23 @@ export const useGlobalConfigStore = create<GlobalConfigStore>((set, get) => ({
         try {
             const jsonData = await invoke<string>("load_preferences");
             if (jsonData && jsonData !== "{}") {
-                const loadedConfig: GlobalConfig = JSON.parse(jsonData);
-                // Merge with defaults to handle new fields
-                const config = { ...DEFAULT_CONFIG, ...loadedConfig };
-                set({ config, isLoaded: true });
+                let parsedData: unknown;
+                try {
+                    parsedData = JSON.parse(jsonData);
+                } catch (parseError) {
+                    console.error("Failed to parse config JSON:", parseError);
+                    set({ config: DEFAULT_CONFIG, isLoaded: true });
+                    return;
+                }
+
+                // Validate and sanitize the loaded config
+                const validatedConfig = validateConfig(parsedData);
+                if (validatedConfig) {
+                    set({ config: validatedConfig, isLoaded: true });
+                } else {
+                    console.warn("Config validation failed, using defaults");
+                    set({ config: DEFAULT_CONFIG, isLoaded: true });
+                }
             } else {
                 // No existing config, use defaults
                 set({ config: DEFAULT_CONFIG, isLoaded: true });

@@ -38,9 +38,6 @@ export function DragProvider({ children }: { children: ReactNode }) {
         // Re-enable text selection
         document.body.style.userSelect = "";
         document.body.style.webkitUserSelect = "";
-        // document.body.style.mozUserSelect = "none";
-        // document.body.style.msUserSelect = "none";
-        document.body.style.userSelect = "none";
         document.body.style.cursor = "";
 
         // Update state
