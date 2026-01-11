@@ -8,9 +8,11 @@ This directory contains all build artifacts from Rust compilation and Tauri bund
 
 ## Directory Structure
 
+Build outputs are placed in `target/release/bundle/` with platform-specific subdirectories.
+
 ### Linux Builds
 
-When you run `make build-linux` or `make build`, Linux installers are created here:
+When you run `make build` or `make build-linux` on Linux:
 
 ```
 target/release/bundle/
@@ -22,24 +24,9 @@ target/release/bundle/
     └── seria-0.0.1-1.x86_64.rpm
 ```
 
-**Location:** `target/release/bundle/`
+### Windows Builds
 
-### Windows Builds (from Linux)
-
-When you run `make build-windows` from Linux, the Windows executable is created here:
-
-```
-target/x86_64-pc-windows-msvc/release/
-└── seria.exe          # Fully functional Windows executable
-```
-
-**Location:** `target/x86_64-pc-windows-msvc/release/seria.exe`
-
-**Note:** Windows installer formats (`.msi`, `.exe` installers) can only be created on Windows machines. The `seria.exe` binary is fully functional and can be distributed directly.
-
-### Windows Builds (from Windows)
-
-When you run `npm run tauri:build` on a Windows machine, installers are created here:
+When you run `make build` or `make build-windows` on Windows:
 
 ```
 target/release/bundle/
@@ -49,7 +36,17 @@ target/release/bundle/
     └── Seria_0.0.1_x64-setup.exe
 ```
 
-**Location:** `target/release/bundle/`
+### macOS Builds
+
+When you run `make build` or `make build-macos` on macOS:
+
+```
+target/release/bundle/
+├── dmg/
+│   └── Seria_0.0.1_x64.dmg
+└── macos/
+    └── Seria.app
+```
 
 ---
 
@@ -57,15 +54,14 @@ target/release/bundle/
 
 ### Compiled Binaries
 
-- **Linux debug:** `target/debug/seria`
-- **Linux release:** `target/release/seria`
-- **Windows debug:** `target/x86_64-pc-windows-msvc/debug/seria.exe`
-- **Windows release:** `target/x86_64-pc-windows-msvc/release/seria.exe`
+- **Linux:** `target/release/seria`
+- **Windows:** `target/release/seria.exe`
+- **macOS:** `target/release/seria`
 
-### Dependencies
+### Debug Builds
 
-- **Linux deps:** `target/release/deps/` and `target/debug/deps/`
-- **Windows deps:** `target/x86_64-pc-windows-msvc/release/deps/` and `target/x86_64-pc-windows-msvc/debug/deps/`
+- **Debug binary:** `target/debug/seria` (or `seria.exe` on Windows)
+- **Debug deps:** `target/debug/deps/`
 
 ---
 
@@ -89,9 +85,6 @@ rm -rf target/debug
 
 # Remove release builds only
 rm -rf target/release
-
-# Remove Windows builds only
-rm -rf target/x86_64-pc-windows-msvc
 ```
 
 ---
@@ -114,6 +107,6 @@ target-dir = "../target"
 ## More Information
 
 For detailed build documentation, see:
-- `wiki/05_Development/05.04_CrossCompilation.md` - Windows cross-compilation guide
+- `wiki/05_Development/05.03_BuildingAndDistribution.md` - Building and distribution guide
 - `wiki/05_Development/05.06_ProjectQuirks.md` - Non-standard project patterns
 - `backend/README.md` - Backend build configuration

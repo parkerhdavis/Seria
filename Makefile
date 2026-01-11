@@ -1,4 +1,4 @@
-.PHONY: help dev build build-linux build-windows upload upload-dry lint format test clean setup install dev-frontend check
+.PHONY: help dev build build-linux build-windows build-macos upload upload-dry lint format test clean setup install dev-frontend check
 
 help:
 	@echo "════════════════════════════════════════════════════════════════════════════════"
@@ -14,9 +14,10 @@ help:
 	@echo "Building:"
 	@echo "  setup              # Install all dependencies (Rust + Node.js)"
 	@echo "  install            # Install Node.js dependencies (runs setup.sh)"
-	@echo "  build              # Build for ALL platforms (Linux + Windows)"
-	@echo "  build-linux        # Build Linux installers only (.deb, .rpm, AppImage)"
-	@echo "  build-windows      # Build Windows installers only (.exe, .msi)"
+	@echo "  build              # Build for current platform (detects OS)"
+	@echo "  build-linux        # Build Linux installers (.deb, .rpm, AppImage)"
+	@echo "  build-windows      # Build Windows installers (.msi, .exe) - Windows only"
+	@echo "  build-macos        # Build macOS installers (.dmg, .app) - macOS only"
 	@echo "  upload             # Upload release artifacts to GitLab Package Registry"
 	@echo "  upload-dry         # Show what would be uploaded without uploading"
 	@echo "  check              # Run Rust compiler checks without building"
@@ -31,7 +32,7 @@ help:
 	@echo ""
 	@echo "Quick workflows:"
 	@echo "  make dev           # Start development with hot-reload"
-	@echo "  make build         # Build all platform installers (Linux + Windows)"
+	@echo "  make build         # Build installers for current platform"
 	@echo "  make lint format   # Check and format all code"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════════════════════"
@@ -77,17 +78,24 @@ setup:
 install: setup
 	@echo "✅ Dependencies installed"
 
-build: build-linux build-windows
-	@echo ""
-	@echo "════════════════════════════════════════════════════════════════════════════════"
-	@echo "✅ All platform builds complete!"
-	@echo "════════════════════════════════════════════════════════════════════════════════"
-	@echo ""
-	@echo "Linux installers: target/release/bundle/"
-	@echo "Windows binary:   target/x86_64-pc-windows-msvc/release/seria.exe"
-	@echo ""
-	@echo "See target/README.md for detailed build output locations."
-	@echo ""
+# Detect OS for platform-specific builds
+UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
+ifeq ($(UNAME_S),Linux)
+    DETECTED_OS := linux
+else ifeq ($(UNAME_S),Darwin)
+    DETECTED_OS := macos
+else
+    DETECTED_OS := windows
+endif
+
+build:
+ifeq ($(DETECTED_OS),linux)
+	@$(MAKE) build-linux
+else ifeq ($(DETECTED_OS),windows)
+	@$(MAKE) build-windows
+else ifeq ($(DETECTED_OS),macos)
+	@$(MAKE) build-macos
+endif
 
 build-linux:
 	@echo "🔨 Building Linux installers (.deb, .rpm, AppImage)..."
@@ -107,22 +115,35 @@ build-linux:
 	@echo ""
 
 build-windows:
-	@echo "🔨 Cross-compiling Windows build from Linux..."
+	@echo "🔨 Building Windows installers (.msi, .exe)..."
 	@echo "  → Syncing version from .env..."
 	@./scripts/sync-version.sh
 	@echo "  → Building frontend..."
 	@cd frontend && npm run build
-	@echo "  → Building Rust backend for Windows (x86_64-pc-windows-msvc)..."
-	@cd backend && cargo xwin build --release --target x86_64-pc-windows-msvc
+	@echo "  → Building Tauri app for Windows..."
+	@cd backend && ../frontend/node_modules/.bin/tauri build
 	@echo ""
 	@echo "✅ Windows build complete!"
 	@echo ""
-	@echo "Binary location:"
-	@echo "  target/x86_64-pc-windows-msvc/release/seria.exe"
+	@echo "Build outputs in target/release/bundle/:"
+	@echo "  • MSI Installer:  target/release/bundle/msi/"
+	@echo "  • NSIS Installer: target/release/bundle/nsis/"
 	@echo ""
-	@echo "Note: Windows installers (.msi, .exe) can only be created on Windows."
-	@echo "      The seria.exe binary is fully functional and can be distributed directly."
-	@echo "      To create installers, run 'npm run tauri:build' on a Windows machine."
+
+build-macos:
+	@echo "🔨 Building macOS installers (.dmg, .app)..."
+	@echo "  → Syncing version from .env..."
+	@./scripts/sync-version.sh
+	@echo "  → Building frontend..."
+	@cd frontend && npm run build
+	@echo "  → Building Tauri app for macOS..."
+	@cd backend && ../frontend/node_modules/.bin/tauri build
+	@echo ""
+	@echo "✅ macOS build complete!"
+	@echo ""
+	@echo "Build outputs in target/release/bundle/:"
+	@echo "  • DMG:  target/release/bundle/dmg/"
+	@echo "  • App:  target/release/bundle/macos/"
 	@echo ""
 
 check:
