@@ -84,51 +84,50 @@ interface CellGridVirtualizedProps {
  */
 function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     // ===== STORE INTEGRATION =====
-    const {
-        headers,
-        data,
-        updateCell,
-        updateCells,
-        editingCell,
-        editingValue,
-        editingSource,
-        setEditingCell,
-        updateEditingValue,
-        clearEditingCell,
-        selectedCell,
-        selectedRange,
-        setSelectedCell,
-        setSelectedRange,
-        clearSelection,
-        copySelection,
-        clearCells,
-        columnWidths,
-        setColumnWidths,
-        columnFilters,
-        setColumnFilter,
-        clearColumnFilter,
-        columnSummaries,
-        setColumnSummary,
-        reorderRows,
-        reorderColumns,
-        isLoading,
-        loadingProgress,
-        isFullyLoaded,
-    } = useCellStore();
+    // Use Zustand selectors to reduce subscription scope and prevent unnecessary re-renders
+    const headers = useCellStore((state) => state.headers);
+    const data = useCellStore((state) => state.data);
+    const updateCell = useCellStore((state) => state.updateCell);
+    const updateCells = useCellStore((state) => state.updateCells);
+    const editingCell = useCellStore((state) => state.editingCell);
+    const editingValue = useCellStore((state) => state.editingValue);
+    const editingSource = useCellStore((state) => state.editingSource);
+    const setEditingCell = useCellStore((state) => state.setEditingCell);
+    const updateEditingValue = useCellStore((state) => state.updateEditingValue);
+    const clearEditingCell = useCellStore((state) => state.clearEditingCell);
+    const selectedCell = useCellStore((state) => state.selectedCell);
+    const selectedRange = useCellStore((state) => state.selectedRange);
+    const setSelectedCell = useCellStore((state) => state.setSelectedCell);
+    const setSelectedRange = useCellStore((state) => state.setSelectedRange);
+    const clearSelection = useCellStore((state) => state.clearSelection);
+    const copySelection = useCellStore((state) => state.copySelection);
+    const clearCells = useCellStore((state) => state.clearCells);
+    const columnWidths = useCellStore((state) => state.columnWidths);
+    const setColumnWidths = useCellStore((state) => state.setColumnWidths);
+    const columnFilters = useCellStore((state) => state.columnFilters);
+    const setColumnFilter = useCellStore((state) => state.setColumnFilter);
+    const clearColumnFilter = useCellStore((state) => state.clearColumnFilter);
+    const columnSummaries = useCellStore((state) => state.columnSummaries);
+    const setColumnSummary = useCellStore((state) => state.setColumnSummary);
+    const reorderRows = useCellStore((state) => state.reorderRows);
+    const reorderColumns = useCellStore((state) => state.reorderColumns);
+    const isLoading = useCellStore((state) => state.isLoading);
+    const loadingProgress = useCellStore((state) => state.loadingProgress);
+    const isFullyLoaded = useCellStore((state) => state.isFullyLoaded);
 
-    const {
-        showColumnSeparators,
-        wrapText,
-        autoFitColumns,
-        rowColoringMode,
-        rowColorFilter,
-        cellFollowsPrintEdit,
-        hoverHighlightMode,
-    } = useSettingsStore();
+    const showColumnSeparators = useSettingsStore((state) => state.showColumnSeparators);
+    const wrapText = useSettingsStore((state) => state.wrapText);
+    const autoFitColumns = useSettingsStore((state) => state.autoFitColumns);
+    const rowColoringMode = useSettingsStore((state) => state.rowColoringMode);
+    const rowColorFilter = useSettingsStore((state) => state.rowColorFilter);
+    const cellFollowsPrintEdit = useSettingsStore((state) => state.cellFollowsPrintEdit);
+    const hoverHighlightMode = useSettingsStore((state) => state.hoverHighlightMode);
 
-    const { matches, currentMatchIndex } = useFindReplaceStore();
+    const matches = useFindReplaceStore((state) => state.matches);
+    const currentMatchIndex = useFindReplaceStore((state) => state.currentMatchIndex);
 
-    const { position: drawerPosition, rightDrawerSize } = useDrawerStore();
+    const drawerPosition = useDrawerStore((state) => state.position);
+    const rightDrawerSize = useDrawerStore((state) => state.rightDrawerSize);
 
     // Autosave hook
     const { triggerAutosave } = useAutosave();
@@ -282,6 +281,18 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
         return widths;
     }, [getAvailableWidth, getPixelWidth, headers.length]);
+
+    // ===== MEMOIZED SUMMARY CALCULATIONS =====
+    // Prevents expensive recalculation on every render - only recalculates when data changes
+    const memoizedSummaryValues = useMemo(() => {
+        const summaries: Record<string, string> = {};
+        headers.forEach((columnName, colIndex) => {
+            const summaryType = columnSummaries[columnName] || "count";
+            const columnData = filteredData.map((row) => row[colIndex] || "");
+            summaries[columnName] = calculateSummary(columnData, summaryType);
+        });
+        return summaries;
+    }, [headers, filteredData, columnSummaries]);
 
     const convertPixelsToProportions = useCallback((pixelWidths: Record<number, number>): Record<number, number> => {
         const totalWidth = Object.values(pixelWidths).reduce((sum: number, w: number) => sum + w, 0);
@@ -666,14 +677,15 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     }, [isSelecting]);
 
     // ===== CELL EDITING HANDLERS =====
+    // Wrapped in useCallback to prevent recreation on every render
 
-    const handleStartEdit = (row: number, col: number, value: string) => {
+    const handleStartEdit = useCallback((row: number, col: number, value: string) => {
         setIsSelecting(false);
         setSelectionStart(null);
         setEditingCell(row, col, value);
-    };
+    }, [setEditingCell]);
 
-    const handleSaveEdit = (row: number, col: number) => {
+    const handleSaveEdit = useCallback((row: number, col: number) => {
         if (editingCell) {
             updateCell(row, col, editingValue);
             if (onCellEdit) {
@@ -686,7 +698,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         if (gridFocusRef.current) {
             gridFocusRef.current.focus();
         }
-    };
+    }, [editingCell, editingValue, updateCell, onCellEdit, clearEditingCell]);
 
     const handleKeyDown = (
         e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -751,9 +763,10 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     };
 
     // ===== CLIPBOARD OPERATIONS =====
+    // Wrapped in useCallback to prevent recreation on every render
 
     // Copy selection to both internal and system clipboard
-    const handleCopyToClipboard = async () => {
+    const handleCopyToClipboard = useCallback(async () => {
         // Cancel any pending cut operation
         setCutCells(null);
 
@@ -786,10 +799,10 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         } catch (err) {
             console.error("Failed to copy to system clipboard:", err);
         }
-    };
+    }, [copySelection, selectedRange, selectedCell, filteredData]);
 
     // Cut selection to clipboard and mark cells for later clearing
-    const handleCutToClipboard = async () => {
+    const handleCutToClipboard = useCallback(async () => {
         // First copy to clipboard
         await handleCopyToClipboard();
 
@@ -814,10 +827,10 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         }
 
         setCutCells(cellsToCut);
-    };
+    }, [handleCopyToClipboard, selectedRange, selectedCell]);
 
     // Paste from system clipboard
-    const handlePasteFromSystemClipboard = async () => {
+    const handlePasteFromSystemClipboard = useCallback(async () => {
         try {
             // Read text from system clipboard using Tauri's clipboard API
             const text = await readText();
@@ -873,11 +886,12 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         } catch (err) {
             console.error("Failed to paste from system clipboard:", err);
         }
-    };
+    }, [selectedCell, filteredData, headers, updateCells, cutCells, triggerAutosave]);
 
     // ===== CONTEXT MENU HANDLERS =====
+    // Wrapped in useCallback to prevent recreation on every render
 
-    const handleCellContextMenu = (e: React.MouseEvent, row: number, col: number) => {
+    const handleCellContextMenu = useCallback((e: React.MouseEvent, row: number, col: number) => {
         e.preventDefault();
         e.stopPropagation();
 
@@ -900,9 +914,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             row,
             col,
         });
-    };
+    }, [selectedCell, selectedRange, setSelectedCell]);
 
-    const handleContextMenuAction = (action: string) => {
+    const handleContextMenuAction = useCallback((action: string) => {
         setContextMenu(null);
 
         switch (action) {
@@ -931,7 +945,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                 }
                 break;
         }
-    };
+    }, [handleCopyToClipboard, handleCutToClipboard, handlePasteFromSystemClipboard, clearCells, selectedRange, selectedCell, filteredData, handleStartEdit]);
 
     // Close context menu on click outside
     useEffect(() => {
@@ -1219,8 +1233,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     };
 
     // ===== CELL SELECTION HANDLERS =====
+    // Wrapped in useCallback to prevent recreation on every render (critical for performance)
 
-    const handleCellMouseDown = (e: React.MouseEvent, row: number, col: number) => {
+    const handleCellMouseDown = useCallback((e: React.MouseEvent, row: number, col: number) => {
         if (e.button !== 0) return;
 
         const target = e.target as HTMLElement;
@@ -1249,9 +1264,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         setIsSelecting(true);
         setSelectionStart({ row, col });
         setSelectedCell(row, col);
-    };
+    }, [selectedCell, setSelectedRange, setSelectedCell]);
 
-    const handleCellMouseEnter = (row: number, col: number) => {
+    const handleCellMouseEnter = useCallback((row: number, col: number) => {
         // Set hovered column for column highlighting
         if (hoverHighlightMode === "column" || hoverHighlightMode === "row-and-column") {
             setHoveredColumn(col);
@@ -1284,11 +1299,11 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                 });
             }
         }
-    };
+    }, [hoverHighlightMode, editingCell, editingSource, isSelecting, selectionStart, setSelectedRange]);
 
-    const handleCellMouseLeave = () => {
+    const handleCellMouseLeave = useCallback(() => {
         setHoveredColumn(null);
-    };
+    }, []);
 
     // ===== RENDER =====
 
@@ -2021,8 +2036,8 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                         {/* Summary dropdowns for each column */}
                         {headers.map((columnName, colIndex) => {
                             const summaryType = columnSummaries[columnName] || "count";
-                            const columnData = filteredData.map((row) => row[colIndex] || "");
-                            const summaryValue = calculateSummary(columnData, summaryType);
+                            // Use memoized summary values instead of recalculating on every render
+                            const summaryValue = memoizedSummaryValues[columnName] || "";
                             const columnWidth = pixelWidths[colIndex];
 
                             // Apply hover highlight to summary row as well

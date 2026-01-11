@@ -232,10 +232,16 @@ function FindReplaceModal() {
                 } else {
                     newValue = cellValue.replace(searchRegex, replaceTerm);
                 }
+
+                // Verify the replacement actually happened (regex matched)
+                if (newValue === cellValue && !searchRegex.test(cellValue)) {
+                    console.warn("Regex replacement: pattern did not match cell value");
+                    return; // Don't update cell if pattern didn't match
+                }
             } catch (error) {
-                // If regex fails, use simple replacement
-                console.warn("Regex replacement failed:", error);
-                newValue = replaceTerm;
+                // If regex fails, notify user and skip this replacement
+                console.error("Regex replacement failed:", error);
+                return; // Don't update cell with potentially incorrect value
             }
         }
 

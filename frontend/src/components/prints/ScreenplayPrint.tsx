@@ -1253,6 +1253,70 @@ function ScreenplayPrint({
     );
 }
 
-// Memoize to prevent re-renders when only selectedCell changes (not data/editingCell/etc)
+// Custom comparison function for memo to handle object/array props properly
 // PERFORMANCE: Prevents expensive reconciliation of thousands of elements on every cell selection
-export default memo(ScreenplayPrint);
+function arePropsEqual(prevProps: ScreenplayPrintProps, nextProps: ScreenplayPrintProps): boolean {
+    // Check primitive props first (fast)
+    if (
+        prevProps.drawerPosition !== nextProps.drawerPosition ||
+        prevProps.containerWidth !== nextProps.containerWidth ||
+        prevProps.containerHeight !== nextProps.containerHeight ||
+        prevProps.continuous !== nextProps.continuous ||
+        prevProps.followCell !== nextProps.followCell
+    ) {
+        return false;
+    }
+
+    // Check array lengths (fast fail)
+    if (prevProps.data.length !== nextProps.data.length) {
+        return false;
+    }
+    if (prevProps.headers.length !== nextProps.headers.length) {
+        return false;
+    }
+
+    // Check headers (usually small array)
+    for (let i = 0; i < prevProps.headers.length; i++) {
+        if (prevProps.headers[i] !== nextProps.headers[i]) {
+            return false;
+        }
+    }
+
+    // Check data rows - use reference equality first, then deep check if needed
+    if (prevProps.data !== nextProps.data) {
+        for (let i = 0; i < prevProps.data.length; i++) {
+            const prevRow = prevProps.data[i];
+            const nextRow = nextProps.data[i];
+            if (prevRow !== nextRow) {
+                if (prevRow.length !== nextRow.length) {
+                    return false;
+                }
+                for (let j = 0; j < prevRow.length; j++) {
+                    if (prevRow[j] !== nextRow[j]) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+
+    // Check recipe by reference (usually stable from parent)
+    if (prevProps.recipe !== nextProps.recipe) {
+        // Deep compare recipe if references differ
+        if (JSON.stringify(prevProps.recipe) !== JSON.stringify(nextProps.recipe)) {
+            return false;
+        }
+    }
+
+    // Check configuration by reference (usually stable from parent)
+    if (prevProps.configuration !== nextProps.configuration) {
+        if (JSON.stringify(prevProps.configuration) !== JSON.stringify(nextProps.configuration)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Memoize to prevent re-renders when only selectedCell changes (not data/editingCell/etc)
+export default memo(ScreenplayPrint, arePropsEqual);

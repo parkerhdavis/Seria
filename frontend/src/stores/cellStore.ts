@@ -163,6 +163,9 @@ const pushToUndoStack = (get: () => CellStore, set: (state: Partial<CellStore>) 
     set({ undoStack: newUndoStack, redoStack: [] }); // Clear redo stack on new action
 };
 
+// Load operation counter for cancelling stale load operations
+let currentLoadId = 0;
+
 export const useCellStore = create<CellStore>((set, get) => ({
     // Initial state
     data: [],
@@ -371,11 +374,19 @@ export const useCellStore = create<CellStore>((set, get) => ({
      * Recommended for files > 5MB or > 5000 rows.
      */
     loadCellsProgressive: async (path: string) => {
+        // Increment load ID to cancel any in-progress loads
+        const loadId = ++currentLoadId;
+
         set({ isLoading: true, loadingProgress: 0, isFullyLoaded: false, error: null });
 
         try {
             // Call Tauri command to read file
             const fileContent = await invoke<string>("open_cell_file", { path });
+
+            // Check if this load was cancelled (a newer load started)
+            if (loadId !== currentLoadId) {
+                return;
+            }
 
             // Use the parseCellsProgressive import
             const { parseCellsProgressive } = await import("@utils/cellParser");
@@ -388,6 +399,11 @@ export const useCellStore = create<CellStore>((set, get) => ({
             parseCellsProgressive(fileContent, {
                 // Phase 1: Metadata received - show empty grid with headers
                 onMetadata: (parsedHeaders, estimatedRowCount, detectedDelimiter) => {
+                    // Check if this load was cancelled
+                    if (loadId !== currentLoadId) {
+                        return;
+                    }
+
                     headers = parsedHeaders;
                     delimiter = detectedDelimiter;
 
@@ -425,6 +441,11 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
                 // Phase 2: Chunks received - progressively update data
                 onChunk: (chunkData, progress) => {
+                    // Check if this load was cancelled
+                    if (loadId !== currentLoadId) {
+                        return;
+                    }
+
                     // Append chunk to accumulated data
                     allData = allData.concat(chunkData);
 
@@ -445,6 +466,11 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
                 // Phase 3: Parsing complete
                 onComplete: async () => {
+                    // Check if this load was cancelled
+                    if (loadId !== currentLoadId) {
+                        return;
+                    }
+
                     // Validate final data
                     const { validateCell } = await import("@utils/cellParser");
                     const validation = validateCell({ headers, data: allData });
@@ -539,6 +565,11 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
                 // Error handling
                 onError: (errorMessage) => {
+                    // Check if this load was cancelled
+                    if (loadId !== currentLoadId) {
+                        return;
+                    }
+
                     set({
                         error: `Failed to parse Cell: ${errorMessage}`,
                         isLoading: false,
@@ -548,6 +579,11 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 },
             });
         } catch (error) {
+            // Check if this load was cancelled
+            if (loadId !== currentLoadId) {
+                return;
+            }
+
             set({
                 error: `Failed to load Cell: ${error}`,
                 isLoading: false,
