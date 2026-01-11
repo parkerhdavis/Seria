@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Layout from "@components/layout/Layout";
 import LoadingScreen from "@components/layout/LoadingScreen";
 import Editor from "./pages/Editor";
@@ -29,20 +29,45 @@ function App() {
     const [zoomLevel, setZoomLevel] = useState(100);
     const [isInitializing, setIsInitializing] = useState(true);
     const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
-    const { saveCells, loadCells, loadCellsProgressive, undo, redo, canUndo, canRedo, columnFilters, columnOrder, currentFile, isTempFile, isDirty, data, headers } = useCellStore();
-    const { openFind, openReplace } = useFindReplaceStore();
-    const { position: printPreviewPosition, togglePosition, rightDrawerSize, bottomDrawerSize } = useDrawerStore();
-    const { loadConfigs } = useFileConfigStore();
-    const { loadConfig, config } = useGlobalConfigStore();
-    const {
-        rowColoringMode,
-        rowColorFilter,
-        wrapText,
-        showColumnSeparators,
-        autoFitColumns,
-        hoverHighlightMode,
-        appFont,
-    } = useSettingsStore();
+
+    // Save lock to prevent concurrent saves
+    const isSavingRef = useRef(false);
+
+    // Use Zustand selectors to reduce subscription scope and prevent unnecessary re-renders
+    const saveCells = useCellStore((state) => state.saveCells);
+    const loadCells = useCellStore((state) => state.loadCells);
+    const loadCellsProgressive = useCellStore((state) => state.loadCellsProgressive);
+    const undo = useCellStore((state) => state.undo);
+    const redo = useCellStore((state) => state.redo);
+    const canUndo = useCellStore((state) => state.canUndo);
+    const canRedo = useCellStore((state) => state.canRedo);
+    const columnFilters = useCellStore((state) => state.columnFilters);
+    const columnOrder = useCellStore((state) => state.columnOrder);
+    const currentFile = useCellStore((state) => state.currentFile);
+    const isTempFile = useCellStore((state) => state.isTempFile);
+    const isDirty = useCellStore((state) => state.isDirty);
+    const data = useCellStore((state) => state.data);
+    const headers = useCellStore((state) => state.headers);
+
+    const openFind = useFindReplaceStore((state) => state.openFind);
+    const openReplace = useFindReplaceStore((state) => state.openReplace);
+
+    const printPreviewPosition = useDrawerStore((state) => state.position);
+    const togglePosition = useDrawerStore((state) => state.togglePosition);
+    const rightDrawerSize = useDrawerStore((state) => state.rightDrawerSize);
+    const bottomDrawerSize = useDrawerStore((state) => state.bottomDrawerSize);
+
+    const loadConfigs = useFileConfigStore((state) => state.loadConfigs);
+    const loadConfig = useGlobalConfigStore((state) => state.loadConfig);
+    const config = useGlobalConfigStore((state) => state.config);
+
+    const rowColoringMode = useSettingsStore((state) => state.rowColoringMode);
+    const rowColorFilter = useSettingsStore((state) => state.rowColorFilter);
+    const wrapText = useSettingsStore((state) => state.wrapText);
+    const showColumnSeparators = useSettingsStore((state) => state.showColumnSeparators);
+    const autoFitColumns = useSettingsStore((state) => state.autoFitColumns);
+    const hoverHighlightMode = useSettingsStore((state) => state.hoverHighlightMode);
+    const appFont = useSettingsStore((state) => state.appFont);
 
     // Load global config and file configs on app startup
     useEffect(() => {
@@ -123,6 +148,12 @@ function App() {
 
         // Set up autosave timer (save every 2 seconds)
         const autosaveTimer = setTimeout(async () => {
+            // Skip if another save is in progress
+            if (isSavingRef.current) {
+                return;
+            }
+
+            isSavingRef.current = true;
             try {
                 // Use the invoke command directly to bypass the temp file check in saveCells
                 const state = useCellStore.getState();
@@ -142,6 +173,8 @@ function App() {
                 console.log("Autosaved temp file");
             } catch (error) {
                 console.error("Autosave failed:", error);
+            } finally {
+                isSavingRef.current = false;
             }
         }, 2000);
 
@@ -184,6 +217,11 @@ function App() {
             // Ctrl+S - Save file
             else if (e.ctrlKey && e.key === "s") {
                 e.preventDefault();
+                // Skip if another save is in progress
+                if (isSavingRef.current) {
+                    return;
+                }
+                isSavingRef.current = true;
                 try {
                     await saveCells();
                 } catch (error) {
@@ -219,6 +257,8 @@ function App() {
                     } else {
                         console.error("Save failed:", error);
                     }
+                } finally {
+                    isSavingRef.current = false;
                 }
             }
             // Ctrl+\ - Toggle right print preview drawer

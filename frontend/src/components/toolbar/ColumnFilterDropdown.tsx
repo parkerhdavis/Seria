@@ -5,7 +5,7 @@
  * Supports contains, not-contains, equals, and not-equals operations.
  */
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 
 type FilterOperation = "contains" | "not-contains" | "equals" | "not-equals";
 
@@ -48,13 +48,18 @@ function ColumnFilterDropdown({
     const [localValue, setLocalValue] = useState(value);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // Calculate unique values (filter out empty strings)
-    const uniqueValues = Array.from(new Set(columnData.filter(val => val.trim() !== ""))).sort();
+    // Memoize unique values calculation to prevent recalculation on every render
+    const uniqueValues = useMemo(() => {
+        return Array.from(new Set(columnData.filter(val => val.trim() !== ""))).sort();
+    }, [columnData]);
 
     // Filter unique values based on current input (if user is typing)
-    const filteredUniqueValues = localValue.trim() !== ""
-        ? uniqueValues.filter(val => val.toLowerCase().includes(localValue.toLowerCase()))
-        : uniqueValues;
+    // This is also memoized since it depends on uniqueValues and localValue
+    const filteredUniqueValues = useMemo(() => {
+        return localValue.trim() !== ""
+            ? uniqueValues.filter(val => val.toLowerCase().includes(localValue.toLowerCase()))
+            : uniqueValues;
+    }, [uniqueValues, localValue]);
 
     // Show value list if there are 10 or fewer unique values, OR if user has typed and we have filtered results
     const showValueList = (uniqueValues.length > 0 && uniqueValues.length <= 10) ||
