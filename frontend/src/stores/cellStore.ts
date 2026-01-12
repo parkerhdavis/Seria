@@ -14,39 +14,15 @@ import { useFileConfigStore, type FileIdentifiers } from "./fileConfigStore";
 import { useSettingsStore } from "./settingsStore";
 import { useDrawerStore } from "./drawerStore";
 import { useGlobalConfigStore } from "./globalConfigStore";
+import { useCellHistoryStore, createSnapshot } from "./cellHistoryStore";
+import {
+    useCellSelectionStore,
+    type CellSelection,
+    type RangeSelection,
+    type ClipboardData,
+} from "./cellSelectionStore";
+import { useCellEditStore, type EditingCell, type EditingSource } from "./cellEditStore";
 import { logger } from "@/utils/logger";
-
-// Snapshot of data state for undo/redo
-interface DataSnapshot {
-    data: string[][];
-    headers: string[];
-}
-
-// Cell editing state for coordinating between Cell Grid and Print preview
-interface EditingCell {
-    row: number;
-    col: number;
-}
-
-// Cell selection state
-interface CellSelection {
-    row: number;
-    col: number;
-}
-
-// Range selection state
-interface RangeSelection {
-    startRow: number;
-    startCol: number;
-    endRow: number;
-    endCol: number;
-}
-
-// Clipboard data
-interface ClipboardData {
-    data: string[][];
-    isSingleCell: boolean;
-}
 
 // Column filter
 interface ColumnFilter {
@@ -73,15 +49,11 @@ interface CellStore {
     lastSavedAt: number | null;  // Timestamp of last successful save
     isTempFile: boolean;  // Whether the current file is a temporary file
 
-    // Cell editing state (shared between Cell Grid and Print preview)
-    editingCell: EditingCell | null;
-    editingValue: string;
-    editingSource: "cell" | "print" | null;  // Track where the editing originated
+    // Note: Editing state (editingCell, editingValue, editingSource) is now in cellEditStore
+    // Import from useCellEditStore for editing state
 
-    // Selection state
-    selectedCell: CellSelection | null;
-    selectedRange: RangeSelection | null;
-    clipboard: ClipboardData | null;
+    // Note: Selection state (selectedCell, selectedRange, clipboard) is now in cellSelectionStore
+    // Import from useCellSelectionStore for selection state
 
     // Display settings
     // Column widths stored as proportions (0-1 range) of available width
@@ -94,10 +66,6 @@ interface CellStore {
     // Filtering and summaries
     columnFilters: ColumnFilter[];
     columnSummaries: Record<string, SummaryType>;
-
-    // Undo/Redo history
-    undoStack: DataSnapshot[];
-    redoStack: DataSnapshot[];
 
     // Actions
     loadCells: (path: string) => Promise<void>;
@@ -124,16 +92,17 @@ interface CellStore {
     canUndo: () => boolean;
     canRedo: () => boolean;
 
-    // Cell editing actions
+    // Cell editing actions (delegate to cellEditStore, kept for convenience)
     setEditingCell: (row: number, col: number, initialValue: string, source?: "cell" | "print") => void;
     updateEditingValue: (value: string) => void;
     clearEditingCell: () => void;
 
-    // Selection actions
+    // Selection actions (delegate to cellSelectionStore, kept for convenience)
     setSelectedCell: (row: number, col: number) => void;
     setSelectedRange: (startRow: number, startCol: number, endRow: number, endCol: number) => void;
     clearSelection: () => void;
     copySelection: () => void;
+    // Data mutation actions that use selection state
     pasteClipboard: () => void;
     clearCells: () => void;
 
@@ -147,21 +116,12 @@ interface CellStore {
     reorderColumns: (fromIndex: number, toIndex: number) => void;
 }
 
-// Helper function to create a snapshot of current data
-const createSnapshot = (data: string[][], headers: string[]): DataSnapshot => ({
-    data: data.map((row) => [...row]), // Deep copy rows
-    headers: [...headers], // Copy headers
-});
-
 // Helper function to push current state to undo stack before mutation
-const pushToUndoStack = (get: () => CellStore, set: (state: Partial<CellStore>) => void) => {
-    const { data, headers, undoStack } = get();
+// Uses the extracted cellHistoryStore for history management
+const pushToUndoStack = (get: () => CellStore) => {
+    const { data, headers } = get();
     const snapshot = createSnapshot(data, headers);
-
-    // Limit undo stack size to 50 actions
-    const newUndoStack = [...undoStack, snapshot].slice(-50);
-
-    set({ undoStack: newUndoStack, redoStack: [] }); // Clear redo stack on new action
+    useCellHistoryStore.getState().pushSnapshot(snapshot);
 };
 
 // Load operation counter for cancelling stale load operations
@@ -181,18 +141,14 @@ export const useCellStore = create<CellStore>((set, get) => ({
     error: null,
     lastSavedAt: null,
     isTempFile: false,
-    editingCell: null,
-    editingValue: "",
-    editingSource: null,
-    selectedCell: null,
-    selectedRange: null,
-    clipboard: null,
+    // Note: Editing state (editingCell, editingValue, editingSource) is managed by cellEditStore
+    // Components should import from useCellEditStore for editing state
+    // Note: Selection state (selectedCell, selectedRange, clipboard) is managed by cellSelectionStore
+    // Components should import from useCellSelectionStore for selection state
     columnWidths: {},
     columnOrder: [],
     columnFilters: [],
     columnSummaries: {},
-    undoStack: [],
-    redoStack: [],
 
     // Load Cell file from disk
     loadCells: async (path: string) => {
@@ -807,7 +763,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
         }
 
         // Push current state to undo stack
-        pushToUndoStack(get, set);
+        pushToUndoStack(get);
 
         const newData = data.map((r, i) =>
             i === row ? r.map((c, j) => (j === col ? value : c)) : r
@@ -823,7 +779,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
         if (cells.length === 0) return;
 
         // Push current state to undo stack (once for all updates)
-        pushToUndoStack(get, set);
+        pushToUndoStack(get);
 
         const newData = data.map((row) => [...row]);
 
@@ -851,7 +807,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
         }
 
         // Push current state to undo stack
-        pushToUndoStack(get, set);
+        pushToUndoStack(get);
 
         const newData = data.map((r, i) => (i === rowIndex ? newRow : r));
 
@@ -863,7 +819,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
         const { data, headers } = get();
 
         // Push current state to undo stack
-        pushToUndoStack(get, set);
+        pushToUndoStack(get);
 
         // Create empty row with correct number of columns
         const newRow = new Array(headers.length).fill("");
@@ -885,7 +841,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
         const { data } = get();
 
         // Push current state to undo stack
-        pushToUndoStack(get, set);
+        pushToUndoStack(get);
 
         const indexSet = new Set(indices);
         const newData = data.filter((_, i) => !indexSet.has(i));
@@ -898,7 +854,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
         const { data, headers } = get();
 
         // Push current state to undo stack
-        pushToUndoStack(get, set);
+        pushToUndoStack(get);
 
         let newHeaders: string[];
         if (atIndex === undefined || atIndex >= headers.length) {
@@ -930,7 +886,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
         }
 
         // Push current state to undo stack
-        pushToUndoStack(get, set);
+        pushToUndoStack(get);
 
         const newHeaders = headers.filter((_, i) => i !== index);
         const newData = data.map((row) => row.filter((_, i) => i !== index));
@@ -947,7 +903,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
         }
 
         // Push current state to undo stack
-        pushToUndoStack(get, set);
+        pushToUndoStack(get);
 
         const newHeaders = headers.map((h, i) => (i === index ? newName : h));
 
@@ -991,158 +947,101 @@ export const useCellStore = create<CellStore>((set, get) => ({
         }
     },
 
-    // Undo last action
+    // Undo last action (uses cellHistoryStore)
     undo: () => {
-        const { undoStack, data, headers, redoStack } = get();
+        const { data, headers } = get();
+        const historyStore = useCellHistoryStore.getState();
 
-        if (undoStack.length === 0) {
+        if (!historyStore.canUndo()) {
             return;
         }
 
-        // Get the previous state from undo stack
-        const previousState = undoStack[undoStack.length - 1];
-        const newUndoStack = undoStack.slice(0, -1);
-
-        // Push current state to redo stack
+        // Pop from undo stack, passing current state for redo
         const currentSnapshot = createSnapshot(data, headers);
-        const newRedoStack = [...redoStack, currentSnapshot];
+        const previousState = historyStore.popUndo(currentSnapshot);
 
-        // Restore previous state
-        set({
-            data: previousState.data,
-            headers: previousState.headers,
-            undoStack: newUndoStack,
-            redoStack: newRedoStack,
-            isDirty: true,
-        });
+        if (previousState) {
+            set({
+                data: previousState.data,
+                headers: previousState.headers,
+                isDirty: true,
+            });
+        }
     },
 
-    // Redo last undone action
+    // Redo last undone action (uses cellHistoryStore)
     redo: () => {
-        const { redoStack, data, headers, undoStack } = get();
+        const { data, headers } = get();
+        const historyStore = useCellHistoryStore.getState();
 
-        if (redoStack.length === 0) {
+        if (!historyStore.canRedo()) {
             return;
         }
 
-        // Get the next state from redo stack
-        const nextState = redoStack[redoStack.length - 1];
-        const newRedoStack = redoStack.slice(0, -1);
-
-        // Push current state to undo stack
+        // Pop from redo stack, passing current state for undo
         const currentSnapshot = createSnapshot(data, headers);
-        const newUndoStack = [...undoStack, currentSnapshot];
+        const nextState = historyStore.popRedo(currentSnapshot);
 
-        // Restore next state
-        set({
-            data: nextState.data,
-            headers: nextState.headers,
-            undoStack: newUndoStack,
-            redoStack: newRedoStack,
-            isDirty: true,
-        });
+        if (nextState) {
+            set({
+                data: nextState.data,
+                headers: nextState.headers,
+                isDirty: true,
+            });
+        }
     },
 
-    // Check if undo is available
+    // Check if undo is available (uses cellHistoryStore)
     canUndo: () => {
-        return get().undoStack.length > 0;
+        return useCellHistoryStore.getState().canUndo();
     },
 
-    // Check if redo is available
+    // Check if redo is available (uses cellHistoryStore)
     canRedo: () => {
-        return get().redoStack.length > 0;
+        return useCellHistoryStore.getState().canRedo();
     },
 
-    // Set cell being edited (for coordinating between Cell Grid and Print preview)
+    // Cell editing actions (delegate to cellEditStore)
     setEditingCell: (row: number, col: number, initialValue: string, source: "cell" | "print" = "cell") => {
-        set({
-            editingCell: { row, col },
-            editingValue: initialValue,
-            editingSource: source,
-        });
+        useCellEditStore.getState().setEditingCell(row, col, initialValue, source);
     },
 
-    // Update the value being edited (for real-time Print preview updates)
     updateEditingValue: (value: string) => {
-        set({ editingValue: value });
+        useCellEditStore.getState().updateEditingValue(value);
     },
 
-    // Clear editing state
     clearEditingCell: () => {
-        set({
-            editingCell: null,
-            editingValue: "",
-            editingSource: null,
-        });
+        useCellEditStore.getState().clearEditingCell();
     },
 
-    // Selection actions
+    // Selection actions (delegate to cellSelectionStore)
     setSelectedCell: (row: number, col: number) => {
-        set({
-            selectedCell: { row, col },
-            selectedRange: null,
-        });
+        useCellSelectionStore.getState().setSelectedCell(row, col);
     },
 
     setSelectedRange: (startRow: number, startCol: number, endRow: number, endCol: number) => {
-        set({
-            selectedRange: { startRow, startCol, endRow, endCol },
-            selectedCell: null,
-        });
+        useCellSelectionStore.getState().setSelectedRange(startRow, startCol, endRow, endCol);
     },
 
     clearSelection: () => {
-        set({
-            selectedCell: null,
-            selectedRange: null,
-        });
+        useCellSelectionStore.getState().clearSelection();
     },
 
     copySelection: () => {
-        const { selectedCell, selectedRange, data } = get();
-
-        if (selectedRange) {
-            // Copy range
-            const { startRow, startCol, endRow, endCol } = selectedRange;
-            const minRow = Math.min(startRow, endRow);
-            const maxRow = Math.max(startRow, endRow);
-            const minCol = Math.min(startCol, endCol);
-            const maxCol = Math.max(startCol, endCol);
-
-            const copiedData: string[][] = [];
-            for (let r = minRow; r <= maxRow; r++) {
-                const row: string[] = [];
-                for (let c = minCol; c <= maxCol; c++) {
-                    row.push(data[r]?.[c] || "");
-                }
-                copiedData.push(row);
-            }
-
-            set({
-                clipboard: {
-                    data: copiedData,
-                    isSingleCell: false,
-                },
-            });
-        } else if (selectedCell) {
-            // Copy single cell
-            const value = data[selectedCell.row]?.[selectedCell.col] || "";
-            set({
-                clipboard: {
-                    data: [[value]],
-                    isSingleCell: true,
-                },
-            });
-        }
+        const { data } = get();
+        useCellSelectionStore.getState().copyToClipboard(data);
     },
 
     pasteClipboard: () => {
-        const { selectedCell, selectedRange, clipboard, data } = get();
+        const { data } = get();
+        const selectionStore = useCellSelectionStore.getState();
+        const { selectedCell, selectedRange } = selectionStore;
+        const clipboard = selectionStore.getClipboard();
 
         if (!clipboard) return;
 
         // Push current state to undo stack
-        pushToUndoStack(get, set);
+        pushToUndoStack(get);
 
         const newData = data.map((row) => [...row]);
 
@@ -1222,12 +1121,13 @@ export const useCellStore = create<CellStore>((set, get) => ({
     },
 
     clearCells: () => {
-        const { selectedCell, selectedRange, data } = get();
+        const { data } = get();
+        const { selectedCell, selectedRange } = useCellSelectionStore.getState();
 
         if (!selectedCell && !selectedRange) return;
 
         // Push current state to undo stack
-        pushToUndoStack(get, set);
+        pushToUndoStack(get);
 
         const newData = data.map((row) => [...row]);
 
@@ -1294,7 +1194,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
         if (toIndex < 0 || toIndex >= data.length) return;
 
         // Push current state to undo stack
-        pushToUndoStack(get, set);
+        pushToUndoStack(get);
 
         const newData = [...data];
         const [movedRow] = newData.splice(fromIndex, 1);
@@ -1311,7 +1211,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
         if (toIndex < 0 || toIndex >= headers.length) return;
 
         // Push current state to undo stack
-        pushToUndoStack(get, set);
+        pushToUndoStack(get);
 
         // Reorder headers
         const newHeaders = [...headers];
