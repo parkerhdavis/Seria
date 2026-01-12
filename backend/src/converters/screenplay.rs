@@ -26,7 +26,6 @@ pub enum ElementType {
     Transition,
 }
 
-
 /// A parsed screenplay element
 #[derive(Debug, Clone)]
 struct ScreenplayElement {
@@ -92,7 +91,10 @@ fn parse_screenplay(content: &str) -> Result<Vec<ScreenplayElement>, String> {
         }
 
         // For classification, use the current element's type if available
-        let context_type = current_element.as_ref().map(|e| e.element_type).or(prev_type);
+        let context_type = current_element
+            .as_ref()
+            .map(|e| e.element_type)
+            .or(prev_type);
 
         // Classify the line
         let line_type = classify_line(line, context_type);
@@ -108,7 +110,7 @@ fn parse_screenplay(content: &str) -> Result<Vec<ScreenplayElement>, String> {
                 // Different type, push current and start new
                 let elem_type = elem.element_type;
                 elements.push(elem.clone());
-                prev_type = Some(elem_type);  // Update prev_type after pushing
+                prev_type = Some(elem_type); // Update prev_type after pushing
                 current_element = Some(ScreenplayElement {
                     element_type: line_type,
                     content: line.trim().to_string(),
@@ -142,7 +144,6 @@ fn classify_line(line: &str, prev_type: Option<ElementType>) -> ElementType {
     let trimmed = line.trim();
     let indent = count_leading_spaces(line);
 
-
     // Scene heading: ALL CAPS, starts with INT./EXT./EST./I/E
     if is_scene_heading(trimmed) {
         return ElementType::Scene;
@@ -162,10 +163,7 @@ fn classify_line(line: &str, prev_type: Option<ElementType>) -> ElementType {
     // Character: ANY indent (5+) + ALL CAPS
     // Screenplays can use different indentation schemes (some use 12 spaces, others 20+)
     // But not if previous was character (avoid false positives)
-    if indent >= 5
-        && is_all_caps(trimmed)
-        && !matches!(prev_type, Some(ElementType::Character))
-    {
+    if indent >= 5 && is_all_caps(trimmed) && !matches!(prev_type, Some(ElementType::Character)) {
         return ElementType::Character;
     }
 
@@ -174,7 +172,9 @@ fn classify_line(line: &str, prev_type: Option<ElementType>) -> ElementType {
     if indent >= 3
         && matches!(
             prev_type,
-            Some(ElementType::Character) | Some(ElementType::Parenthetical) | Some(ElementType::Dialogue)
+            Some(ElementType::Character)
+                | Some(ElementType::Parenthetical)
+                | Some(ElementType::Dialogue)
         )
     {
         return ElementType::Dialogue;
@@ -196,15 +196,7 @@ fn is_scene_heading(trimmed: &str) -> bool {
     }
 
     // Common scene heading prefixes
-    let prefixes = [
-        "INT.",
-        "EXT.",
-        "INT/EXT",
-        "I/E",
-        "EST.",
-        "INT ",
-        "EXT ",
-    ];
+    let prefixes = ["INT.", "EXT.", "INT/EXT", "I/E", "EST.", "INT ", "EXT "];
 
     prefixes.iter().any(|prefix| trimmed.starts_with(prefix))
 }
@@ -418,7 +410,8 @@ fn parse_csv_to_elements(csv_content: &str) -> Result<Vec<ScreenplayElement>, St
         }
 
         // Parse CSV line - handle quoted fields
-        let fields = parse_csv_line(line);
+        let fields = parse_csv_line(line)
+            .map_err(|e| format!("CSV parsing error at line {}: {}", index + 2, e))?;
 
         if fields.len() != 6 {
             return Err(format!(
@@ -484,7 +477,8 @@ fn parse_csv_to_elements(csv_content: &str) -> Result<Vec<ScreenplayElement>, St
 }
 
 /// Simple CSV line parser that handles quoted fields
-fn parse_csv_line(line: &str) -> Vec<String> {
+/// Returns an error if quotes are not properly closed
+fn parse_csv_line(line: &str) -> Result<Vec<String>, String> {
     let mut fields = Vec::new();
     let mut current_field = String::new();
     let mut in_quotes = false;
@@ -511,10 +505,15 @@ fn parse_csv_line(line: &str) -> Vec<String> {
         }
     }
 
+    // Check for unclosed quotes
+    if in_quotes {
+        return Err("Unclosed quote in CSV line".to_string());
+    }
+
     // Push final field
     fields.push(current_field);
 
-    fields
+    Ok(fields)
 }
 
 /// Convert screenplay elements back to formatted screenplay text
@@ -621,11 +620,11 @@ mod tests {
         screenplay.push_str("\n");
         screenplay.push_str("John enters the room.\n");
         screenplay.push_str("\n");
-        screenplay.push_str("                    JOHN\n");  // 20 spaces
+        screenplay.push_str("                    JOHN\n"); // 20 spaces
         screenplay.push_str("          Hello, everyone!\n"); // 10 spaces
         screenplay.push_str("\n");
-        screenplay.push_str("                    MARY\n");  // 20 spaces
-        screenplay.push_str("          Hi, John.\n");        // 10 spaces
+        screenplay.push_str("                    MARY\n"); // 20 spaces
+        screenplay.push_str("          Hi, John.\n"); // 10 spaces
         screenplay.push_str("\n");
         screenplay.push_str("                                            FADE OUT.\n"); // 44 spaces (right-aligned)
 
@@ -656,8 +655,8 @@ mod tests {
     fn test_parenthetical() {
         // Note: Indentation is significant
         let mut screenplay = String::new();
-        screenplay.push_str("                    JOHN\n");        // 20 spaces - Character
-        screenplay.push_str("               (nervously)\n");      // 15 spaces - Parenthetical
+        screenplay.push_str("                    JOHN\n"); // 20 spaces - Character
+        screenplay.push_str("               (nervously)\n"); // 15 spaces - Parenthetical
         screenplay.push_str("          I don't know what to say.\n"); // 10 spaces - Dialogue
 
         let result = convert_screenplay_to_csv(screenplay);
@@ -681,11 +680,13 @@ The streets are empty."#;
 
         let csv = result.unwrap();
         // Multi-line action should be combined into one row with Action column filled
-        assert!(csv.contains(",,John walks to the window. He looks outside at the rain. The streets are empty.,,,"));
+        assert!(csv.contains(
+            ",,John walks to the window. He looks outside at the rain. The streets are empty.,,,"
+        ));
     }
 
     #[test]
-    #[ignore]  // Run with: cargo test -- --ignored
+    #[ignore] // Run with: cargo test -- --ignored
     fn test_all_about_eve_sample() {
         // This test uses the actual All About Eve screenplay sample
         // It's marked as ignored because it requires the file to exist
@@ -704,11 +705,11 @@ The streets are empty."#;
 
         // Verify some key elements are detected
         assert!(csv.contains("INT. EVE'S HOTEL APARTMENT - NIGHT"));
-        assert!(csv.contains(",,,EVE,"));  // Character EVE
-        assert!(csv.contains(",,,GIRL,"));  // Character GIRL
-        assert!(csv.contains(",,,ADDISON,"));  // Character ADDISON
-        assert!(csv.contains(",,,PHOEBE,"));  // Character PHOEBE
-        assert!(csv.contains("FADE OUT."));  // Transition
-        assert!(csv.contains(",(pauses),"));  // At least one parenthetical
+        assert!(csv.contains(",,,EVE,")); // Character EVE
+        assert!(csv.contains(",,,GIRL,")); // Character GIRL
+        assert!(csv.contains(",,,ADDISON,")); // Character ADDISON
+        assert!(csv.contains(",,,PHOEBE,")); // Character PHOEBE
+        assert!(csv.contains("FADE OUT.")); // Transition
+        assert!(csv.contains(",(pauses),")); // At least one parenthetical
     }
 }

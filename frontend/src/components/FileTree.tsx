@@ -23,11 +23,6 @@ interface FileEntry {
  */
 function FileTree() {
     const [files, setFiles] = useState<FileEntry[]>([]);
-    // Disabled: expandedDirs is assigned a value but never used
-    // Reason: The state tracks expanded directories for future features (collapsible tree)
-    // Alternative: Remove the state entirely if directory expansion UI is not planned, or implement the UI to actually use expandedDirs for rendering collapsed/expanded states
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
     const { loadCells, fileInfo } = useCellStore();
     const { rootDirectory, setRootDirectory } = useFileTreeStore();
     const { showIncompatibleFiles } = useSettingsStore();
@@ -103,16 +98,8 @@ function FileTree() {
         }
 
         if (file.isDirectory) {
-            // Toggle directory expansion
-            setExpandedDirs((prev) => {
-                const newSet = new Set(prev);
-                if (newSet.has(file.path)) {
-                    newSet.delete(file.path);
-                } else {
-                    newSet.add(file.path);
-                }
-                return newSet;
-            });
+            // Navigate into directory
+            await loadDirectoryContents(file.path);
         } else if (isCellFile(file.name)) {
             // Open Cell file
             try {
