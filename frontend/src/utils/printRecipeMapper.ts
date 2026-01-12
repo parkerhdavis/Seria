@@ -250,26 +250,5 @@ export function updateFieldMapping(
     }
 }
 
-/**
- * Gets the mapped Cell column for a specific element
- */
-export function getMappedColumn(
-    mappings: RecipeFieldMapping[],
-    elementId: string
-): string | null {
-    const mapping = mappings.find(m => m.ingredientId === elementId);
-    return mapping?.cellColumn ?? null;
-}
-
-/**
- * Gets all mappings for an element (for elements that allow multiple)
- */
-export function getMappedColumns(
-    mappings: RecipeFieldMapping[],
-    elementId: string
-): string[] {
-    return mappings
-        .filter(m => m.ingredientId === elementId && m.cellColumn !== null)
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-        .map(m => m.cellColumn!);
-}
+// Re-export shared mapping utilities for backwards compatibility
+export { getMappedColumn, getMappedColumns } from "./mappingUtils";
