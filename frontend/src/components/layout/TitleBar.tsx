@@ -11,6 +11,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCellStore } from "@/stores/cellStore";
 import { useState, useEffect } from "react";
+import { logger } from "@/utils/logger";
 
 const appWindow = getCurrentWindow();
 
@@ -56,10 +57,10 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
         });
 
         // Debug logging
-        console.log("TitleBar mounted - Tauri window API available:", !!appWindow);
-        console.log("Window label:", appWindow.label);
-        console.log("Running in Tauri:", "__TAURI__" in window);
-        console.log("User agent:", navigator.userAgent);
+        logger.debug("TitleBar mounted - Tauri window API available:", !!appWindow);
+        logger.debug("Window label:", appWindow.label);
+        logger.debug("Running in Tauri:", "__TAURI__" in window);
+        logger.debug("User agent:", navigator.userAgent);
 
         return () => {
             unlisten.then((fn) => fn());
@@ -103,7 +104,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                 onFilePickerOpenChange(false);
             }
         } catch (error) {
-            console.error("Failed to open file:", error);
+            logger.error("Failed to open file:", error);
             onFilePickerOpenChange(false);
         }
     };
@@ -115,7 +116,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
             if (error instanceof Error && error.message === "TEMP_FILE_NEEDS_LOCATION") {
                 await handleSaveAs();
             } else {
-                console.error("Failed to save file:", error);
+                logger.error("Failed to save file:", error);
             }
         }
     };
@@ -142,7 +143,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                 onFilePickerOpenChange(false);
             }
         } catch (error) {
-            console.error("Failed to save file:", error);
+            logger.error("Failed to save file:", error);
             onFilePickerOpenChange(false);
         }
     };
@@ -152,7 +153,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
         try {
             await reloadCells();
         } catch (error) {
-            console.error("Failed to reload file:", error);
+            logger.error("Failed to reload file:", error);
         }
     };
 
@@ -170,7 +171,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
             try {
                 await saveCells();
             } catch (error) {
-                console.error("Failed to save file before creating new:", error);
+                logger.error("Failed to save file before creating new:", error);
                 return;
             }
         }
@@ -199,7 +200,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                 onFilePickerOpenChange(false);
             }
         } catch (error) {
-            console.error("Failed to import file:", error);
+            logger.error("Failed to import file:", error);
             onFilePickerOpenChange(false);
         }
     };
@@ -207,18 +208,18 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
     // Placeholder handlers for future import formats
     const handleImportAsFountain = async () => {
         // TODO: Implement Fountain import
-        console.log("Fountain import coming soon");
+        logger.debug("Fountain import coming soon");
     };
 
     const handleImportAsPDF = async () => {
         // TODO: Implement PDF screenplay import
-        console.log("PDF import coming soon");
+        logger.debug("PDF import coming soon");
     };
 
     // Export handlers
     const handleExportAsScreenplay = async () => {
         if (!fileInfo) {
-            console.error("No file is currently open");
+            logger.error("No file is currently open");
             return;
         }
 
@@ -247,7 +248,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
             }
             onFilePickerOpenChange(false);
         } catch (error) {
-            console.error("Failed to export screenplay:", error);
+            logger.error("Failed to export screenplay:", error);
             onFilePickerOpenChange(false);
         }
     };
@@ -255,7 +256,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
     // Placeholder handlers for future export formats
     const handleExportAsFountain = async () => {
         // TODO: Implement Fountain export
-        console.log("Fountain export coming soon");
+        logger.debug("Fountain export coming soon");
     };
 
     return (
@@ -264,7 +265,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                 data-tauri-drag-region
                 className="relative flex flex-row items-center h-10 bg-gray-900 border-b-4 border-black/60 select-none"
                 onMouseDown={(e) => {
-                    console.log("Title bar mousedown:", {
+                    logger.debug("Title bar mousedown:", {
                         target: e.target,
                         currentTarget: e.currentTarget,
                         button: e.button,

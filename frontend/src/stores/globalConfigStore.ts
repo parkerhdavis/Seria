@@ -10,6 +10,7 @@
 
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
+import { logger } from "@/utils/logger";
 
 /**
  * Global application configuration
@@ -135,7 +136,7 @@ export const useGlobalConfigStore = create<GlobalConfigStore>((set, get) => ({
                 try {
                     parsedData = JSON.parse(jsonData);
                 } catch (parseError) {
-                    console.error("Failed to parse config JSON:", parseError);
+                    logger.error("Failed to parse config JSON:", parseError);
                     set({ config: DEFAULT_CONFIG, isLoaded: true });
                     return;
                 }
@@ -153,7 +154,7 @@ export const useGlobalConfigStore = create<GlobalConfigStore>((set, get) => ({
                 set({ config: DEFAULT_CONFIG, isLoaded: true });
             }
         } catch (error) {
-            console.error("Failed to load global config:", error);
+            logger.error("Failed to load global config:", error);
             // Fall back to defaults on error
             set({ config: DEFAULT_CONFIG, isLoaded: true });
         }
@@ -168,7 +169,7 @@ export const useGlobalConfigStore = create<GlobalConfigStore>((set, get) => ({
             const jsonData = JSON.stringify(config, null, 2);
             await invoke("save_preferences", { data: jsonData });
         } catch (error) {
-            console.error("Failed to save global config:", error);
+            logger.error("Failed to save global config:", error);
         }
     },
 
