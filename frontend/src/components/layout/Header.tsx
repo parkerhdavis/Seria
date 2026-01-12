@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCellStore } from "@stores/cellStore";
 import { useSettingsStore } from "@stores/settingsStore";
+import { logger } from "@/utils/logger";
 import RowColoringDropdown from "../toolbar/RowColoringDropdown";
 
 interface HeaderProps {
@@ -63,7 +64,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                 onFilePickerOpenChange(false);
             }
         } catch (error) {
-            console.error("Failed to open file:", error);
+            logger.error("Failed to open file:", error);
             onFilePickerOpenChange(false);
         }
     };
@@ -77,7 +78,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
             if (error instanceof Error && error.message === "TEMP_FILE_NEEDS_LOCATION") {
                 await handleSaveAs();
             } else {
-                console.error("Failed to save file:", error);
+                logger.error("Failed to save file:", error);
             }
         }
     };
@@ -88,7 +89,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
         try {
             await reloadCells();
         } catch (error) {
-            console.error("Failed to reload file:", error);
+            logger.error("Failed to reload file:", error);
         }
     };
 
@@ -117,7 +118,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                 onFilePickerOpenChange(false);
             }
         } catch (error) {
-            console.error("Failed to save file:", error);
+            logger.error("Failed to save file:", error);
             onFilePickerOpenChange(false);
         }
     };
@@ -159,7 +160,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                 onFilePickerOpenChange(false);
             }
         } catch (error) {
-            console.error("Failed to import file:", error);
+            logger.error("Failed to import file:", error);
             onFilePickerOpenChange(false);
         }
     };
@@ -171,7 +172,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
             try {
                 await saveCells();
             } catch (error) {
-                console.error("Failed to save file before creating new:", error);
+                logger.error("Failed to save file before creating new:", error);
                 return;
             }
         }

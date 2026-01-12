@@ -16,6 +16,7 @@ import { DragProvider } from "./contexts/DragContext";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { serializeCell } from "@utils/cellParser";
+import { logger } from "@/utils/logger";
 
 /**
  * Main application component
@@ -79,7 +80,7 @@ function App() {
                 // Load global config
                 await loadConfig();
             } catch (error) {
-                console.error("Failed to initialize app:", error);
+                logger.error("Failed to initialize app:", error);
             } finally {
                 // Mark initialization as complete
                 setIsInitializing(false);
@@ -97,7 +98,7 @@ function App() {
         // Only auto-open if enabled and there's a last file and no file is currently open
         if (config.autoReopenLastFile && config.lastOpenedFile && !currentFile) {
             loadCellsProgressive(config.lastOpenedFile).catch((error) => {
-                console.error("Failed to auto-reopen last file:", error);
+                logger.error("Failed to auto-reopen last file:", error);
             });
         }
     }, [config, loadCellsProgressive, currentFile]);
@@ -170,9 +171,9 @@ function App() {
                 // Update the store to mark as saved (without changing lastSavedAt to avoid UI flash)
                 useCellStore.setState({ isDirty: false });
 
-                console.log("Autosaved temp file");
+                logger.debug("Autosaved temp file");
             } catch (error) {
-                console.error("Autosave failed:", error);
+                logger.error("Autosave failed:", error);
             } finally {
                 isSavingRef.current = false;
             }
@@ -210,7 +211,7 @@ function App() {
                         setIsFilePickerOpen(false);
                     }
                 } catch (error) {
-                    console.error("Open file failed:", error);
+                    logger.error("Open file failed:", error);
                     setIsFilePickerOpen(false);
                 }
             }
@@ -251,11 +252,11 @@ function App() {
                                 setIsFilePickerOpen(false);
                             }
                         } catch (saveError) {
-                            console.error("Save As failed:", saveError);
+                            logger.error("Save As failed:", saveError);
                             setIsFilePickerOpen(false);
                         }
                     } else {
-                        console.error("Save failed:", error);
+                        logger.error("Save failed:", error);
                     }
                 } finally {
                     isSavingRef.current = false;

@@ -11,6 +11,7 @@ import { readDir } from "@tauri-apps/plugin-fs";
 import { useCellStore } from "@stores/cellStore";
 import { useFileTreeStore } from "@stores/fileTreeStore";
 import { useSettingsStore } from "@stores/settingsStore";
+import { logger } from "@/utils/logger";
 
 interface FileEntry {
     name: string;
@@ -23,11 +24,6 @@ interface FileEntry {
  */
 function FileTree() {
     const [files, setFiles] = useState<FileEntry[]>([]);
-    // Disabled: expandedDirs is assigned a value but never used
-    // Reason: The state tracks expanded directories for future features (collapsible tree)
-    // Alternative: Remove the state entirely if directory expansion UI is not planned, or implement the UI to actually use expandedDirs for rendering collapsed/expanded states
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
     const { loadCells, fileInfo } = useCellStore();
     const { rootDirectory, setRootDirectory } = useFileTreeStore();
     const { showIncompatibleFiles } = useSettingsStore();
@@ -46,19 +42,19 @@ function FileTree() {
                 await loadDirectoryContents(selectedDir);
             }
         } catch (error) {
-            console.error("Failed to open directory:", error);
+            logger.error("Failed to open directory:", error);
         }
     };
 
     // Load directory contents
     const loadDirectoryContents = async (dirPath: string) => {
         try {
-            console.log("Reading directory:", dirPath);
+            logger.debug("Reading directory:", dirPath);
             const entries = await readDir(dirPath);
-            console.log("Directory entries:", entries);
+            logger.debug("Directory entries:", entries);
 
             if (!entries || entries.length === 0) {
-                console.log("No entries found in directory");
+                logger.debug("No entries found in directory");
                 setFiles([]);
                 return;
             }
@@ -81,11 +77,11 @@ function FileTree() {
                     return a.name.localeCompare(b.name);
                 });
 
-            console.log("Processed file list:", fileList);
+            logger.debug("Processed file list:", fileList);
             setFiles(fileList);
         } catch (error) {
-            console.error("Failed to read directory:", error);
-            console.error("Error details:", JSON.stringify(error));
+            logger.error("Failed to read directory:", error);
+            logger.error("Error details:", JSON.stringify(error));
             setFiles([]);
         }
     };
@@ -103,22 +99,14 @@ function FileTree() {
         }
 
         if (file.isDirectory) {
-            // Toggle directory expansion
-            setExpandedDirs((prev) => {
-                const newSet = new Set(prev);
-                if (newSet.has(file.path)) {
-                    newSet.delete(file.path);
-                } else {
-                    newSet.add(file.path);
-                }
-                return newSet;
-            });
+            // Navigate into directory
+            await loadDirectoryContents(file.path);
         } else if (isCellFile(file.name)) {
             // Open Cell file
             try {
                 await loadCells(file.path);
             } catch (error) {
-                console.error("Failed to open file:", error);
+                logger.error("Failed to open file:", error);
             }
         }
     };

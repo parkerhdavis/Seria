@@ -20,6 +20,7 @@ import MappingModal from "@components/prints/MappingModal";
 import ExportDialog, { type ExportSettings, type ExportProgress } from "@components/prints/ExportDialog";
 import { exportPrintToPDF } from "@/utils/pdfExport";
 import { exportScreenplayToPDF } from "@/utils/pdfExportScreenplay";
+import { logger } from "@/utils/logger";
 
 // Title bar height constant (matches TitleBar.tsx h-10 = 40px)
 const TITLE_BAR_HEIGHT = 40;
@@ -49,6 +50,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
     const [isPrintLoading, setIsPrintLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
+    const [exportError, setExportError] = useState<string | null>(null);
     const drawerRef = useRef<HTMLDivElement>(null);
     const printContainerRef = useRef<HTMLDivElement>(null);
     const { startDrag, endDrag } = useDrag();
@@ -126,6 +128,9 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
     // Handle PDF export with progress tracking
     const handleExport = async (settings: ExportSettings) => {
         try {
+            // Clear any previous error
+            setExportError(null);
+
             // Show export progress modal
             setIsExporting(true);
             setExportProgress({
@@ -140,7 +145,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
             const config = selectedRecipeId ? configurations[selectedRecipeId] : null;
 
             if (!recipe || !config) {
-                console.error("Recipe or configuration not found");
+                logger.error("Recipe or configuration not found");
                 setIsExporting(false);
                 return;
             }
@@ -156,7 +161,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
             } else {
                 // Fall back to image-based export for other print types
                 if (!printContainerRef.current) {
-                    console.error("Print container not found");
+                    logger.error("Print container not found");
                     setIsExporting(false);
                     return;
                 }
@@ -166,7 +171,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                 ) as HTMLElement;
 
                 if (!printElement) {
-                    console.error("Print element not found");
+                    logger.error("Print element not found");
                     setIsExporting(false);
                     return;
                 }
@@ -188,10 +193,13 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
             setExportProgress(null);
             setIsExportDialogOpen(false);
         } catch (error) {
-            console.error("Export failed:", error);
+            logger.error("Export failed:", error);
             setIsExporting(false);
             setExportProgress(null);
-            // TODO: Show error toast/notification to user
+
+            // Show error to user
+            const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+            setExportError(`Export failed: ${errorMessage}`);
         }
     };
 
@@ -626,6 +634,25 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
 
                         {/* Note: No cancel button - export process can't be safely interrupted */}
                     </div>
+                </div>
+            )}
+
+            {/* Export Error Alert */}
+            {exportError && (
+                <div className="modal modal-open">
+                    <div className="modal-box">
+                        <h3 className="font-bold text-lg text-error mb-4">Export Error</h3>
+                        <p className="text-base-content mb-4">{exportError}</p>
+                        <div className="modal-action">
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => setExportError(null)}
+                            >
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                    <div className="modal-backdrop" onClick={() => setExportError(null)}></div>
                 </div>
             )}
 

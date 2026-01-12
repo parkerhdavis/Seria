@@ -46,8 +46,7 @@ pub fn load_preferences(app: AppHandle) -> Result<String, String> {
         return Ok("{}".to_string());
     }
 
-    fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read preferences: {}", e))
+    fs::read_to_string(&path).map_err(|e| format!("Failed to read preferences: {}", e))
 }
 
 /// Save user preferences to JSON file
@@ -61,8 +60,7 @@ pub fn save_preferences(app: AppHandle, data: String) -> Result<(), String> {
             .map_err(|e| format!("Failed to create preferences directory: {}", e))?;
     }
 
-    fs::write(&path, data)
-        .map_err(|e| format!("Failed to write preferences: {}", e))
+    fs::write(&path, data).map_err(|e| format!("Failed to write preferences: {}", e))
 }
 
 /// Load all custom Print templates
@@ -78,8 +76,8 @@ pub fn load_custom_prints(app: AppHandle) -> Result<Vec<String>, String> {
 
     let mut prints = Vec::new();
 
-    let entries = fs::read_dir(&prints_dir)
-        .map_err(|e| format!("Failed to read prints directory: {}", e))?;
+    let entries =
+        fs::read_dir(&prints_dir).map_err(|e| format!("Failed to read prints directory: {}", e))?;
 
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
@@ -101,8 +99,7 @@ pub fn save_custom_print(app: AppHandle, name: String, data: String) -> Result<(
     let mut path = get_prints_dir(&app)?;
 
     // Ensure prints directory exists
-    fs::create_dir_all(&path)
-        .map_err(|e| format!("Failed to create prints directory: {}", e))?;
+    fs::create_dir_all(&path).map_err(|e| format!("Failed to create prints directory: {}", e))?;
 
     // Sanitize filename (remove special characters)
     let safe_name = name
@@ -112,8 +109,7 @@ pub fn save_custom_print(app: AppHandle, name: String, data: String) -> Result<(
 
     path.push(format!("{}.json", safe_name));
 
-    fs::write(&path, data)
-        .map_err(|e| format!("Failed to write print template: {}", e))
+    fs::write(&path, data).map_err(|e| format!("Failed to write print template: {}", e))
 }
 
 /// Delete a custom Print template
@@ -130,8 +126,7 @@ pub fn delete_custom_print(app: AppHandle, name: String) -> Result<(), String> {
     path.push(format!("{}.json", safe_name));
 
     if path.exists() {
-        fs::remove_file(&path)
-            .map_err(|e| format!("Failed to delete print template: {}", e))?;
+        fs::remove_file(&path).map_err(|e| format!("Failed to delete print template: {}", e))?;
     }
 
     Ok(())
@@ -155,8 +150,7 @@ pub fn load_file_configs(app: AppHandle) -> Result<String, String> {
         return Ok(r#"{"version":1,"configs":[]}"#.to_string());
     }
 
-    fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read file configs: {}", e))
+    fs::read_to_string(&path).map_err(|e| format!("Failed to read file configs: {}", e))
 }
 
 /// Save file configs to JSON file
@@ -170,6 +164,5 @@ pub fn save_file_configs(app: AppHandle, data: String) -> Result<(), String> {
             .map_err(|e| format!("Failed to create config directory: {}", e))?;
     }
 
-    fs::write(&path, data)
-        .map_err(|e| format!("Failed to write file configs: {}", e))
+    fs::write(&path, data).map_err(|e| format!("Failed to write file configs: {}", e))
 }

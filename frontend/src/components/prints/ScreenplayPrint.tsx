@@ -10,6 +10,8 @@ import { useState, useEffect, useRef, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
 import { useCellStore } from "@stores/cellStore";
+import { useCellSelectionStore } from "@stores/cellSelectionStore";
+import { useCellEditStore } from "@stores/cellEditStore";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 
 interface ScreenplayPrintProps {
@@ -319,13 +321,16 @@ function ScreenplayPrint({
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
 
     // Use selectors to only subscribe to needed values - prevents re-renders on unrelated store changes
-    const editingCell = useCellStore(state => state.editingCell);
-    const editingValue = useCellStore(state => state.editingValue);
-    const setEditingCell = useCellStore(state => state.setEditingCell);
-    const updateEditingValue = useCellStore(state => state.updateEditingValue);
+    // Editing state from cellEditStore
+    const editingCell = useCellEditStore(state => state.editingCell);
+    const editingValue = useCellEditStore(state => state.editingValue);
+    const setEditingCell = useCellEditStore(state => state.setEditingCell);
+    const updateEditingValue = useCellEditStore(state => state.updateEditingValue);
+    const clearEditingCell = useCellEditStore(state => state.clearEditingCell);
+    // Data mutation from cellStore
     const updateCell = useCellStore(state => state.updateCell);
-    const clearEditingCell = useCellStore(state => state.clearEditingCell);
-    const clearSelection = useCellStore(state => state.clearSelection);
+    // Selection from cellSelectionStore
+    const clearSelection = useCellSelectionStore(state => state.clearSelection);
 
     const elementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -419,7 +424,7 @@ function ScreenplayPrint({
     }, [editingCell, isEditingFromPrint]);
 
     // Clear Print selection when Cell cell is selected
-    const { selectedCell, selectedRange } = useCellStore();
+    const { selectedCell, selectedRange } = useCellSelectionStore();
     useEffect(() => {
         if ((selectedCell || selectedRange) && printSelection.primary && !isEditingFromPrint) {
             // User clicked in Cell Grid, clear Print selection
