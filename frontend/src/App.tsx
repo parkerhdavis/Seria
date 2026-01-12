@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import Layout from "@components/layout/Layout";
 import LoadingScreen from "@components/layout/LoadingScreen";
+import ToastContainer from "@components/Toast";
 import Editor from "./pages/Editor";
 import PrintDrawer from "@components/prints/PrintDrawer";
 import SettingsModal from "@components/modals/SettingsModal";
@@ -336,6 +337,9 @@ function App() {
 
     return (
         <DragProvider>
+            {/* Toast notifications */}
+            <ToastContainer />
+
             {/* Blur overlay - shown when file picker is open OR when loading */}
             {showBlurOverlay && (
                 <div className="fixed inset-0 z-[9998] bg-base-100/20 backdrop-blur-sm" />

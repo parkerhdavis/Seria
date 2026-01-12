@@ -21,6 +21,7 @@ import ExportDialog, { type ExportSettings, type ExportProgress } from "@compone
 import { exportPrintToPDF } from "@/utils/pdfExport";
 import { exportScreenplayToPDF } from "@/utils/pdfExportScreenplay";
 import { logger } from "@/utils/logger";
+import { toast } from "@stores/toastStore";
 
 // Title bar height constant (matches TitleBar.tsx h-10 = 40px)
 const TITLE_BAR_HEIGHT = 40;
@@ -50,7 +51,6 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
     const [isPrintLoading, setIsPrintLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
-    const [exportError, setExportError] = useState<string | null>(null);
     const drawerRef = useRef<HTMLDivElement>(null);
     const printContainerRef = useRef<HTMLDivElement>(null);
     const { startDrag, endDrag } = useDrag();
@@ -128,9 +128,6 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
     // Handle PDF export with progress tracking
     const handleExport = async (settings: ExportSettings) => {
         try {
-            // Clear any previous error
-            setExportError(null);
-
             // Show export progress modal
             setIsExporting(true);
             setExportProgress({
@@ -188,18 +185,19 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
             // This gives users visual confirmation that the export finished successfully
             await new Promise((resolve) => setTimeout(resolve, 800));
 
-            // Export complete - close modals
+            // Export complete - close modals and show success toast
             setIsExporting(false);
             setExportProgress(null);
             setIsExportDialogOpen(false);
+            toast.success("PDF exported successfully");
         } catch (error) {
             logger.error("Export failed:", error);
             setIsExporting(false);
             setExportProgress(null);
 
-            // Show error to user
+            // Show error toast to user
             const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-            setExportError(`Export failed: ${errorMessage}`);
+            toast.error(`Export failed: ${errorMessage}`);
         }
     };
 
@@ -634,25 +632,6 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
 
                         {/* Note: No cancel button - export process can't be safely interrupted */}
                     </div>
-                </div>
-            )}
-
-            {/* Export Error Alert */}
-            {exportError && (
-                <div className="modal modal-open">
-                    <div className="modal-box">
-                        <h3 className="font-bold text-lg text-error mb-4">Export Error</h3>
-                        <p className="text-base-content mb-4">{exportError}</p>
-                        <div className="modal-action">
-                            <button
-                                className="btn btn-primary"
-                                onClick={() => setExportError(null)}
-                            >
-                                OK
-                            </button>
-                        </div>
-                    </div>
-                    <div className="modal-backdrop" onClick={() => setExportError(null)}></div>
                 </div>
             )}
 
