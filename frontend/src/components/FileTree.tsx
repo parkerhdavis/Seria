@@ -11,6 +11,7 @@ import { readDir } from "@tauri-apps/plugin-fs";
 import { useCellStore } from "@stores/cellStore";
 import { useFileTreeStore } from "@stores/fileTreeStore";
 import { useSettingsStore } from "@stores/settingsStore";
+import { logger } from "@/utils/logger";
 
 interface FileEntry {
     name: string;
@@ -41,19 +42,19 @@ function FileTree() {
                 await loadDirectoryContents(selectedDir);
             }
         } catch (error) {
-            console.error("Failed to open directory:", error);
+            logger.error("Failed to open directory:", error);
         }
     };
 
     // Load directory contents
     const loadDirectoryContents = async (dirPath: string) => {
         try {
-            console.log("Reading directory:", dirPath);
+            logger.debug("Reading directory:", dirPath);
             const entries = await readDir(dirPath);
-            console.log("Directory entries:", entries);
+            logger.debug("Directory entries:", entries);
 
             if (!entries || entries.length === 0) {
-                console.log("No entries found in directory");
+                logger.debug("No entries found in directory");
                 setFiles([]);
                 return;
             }
@@ -76,11 +77,11 @@ function FileTree() {
                     return a.name.localeCompare(b.name);
                 });
 
-            console.log("Processed file list:", fileList);
+            logger.debug("Processed file list:", fileList);
             setFiles(fileList);
         } catch (error) {
-            console.error("Failed to read directory:", error);
-            console.error("Error details:", JSON.stringify(error));
+            logger.error("Failed to read directory:", error);
+            logger.error("Error details:", JSON.stringify(error));
             setFiles([]);
         }
     };
@@ -105,7 +106,7 @@ function FileTree() {
             try {
                 await loadCells(file.path);
             } catch (error) {
-                console.error("Failed to open file:", error);
+                logger.error("Failed to open file:", error);
             }
         }
     };

@@ -13,6 +13,7 @@
 
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
+import { logger } from "@/utils/logger";
 
 // File identifiers used for matching configs to files
 export interface FileIdentifiers {
@@ -128,7 +129,7 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
             set({ configData: data, isLoaded: true });
         } catch (error) {
             // If file doesn't exist or is invalid, start with empty config
-            console.log("No existing config file, starting fresh:", error);
+            logger.debug("No existing config file, starting fresh:", error);
             set({
                 configData: {
                     version: 1,
@@ -148,7 +149,7 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
             const jsonData = JSON.stringify(configData, null, 2);
             await invoke("save_file_configs", { data: jsonData });
         } catch (error) {
-            console.error("Failed to save file configs:", error);
+            logger.error("Failed to save file configs:", error);
         }
     },
 
@@ -162,7 +163,7 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
             (c) => c.identifiers.absolutePath === identifiers.absolutePath
         );
         if (match) {
-            console.log("Config found via absolute path match");
+            logger.debug("Config found via absolute path match");
             return match;
         }
 
@@ -175,7 +176,7 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
                     c.identifiers.fileSize === identifiers.fileSize
             );
             if (match) {
-                console.log("Config found via OS file ID match");
+                logger.debug("Config found via OS file ID match");
                 return match;
             }
         }
@@ -188,7 +189,7 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
                 c.identifiers.fileSize === identifiers.fileSize
         );
         if (match) {
-            console.log("Config found via filename + parent + size match");
+            logger.debug("Config found via filename + parent + size match");
             return match;
         }
 
@@ -200,12 +201,12 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
                     c.identifiers.filename === identifiers.filename
             );
             if (match) {
-                console.log("Config found via content hash match");
+                logger.debug("Config found via content hash match");
                 return match;
             }
         }
 
-        console.log("No config found for file");
+        logger.debug("No config found for file");
         return null;
     },
 
@@ -295,7 +296,7 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
             set({ configData: newConfigData });
             await get().saveConfigs();
         } catch (error) {
-            console.error("Failed to import configs:", error);
+            logger.error("Failed to import configs:", error);
             throw error;
         }
     },
@@ -317,7 +318,7 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
         const removedCount = configData.configs.length - filteredConfigs.length;
 
         if (removedCount > 0) {
-            console.log(`Cleaned up ${removedCount} old config(s)`);
+            logger.debug(`Cleaned up ${removedCount} old config(s)`);
             set({
                 configData: {
                     ...configData,

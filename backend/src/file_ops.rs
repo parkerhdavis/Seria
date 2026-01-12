@@ -17,9 +17,9 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-/// Validates a file path to prevent path traversal attacks
-/// Returns the canonicalized path if valid, or an error if the path is suspicious
-fn validate_file_path(path: &str) -> Result<PathBuf, String> {
+/// Common path validation checks for preventing path traversal attacks
+/// Returns a PathBuf if basic validation passes, or an error if the path is suspicious
+fn validate_path_basics(path: &str) -> Result<PathBuf, String> {
     // Check for suspicious patterns that indicate path traversal
     if path.contains("..") {
         return Err("Path traversal detected: '..' is not allowed in file paths".to_string());
@@ -38,16 +38,28 @@ fn validate_file_path(path: &str) -> Result<PathBuf, String> {
         return Err("Only absolute file paths are allowed".to_string());
     }
 
+    Ok(path_buf)
+}
+
+/// Verify a canonicalized path doesn't contain path traversal patterns
+fn verify_canonical_path(canonical: &Path) -> Result<(), String> {
+    if canonical.to_string_lossy().contains("..") {
+        return Err("Path traversal detected after canonicalization".to_string());
+    }
+    Ok(())
+}
+
+/// Validates a file path to prevent path traversal attacks
+/// Returns the canonicalized path if valid, or an error if the path is suspicious
+fn validate_file_path(path: &str) -> Result<PathBuf, String> {
+    let path_buf = validate_path_basics(path)?;
+
     // Canonicalize the path to resolve any symbolic links and get the real path
-    // This is done after the initial checks to ensure we don't process potentially malicious paths
     let canonical = path_buf
         .canonicalize()
         .map_err(|e| format!("Failed to resolve path: {}", e))?;
 
-    // Verify the canonical path doesn't contain ".." (shouldn't after canonicalize, but double-check)
-    if canonical.to_string_lossy().contains("..") {
-        return Err("Path traversal detected after canonicalization".to_string());
-    }
+    verify_canonical_path(&canonical)?;
 
     Ok(canonical)
 }
@@ -55,23 +67,7 @@ fn validate_file_path(path: &str) -> Result<PathBuf, String> {
 /// Validates a file path for writing (file may not exist yet)
 /// Uses parent directory validation to prevent path traversal
 fn validate_file_path_for_write(path: &str) -> Result<PathBuf, String> {
-    // Check for suspicious patterns that indicate path traversal
-    if path.contains("..") {
-        return Err("Path traversal detected: '..' is not allowed in file paths".to_string());
-    }
-
-    // Check for null bytes (can be used to bypass checks)
-    if path.contains('\0') {
-        return Err("Invalid path: null bytes are not allowed".to_string());
-    }
-
-    // Create path and check if it's absolute
-    let path_buf = PathBuf::from(path);
-
-    // For file operations, we require absolute paths
-    if !path_buf.is_absolute() {
-        return Err("Only absolute file paths are allowed".to_string());
-    }
+    let path_buf = validate_path_basics(path)?;
 
     // Get the parent directory and validate it exists
     let parent = path_buf
@@ -83,10 +79,7 @@ fn validate_file_path_for_write(path: &str) -> Result<PathBuf, String> {
         .canonicalize()
         .map_err(|e| format!("Failed to resolve parent directory: {}", e))?;
 
-    // Verify the canonical parent doesn't contain ".."
-    if canonical_parent.to_string_lossy().contains("..") {
-        return Err("Path traversal detected in parent directory".to_string());
-    }
+    verify_canonical_path(&canonical_parent)?;
 
     // Get the filename and construct the final path
     let filename = path_buf.file_name().ok_or("Invalid path: no filename")?;

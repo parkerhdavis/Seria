@@ -14,6 +14,7 @@ import { useFileConfigStore, type FileIdentifiers } from "./fileConfigStore";
 import { useSettingsStore } from "./settingsStore";
 import { useDrawerStore } from "./drawerStore";
 import { useGlobalConfigStore } from "./globalConfigStore";
+import { logger } from "@/utils/logger";
 
 // Snapshot of data state for undo/redo
 interface DataSnapshot {
@@ -336,12 +337,12 @@ export const useCellStore = create<CellStore>((set, get) => ({
                     // Update config's last seen timestamp
                     await useFileConfigStore.getState().saveConfigForFile(identifiers, fileConfig.config);
 
-                    console.log("Applied file config:", fileConfig.id);
+                    logger.debug("Applied file config:", fileConfig.id);
                 } else {
-                    console.log("No existing config for file, using defaults");
+                    logger.debug("No existing config for file, using defaults");
                 }
             } catch (error) {
-                console.error("Failed to load file config:", error);
+                logger.error("Failed to load file config:", error);
                 // Continue without config - not a fatal error
             }
 
@@ -351,7 +352,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 await globalConfigStore.setLastOpenedFile(path);
                 await globalConfigStore.addRecentFile(path);
             } catch (error) {
-                console.error("Failed to update global config:", error);
+                logger.error("Failed to update global config:", error);
                 // Non-fatal error, continue
             }
         } catch (error) {
@@ -549,7 +550,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
                             await useFileConfigStore.getState().saveConfigForFile(identifiers, fileConfig.config);
                         }
                     } catch (error) {
-                        console.error("Failed to load file config:", error);
+                        logger.error("Failed to load file config:", error);
                         // Continue without config - not a fatal error
                     }
 
@@ -559,7 +560,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
                         await globalConfigStore.setLastOpenedFile(path);
                         await globalConfigStore.addRecentFile(path);
                     } catch (error) {
-                        console.error("Failed to update global config:", error);
+                        logger.error("Failed to update global config:", error);
                     }
                 },
 
@@ -692,7 +693,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 await globalConfigStore.setLastOpenedFile(path);
                 await globalConfigStore.addRecentFile(path);
             } catch (error) {
-                console.error("Failed to update global config:", error);
+                logger.error("Failed to update global config:", error);
             }
         } catch (error) {
             set({
@@ -970,7 +971,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
             const globalConfigStore = useGlobalConfigStore.getState();
             globalConfigStore.setLastOpenedFile(null);
         } catch (error) {
-            console.error("Failed to clear last opened file from global config:", error);
+            logger.error("Failed to clear last opened file from global config:", error);
         }
     },
 
