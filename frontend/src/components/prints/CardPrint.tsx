@@ -11,6 +11,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 import { getMappedColumn, getMappedColumns } from "@/utils/printRecipeMapper";
 import { useCellStore } from "@stores/cellStore";
+import { useCellSelectionStore } from "@stores/cellSelectionStore";
+import { useCellEditStore } from "@stores/cellEditStore";
 
 interface CardPrintProps {
     data: string[][];
@@ -402,13 +404,16 @@ function CardPrint({
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
 
     // Use selectors to only subscribe to needed values - prevents re-renders on unrelated store changes
-    const editingCell = useCellStore(state => state.editingCell);
-    const editingValue = useCellStore(state => state.editingValue);
-    const setEditingCell = useCellStore(state => state.setEditingCell);
-    const updateEditingValue = useCellStore(state => state.updateEditingValue);
+    // Editing state from cellEditStore
+    const editingCell = useCellEditStore(state => state.editingCell);
+    const editingValue = useCellEditStore(state => state.editingValue);
+    const setEditingCell = useCellEditStore(state => state.setEditingCell);
+    const updateEditingValue = useCellEditStore(state => state.updateEditingValue);
+    const clearEditingCell = useCellEditStore(state => state.clearEditingCell);
+    // Data mutation from cellStore
     const updateCell = useCellStore(state => state.updateCell);
-    const clearEditingCell = useCellStore(state => state.clearEditingCell);
-    const clearSelection = useCellStore(state => state.clearSelection);
+    // Selection from cellSelectionStore
+    const clearSelection = useCellSelectionStore(state => state.clearSelection);
 
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
@@ -472,7 +477,7 @@ function CardPrint({
     }, [editingCell, isEditingFromPrint]);
 
     // Clear Print selection when Cell cell is selected
-    const { selectedCell, selectedRange } = useCellStore();
+    const { selectedCell, selectedRange } = useCellSelectionStore();
     useEffect(() => {
         if ((selectedCell || selectedRange) && selectedField && !isEditingFromPrint) {
             // User clicked in Cell Grid, clear Print selection
