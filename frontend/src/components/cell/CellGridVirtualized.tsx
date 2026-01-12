@@ -66,6 +66,8 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCellStore } from "@stores/cellStore";
+import { useCellSelectionStore } from "@stores/cellSelectionStore";
+import { useCellEditStore } from "@stores/cellEditStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { useDrawerStore } from "@stores/drawerStore";
@@ -89,17 +91,20 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const data = useCellStore((state) => state.data);
     const updateCell = useCellStore((state) => state.updateCell);
     const updateCells = useCellStore((state) => state.updateCells);
-    const editingCell = useCellStore((state) => state.editingCell);
-    const editingValue = useCellStore((state) => state.editingValue);
-    const editingSource = useCellStore((state) => state.editingSource);
-    const setEditingCell = useCellStore((state) => state.setEditingCell);
-    const updateEditingValue = useCellStore((state) => state.updateEditingValue);
-    const clearEditingCell = useCellStore((state) => state.clearEditingCell);
-    const selectedCell = useCellStore((state) => state.selectedCell);
-    const selectedRange = useCellStore((state) => state.selectedRange);
-    const setSelectedCell = useCellStore((state) => state.setSelectedCell);
-    const setSelectedRange = useCellStore((state) => state.setSelectedRange);
-    const clearSelection = useCellStore((state) => state.clearSelection);
+    // Editing state from cellEditStore
+    const editingCell = useCellEditStore((state) => state.editingCell);
+    const editingValue = useCellEditStore((state) => state.editingValue);
+    const editingSource = useCellEditStore((state) => state.editingSource);
+    const setEditingCell = useCellEditStore((state) => state.setEditingCell);
+    const updateEditingValue = useCellEditStore((state) => state.updateEditingValue);
+    const clearEditingCell = useCellEditStore((state) => state.clearEditingCell);
+    // Selection state from cellSelectionStore
+    const selectedCell = useCellSelectionStore((state) => state.selectedCell);
+    const selectedRange = useCellSelectionStore((state) => state.selectedRange);
+    const setSelectedCell = useCellSelectionStore((state) => state.setSelectedCell);
+    const setSelectedRange = useCellSelectionStore((state) => state.setSelectedRange);
+    const clearSelection = useCellSelectionStore((state) => state.clearSelection);
+    // Actions that modify data stay in cellStore
     const copySelection = useCellStore((state) => state.copySelection);
     const clearCells = useCellStore((state) => state.clearCells);
     const columnWidths = useCellStore((state) => state.columnWidths);

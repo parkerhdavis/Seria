@@ -242,28 +242,6 @@ export async function exportPrintToPDF(
 }
 
 /**
- * Converts oklch color to RGB
- * oklch() is not supported by html2canvas, so we need to convert to RGB
- * (Currently unused but kept for potential future use)
- */
-// function convertOklchToRgb(oklchString: string): string {
-//     // Try to get the computed color from a temporary element
-//     const tempDiv = document.createElement("div");
-//     tempDiv.style.color = oklchString;
-//     document.body.appendChild(tempDiv);
-//     const computedColor = window.getComputedStyle(tempDiv).color;
-//     document.body.removeChild(tempDiv);
-
-//     // If the browser computed it to rgb(), use that
-//     if (computedColor && computedColor !== oklchString) {
-//         return computedColor;
-//     }
-
-//     // Fallback to a default color if conversion failed
-//     return "rgb(0, 0, 0)";
-// }
-
-/**
  * Recursively converts all computed styles to inline styles and removes class names
  *
  * This is a critical step in the oklch workaround strategy:
