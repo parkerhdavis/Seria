@@ -12,6 +12,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCellStore } from "@/stores/cellStore";
 import { useState, useEffect } from "react";
 import { logger } from "@/utils/logger";
+import { toast } from "@stores/toastStore";
 
 const appWindow = getCurrentWindow();
 
@@ -105,6 +106,8 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
             }
         } catch (error) {
             logger.error("Failed to open file:", error);
+            const message = error instanceof Error ? error.message : "Unknown error";
+            toast.error(`Failed to open file: ${message}`);
             onFilePickerOpenChange(false);
         }
     };
@@ -117,6 +120,8 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                 await handleSaveAs();
             } else {
                 logger.error("Failed to save file:", error);
+                const message = error instanceof Error ? error.message : "Unknown error";
+                toast.error(`Failed to save file: ${message}`);
             }
         }
     };
@@ -144,6 +149,8 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
             }
         } catch (error) {
             logger.error("Failed to save file:", error);
+            const message = error instanceof Error ? error.message : "Unknown error";
+            toast.error(`Failed to save file: ${message}`);
             onFilePickerOpenChange(false);
         }
     };
@@ -154,6 +161,8 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
             await reloadCells();
         } catch (error) {
             logger.error("Failed to reload file:", error);
+            const message = error instanceof Error ? error.message : "Unknown error";
+            toast.error(`Failed to reload file: ${message}`);
         }
     };
 
@@ -172,6 +181,8 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                 await saveCells();
             } catch (error) {
                 logger.error("Failed to save file before creating new:", error);
+                const message = error instanceof Error ? error.message : "Unknown error";
+                toast.error(`Failed to save file: ${message}`);
                 return;
             }
         }
@@ -201,6 +212,8 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
             }
         } catch (error) {
             logger.error("Failed to import file:", error);
+            const message = error instanceof Error ? error.message : "Unknown error";
+            toast.error(`Failed to import file: ${message}`);
             onFilePickerOpenChange(false);
         }
     };
@@ -220,6 +233,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
     const handleExportAsScreenplay = async () => {
         if (!fileInfo) {
             logger.error("No file is currently open");
+            toast.warning("No file is currently open");
             return;
         }
 
@@ -245,10 +259,13 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                 if (document.activeElement instanceof HTMLElement) {
                     document.activeElement.blur();
                 }
+                toast.success("Screenplay exported successfully");
             }
             onFilePickerOpenChange(false);
         } catch (error) {
             logger.error("Failed to export screenplay:", error);
+            const message = error instanceof Error ? error.message : "Unknown error";
+            toast.error(`Failed to export screenplay: ${message}`);
             onFilePickerOpenChange(false);
         }
     };

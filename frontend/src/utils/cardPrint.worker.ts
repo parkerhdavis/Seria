@@ -5,62 +5,18 @@
  * to keep UI responsive with large files (20k+ rows).
  */
 
-import type { RecipeConfiguration, RecipeFieldMapping } from "@/types/printRecipe";
+import type {
+    CardCalculateRequest,
+    CardCalculateResponse,
+    CardData,
+    WorkerErrorResponse,
+} from "@/types/workerMessages";
+import { getMappedColumn, getMappedColumns } from "./mappingUtils";
 
-interface CardData {
-    index: number;
-    title: string;
-    subtitle: string;
-    content: string[];
-    titleColumnName?: string;
-    subtitleColumnName?: string;
-    contentColumnNames: string[];
-}
-
-interface CalculateRequest {
-    type: "calculate";
-    data: string[][];
-    headers: string[];
-    configuration: RecipeConfiguration;
-    editingCell: { row: number; col: number } | null;
-    editingValue: string;
-}
-
-interface CalculateResponse {
-    type: "result";
-    cards: CardData[];
-}
-
-interface ErrorResponse {
-    type: "error";
-    message: string;
-}
-
-/**
- * Get mapped column name from configuration
- * fieldMappings is an array of {ingredientId, cellColumn, ...}
- */
-function getMappedColumn(fieldMappings: RecipeConfiguration["fieldMappings"], fieldName: string): string | undefined {
-    if (Array.isArray(fieldMappings)) {
-        const mapping = fieldMappings.find((m: RecipeFieldMapping) => m.ingredientId === fieldName);
-        return mapping?.cellColumn ?? undefined;
-    }
-    return undefined;
-}
-
-/**
- * Get mapped column names (for multi-value fields)
- * For content fields, we need to find all mappings with the same ingredientId
- */
-function getMappedColumns(fieldMappings: RecipeConfiguration["fieldMappings"], fieldName: string): string[] {
-    if (Array.isArray(fieldMappings)) {
-        const mappings = fieldMappings.filter((m: RecipeFieldMapping) => m.ingredientId === fieldName);
-        return mappings
-            .map(m => m.cellColumn)
-            .filter((col): col is string => col !== null);
-    }
-    return [];
-}
+// Use shared types from workerMessages.ts
+type CalculateRequest = CardCalculateRequest;
+type CalculateResponse = CardCalculateResponse;
+type ErrorResponse = WorkerErrorResponse;
 
 self.addEventListener("message", (e: MessageEvent<CalculateRequest>) => {
     const message = e.data;
