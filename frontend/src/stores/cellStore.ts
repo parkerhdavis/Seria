@@ -15,13 +15,8 @@ import { useSettingsStore } from "./settingsStore";
 import { useDrawerStore } from "./drawerStore";
 import { useGlobalConfigStore } from "./globalConfigStore";
 import { useCellHistoryStore, createSnapshot } from "./cellHistoryStore";
-import {
-    useCellSelectionStore,
-    type CellSelection,
-    type RangeSelection,
-    type ClipboardData,
-} from "./cellSelectionStore";
-import { useCellEditStore, type EditingCell, type EditingSource } from "./cellEditStore";
+import { useCellSelectionStore } from "./cellSelectionStore";
+import { useCellEditStore } from "./cellEditStore";
 import { logger } from "@/utils/logger";
 
 // Column filter

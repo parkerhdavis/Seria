@@ -5,63 +5,28 @@
  * to keep UI responsive with large files (20k+ rows).
  */
 
-import type { PrintRecipe, RecipeConfiguration, RecipeIngredient, RecipeFieldMapping } from "@/types/printRecipe";
+import type { PrintRecipe, RecipeIngredient } from "@/types/printRecipe";
+import type {
+    ScreenplayCalculateRequest,
+    ScreenplayCalculateResponse,
+    ScreenplayElement,
+    ScreenplayElementType,
+    PageWithElements,
+    WorkerErrorResponse,
+} from "@/types/workerMessages";
+import { getMappedColumn } from "./mappingUtils";
 
-type ElementType = "scene_heading" | "action" | "character" | "dialogue" | "parenthetical" | "transition";
-
-interface ScreenplayElement {
-    type: ElementType;
-    content: string;
-    rowIndex: number;
-    columnName: string;
-    sceneNumber?: number;
-    splitIndex?: number; // For dialogue split across pages: 0 = first part, 1 = continued part
-}
-
-interface CalculateRequest {
-    type: "calculate";
-    data: string[][];
-    headers: string[];
-    configuration: RecipeConfiguration;
-    recipe: PrintRecipe;
-    editingCell: { row: number; col: number } | null;
-    editingValue: string;
-    continuous: boolean;
-}
-
-interface PageWithElements {
-    elements: ScreenplayElement[];
-    pageNumber: number;
-}
-
-interface CalculateResponse {
-    type: "result";
-    elements: ScreenplayElement[];
-    pages: PageWithElements[];
-}
-
-interface ErrorResponse {
-    type: "error";
-    message: string;
-}
+// Use shared types from workerMessages.ts
+type ElementType = ScreenplayElementType;
+type CalculateRequest = ScreenplayCalculateRequest;
+type CalculateResponse = ScreenplayCalculateResponse;
+type ErrorResponse = WorkerErrorResponse;
 
 // Extended style type for screenplay-specific properties
 type ScreenplayIngredientStyle = RecipeIngredient["style"] & {
     lineHeight?: number;
     maxWidth?: string;
 };
-
-/**
- * Get mapped column name from configuration
- * fieldMappings is an array of {ingredientId, cellColumn, ...}
- */
-function getMappedColumn(fieldMappings: RecipeConfiguration["fieldMappings"], fieldName: string): string | undefined {
-    if (Array.isArray(fieldMappings)) {
-        const mapping = fieldMappings.find((m: RecipeFieldMapping) => m.ingredientId === fieldName);
-        return mapping?.cellColumn ?? undefined;
-    }
-    return undefined;
-}
 
 /**
  * Gets the style configuration for a screenplay element type from the recipe
