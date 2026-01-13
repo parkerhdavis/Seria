@@ -31,7 +31,7 @@ function Editor({ onFilePickerOpenChange }: EditorProps) {
             const filePath = await open({
                 multiple: false,
                 filters: [
-                    { name: "Cell Files", extensions: ["cell"] },
+                    { name: "Data Files", extensions: ["csv", "tsv", "json"] },
                     { name: "All Files", extensions: ["*"] },
                 ],
             });
@@ -89,8 +89,10 @@ function Editor({ onFilePickerOpenChange }: EditorProps) {
 
         if (files.length > 0) {
             const file = files[0];
-            // Check if it's a Cell file
-            if (file.name.endsWith(".cell")) {
+            // Check if it's a supported data file (csv, tsv, json)
+            const validExtensions = ['.csv', '.tsv', '.json'];
+            const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+            if (validExtensions.includes(fileExtension)) {
                 // Tauri adds a 'path' property to dropped files with the full file path
                 const fileWithPath = file as File & { path?: string };
                 const filePath = fileWithPath.path || file.name;
