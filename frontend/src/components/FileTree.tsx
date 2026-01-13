@@ -86,9 +86,10 @@ function FileTree() {
         }
     };
 
-    // Check if file is Cell
+    // Check if file is a supported data file (csv, tsv, json)
     const isCellFile = (fileName: string) => {
-        return fileName.toLowerCase().endsWith(".cell");
+        const lowerName = fileName.toLowerCase();
+        return lowerName.endsWith(".csv") || lowerName.endsWith(".tsv") || lowerName.endsWith(".json");
     };
 
     // Handle file click
