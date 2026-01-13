@@ -31,6 +31,21 @@ export default defineConfig({
         minify: !process.env.TAURI_DEBUG ? "esbuild" : false,
         // Produce sourcemaps for debug builds
         sourcemap: !!process.env.TAURI_DEBUG,
+        rollupOptions: {
+            output: {
+                // Split vendor chunks for better caching and smaller initial load
+                manualChunks: {
+                    // React ecosystem - core framework always needed
+                    "vendor-react": ["react", "react-dom", "zustand"],
+                    // PDF generation - only used for export features
+                    "vendor-pdf": ["jspdf", "html2pdf.js", "html2canvas"],
+                    // Table virtualization - core data display
+                    "vendor-table": ["@tanstack/react-table", "@tanstack/react-virtual"],
+                    // CSV parsing - core data handling
+                    "vendor-csv": ["papaparse"],
+                },
+            },
+        },
     },
 
     // Path aliases

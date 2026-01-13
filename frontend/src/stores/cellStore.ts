@@ -9,7 +9,7 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import Papa from "papaparse";
 import { CellFileInfo } from "@/types/cellData";
-import { parseCells, serializeCell, validateCell, getDelimiterFromPath } from "@utils/cellParser";
+import { parseCells, serializeCell, validateCell, getDelimiterFromPath, parseCellsProgressive } from "@utils/cellParser";
 import { useFileConfigStore, type FileIdentifiers } from "./fileConfigStore";
 import { useSettingsStore } from "./settingsStore";
 import { useDrawerStore } from "./drawerStore";
@@ -340,9 +340,6 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 return;
             }
 
-            // Use the parseCellsProgressive import
-            const { parseCellsProgressive } = await import("@utils/cellParser");
-
             let allData: string[][] = [];
             let headers: string[] = [];
             let delimiter: string = ",";
@@ -424,7 +421,6 @@ export const useCellStore = create<CellStore>((set, get) => ({
                     }
 
                     // Validate final data
-                    const { validateCell } = await import("@utils/cellParser");
                     const validation = validateCell({ headers, data: allData });
 
                     if (!validation.valid) {
