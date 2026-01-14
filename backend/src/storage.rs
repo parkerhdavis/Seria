@@ -166,3 +166,38 @@ pub fn save_file_configs(app: AppHandle, data: String) -> Result<(), String> {
 
     fs::write(&path, data).map_err(|e| format!("Failed to write file configs: {}", e))
 }
+
+/// Get the workspace layouts path
+fn get_workspaces_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let mut path = get_app_data_dir(app)?;
+    path.push("workspaces.json");
+    Ok(path)
+}
+
+/// Load workspace layouts from JSON file
+/// This stores saved workspace presets with panel positions, sizes, and zoom levels
+#[tauri::command]
+pub fn load_workspace_layouts(app: AppHandle) -> Result<String, String> {
+    let path = get_workspaces_path(&app)?;
+
+    if !path.exists() {
+        // Return empty array if file doesn't exist
+        return Ok("[]".to_string());
+    }
+
+    fs::read_to_string(&path).map_err(|e| format!("Failed to read workspace layouts: {}", e))
+}
+
+/// Save workspace layouts to JSON file
+#[tauri::command]
+pub fn save_workspace_layouts(app: AppHandle, layouts_json: String) -> Result<(), String> {
+    let path = get_workspaces_path(&app)?;
+
+    // Ensure parent directory exists
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create workspaces directory: {}", e))?;
+    }
+
+    fs::write(&path, layouts_json).map_err(|e| format!("Failed to write workspace layouts: {}", e))
+}

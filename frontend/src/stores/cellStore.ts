@@ -18,6 +18,7 @@ import { useCellHistoryStore, createSnapshot } from "./cellHistoryStore";
 import { useCellSelectionStore } from "./cellSelectionStore";
 import { useCellEditStore } from "./cellEditStore";
 import { logger } from "@/utils/logger";
+import { buildColumnCache, updateColumnCache } from "@utils/autocomplete";
 
 // Column filter
 interface ColumnFilter {
@@ -61,6 +62,10 @@ interface CellStore {
     // Filtering and summaries
     columnFilters: ColumnFilter[];
     columnSummaries: Record<string, SummaryType>;
+
+    // Autocomplete cache
+    columnCache: Map<number, Set<string>>;
+    rebuildColumnCache: () => void;
 
     // Actions
     loadCells: (path: string) => Promise<void>;
@@ -144,6 +149,14 @@ export const useCellStore = create<CellStore>((set, get) => ({
     columnOrder: [],
     columnFilters: [],
     columnSummaries: {},
+    columnCache: new Map(),
+
+    // Rebuild column cache from current data
+    rebuildColumnCache: () => {
+        const { data, headers } = get();
+        const cache = buildColumnCache(data, headers);
+        set({ columnCache: cache });
+    },
 
     // Load Cell file from disk
     loadCells: async (path: string) => {
@@ -175,6 +188,9 @@ export const useCellStore = create<CellStore>((set, get) => ({
             // Initialize default column order [0, 1, 2, ...]
             const defaultColumnOrder = cellData.headers.map((_, index) => index);
 
+            // Build column cache for autocomplete
+            const cache = buildColumnCache(cellData.data, cellData.headers);
+
             // Update state (initial load before applying config)
             set({
                 headers: cellData.headers,
@@ -191,6 +207,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 },
                 columnSummaries: initialSummaries,
                 columnOrder: defaultColumnOrder,
+                columnCache: cache,
                 isDirty: false,
                 isLoading: false,
                 error: null,
@@ -433,11 +450,15 @@ export const useCellStore = create<CellStore>((set, get) => ({
                         return;
                     }
 
+                    // Build column cache for autocomplete
+                    const cache = buildColumnCache(allData, headers);
+
                     // Mark as fully loaded
                     set({
                         isLoading: false,
                         isFullyLoaded: true,
                         loadingProgress: 100,
+                        columnCache: cache,
                     });
 
                     // Load and apply file config (same as synchronous loading)
@@ -747,7 +768,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
     // Update a single cell
     updateCell: (row: number, col: number, value: string) => {
-        const { data } = get();
+        const { data, columnCache } = get();
 
         if (row < 0 || row >= data.length || col < 0 || col >= data[row].length) {
             return;
@@ -760,12 +781,15 @@ export const useCellStore = create<CellStore>((set, get) => ({
             i === row ? r.map((c, j) => (j === col ? value : c)) : r
         );
 
+        // Update column cache
+        updateColumnCache(columnCache, col, value);
+
         set({ data: newData, isDirty: true });
     },
 
     // Update multiple cells at once (creates single undo snapshot)
     updateCells: (cells: Array<{ row: number; col: number; value: string }>) => {
-        const { data } = get();
+        const { data, columnCache } = get();
 
         if (cells.length === 0) return;
 
@@ -774,10 +798,12 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
         const newData = data.map((row) => [...row]);
 
-        // Apply all updates
+        // Apply all updates and update cache
         cells.forEach(({ row, col, value }) => {
             if (row >= 0 && row < newData.length && col >= 0 && col < newData[row].length) {
                 newData[row][col] = value;
+                // Update column cache
+                updateColumnCache(columnCache, col, value);
             }
         });
 

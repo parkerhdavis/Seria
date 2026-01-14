@@ -32,6 +32,9 @@ interface SettingsStore {
     hoverHighlightMode: HoverHighlightMode;
     autosaveEnabled: boolean;
     autosaveIntervalSeconds: number;
+    autocompleteEnabled: boolean;
+    autocompleteMinChars: number;
+    autocompleteRestrictToExisting: boolean;
 
     // Actions
     setShowIncompatibleFiles: (show: boolean) => void;
@@ -47,6 +50,9 @@ interface SettingsStore {
     setHoverHighlightMode: (mode: HoverHighlightMode) => void;
     setAutosaveEnabled: (enabled: boolean) => void;
     setAutosaveIntervalSeconds: (seconds: number) => void;
+    setAutocompleteEnabled: (enabled: boolean) => void;
+    setAutocompleteMinChars: (minChars: number) => void;
+    setAutocompleteRestrictToExisting: (restrict: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -64,6 +70,9 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     hoverHighlightMode: "row-and-column",
     autosaveEnabled: true,
     autosaveIntervalSeconds: 30,
+    autocompleteEnabled: true,
+    autocompleteMinChars: 1,
+    autocompleteRestrictToExisting: false,
 
     // Toggle showing non-Cell files in file tree
     setShowIncompatibleFiles: (show: boolean) => {
@@ -128,5 +137,20 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     // Set autosave interval in seconds
     setAutosaveIntervalSeconds: (seconds: number) => {
         set({ autosaveIntervalSeconds: seconds });
+    },
+
+    // Set autocomplete enabled
+    setAutocompleteEnabled: (enabled: boolean) => {
+        set({ autocompleteEnabled: enabled });
+    },
+
+    // Set minimum characters before showing autocomplete
+    setAutocompleteMinChars: (minChars: number) => {
+        set({ autocompleteMinChars: minChars });
+    },
+
+    // Set whether to restrict autocomplete to existing values
+    setAutocompleteRestrictToExisting: (restrict: boolean) => {
+        set({ autocompleteRestrictToExisting: restrict });
     },
 }));
