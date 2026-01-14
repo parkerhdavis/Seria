@@ -7,6 +7,8 @@
 
 import { useSettingsStore } from "@stores/settingsStore";
 import { useFileConfigStore } from "@stores/fileConfigStore";
+import { useGlobalConfigStore } from "@stores/globalConfigStore";
+import { useCellStore } from "@stores/cellStore";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
@@ -39,6 +41,9 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     } = useSettingsStore();
 
     const { exportConfigs, importConfigs, cleanupOldConfigs } = useFileConfigStore();
+
+    const { config, clearRecentFiles } = useGlobalConfigStore();
+    const { loadCellsProgressive } = useCellStore();
 
     // Handle export configs
     const handleExportConfigs = async () => {
@@ -497,12 +502,46 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         <div className="card-body">
                             <h3 className="card-title text-xl mb-4">Recent Files</h3>
 
-                            <div className="text-base-content/60">
-                                <p className="mb-4">No recent files yet</p>
-                            </div>
+                            {config?.recentFiles && config.recentFiles.length > 0 ? (
+                                <div className="space-y-2">
+                                    {config.recentFiles.map((filePath, index) => {
+                                        const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || filePath;
+                                        return (
+                                            <div
+                                                key={filePath}
+                                                className="flex items-center justify-between p-3 bg-base-300 rounded-lg hover:bg-base-100 transition-colors group"
+                                            >
+                                                <button
+                                                    className="flex-1 text-left"
+                                                    onClick={async () => {
+                                                        await loadCellsProgressive(filePath);
+                                                        onClose();
+                                                    }}
+                                                >
+                                                    <div className="font-semibold text-base-content">
+                                                        {fileName}
+                                                    </div>
+                                                    <div className="text-xs text-base-content/60 truncate mt-1" title={filePath}>
+                                                        {filePath}
+                                                    </div>
+                                                </button>
+                                                <span className="badge badge-sm ml-2">{index + 1}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="text-base-content/60">
+                                    <p className="mb-4">No recent files yet</p>
+                                </div>
+                            )}
 
-                            <div className="card-actions justify-end">
-                                <button className="btn btn-ghost btn-sm" disabled>
+                            <div className="card-actions justify-end mt-4">
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    onClick={clearRecentFiles}
+                                    disabled={!config?.recentFiles || config.recentFiles.length === 0}
+                                >
                                     Clear Recent Files
                                 </button>
                             </div>

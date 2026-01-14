@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCellStore } from "@stores/cellStore";
 import { useSettingsStore } from "@stores/settingsStore";
+import { useGlobalConfigStore } from "@stores/globalConfigStore";
 import { logger } from "@/utils/logger";
 import RowColoringDropdown from "../toolbar/RowColoringDropdown";
 
@@ -29,6 +30,9 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
 
     // Get settings store state and actions
     const { wrapText, setWrapText, showColumnSeparators, setShowColumnSeparators, autoFitColumns, setAutoFitColumns } = useSettingsStore();
+
+    // Get global config for recent files
+    const { config } = useGlobalConfigStore();
 
     // Trigger save success animation when lastSavedAt changes
     useEffect(() => {
@@ -238,6 +242,51 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                             </svg>
                             Open
                         </button>
+
+                        {/* Recent Files Dropdown */}
+                        {config?.recentFiles && config.recentFiles.length > 0 && (
+                            <div className="dropdown dropdown-bottom">
+                                <button
+                                    tabIndex={0}
+                                    className="btn btn-sm btn-ghost"
+                                    title="Recent files"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Recent
+                                </button>
+                                <ul
+                                    tabIndex={0}
+                                    className="dropdown-content z-[100] menu p-2 shadow-xl bg-base-200 rounded-box w-96 max-h-96 overflow-y-auto"
+                                >
+                                    {config.recentFiles.map((filePath) => {
+                                        const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || filePath;
+                                        return (
+                                            <li key={filePath}>
+                                                <button
+                                                    onClick={async () => {
+                                                        await loadCellsProgressive(filePath);
+                                                        // Close dropdown by removing focus
+                                                        if (document.activeElement instanceof HTMLElement) {
+                                                            document.activeElement.blur();
+                                                        }
+                                                    }}
+                                                    className="text-left"
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <span className="font-semibold">{fileName}</span>
+                                                        <span className="text-xs text-base-content/60 truncate">
+                                                            {filePath}
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            </div>
+                        )}
 
                         <button
                             className={`btn btn-sm transition-all ${
