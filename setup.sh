@@ -64,17 +64,25 @@ echo ""
 echo "🔍 Checking for Node.js installation..."
 
 # Source nvm if available (needed for non-interactive shells)
-if [ -z "${NVM_DIR:-}" ]; then
-    export NVM_DIR="$HOME/.nvm"
-fi
+# Always source if available (don't check command -v first, as
+# shell functions from parent shells can give false positives).
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+
 if [ -s "$NVM_DIR/nvm.sh" ]; then
     source "$NVM_DIR/nvm.sh"
+elif [ -s "/opt/homebrew/opt/nvm/nvm.sh" ]; then
+    source "/opt/homebrew/opt/nvm/nvm.sh"
 elif [ -s "/usr/local/opt/nvm/nvm.sh" ]; then
-    # Homebrew nvm location
     source "/usr/local/opt/nvm/nvm.sh"
+elif command -v fnm &> /dev/null; then
+    eval "$(fnm env)"
+elif [ -d "$HOME/.volta" ]; then
+    export VOLTA_HOME="$HOME/.volta"
+    export PATH="$VOLTA_HOME/bin:$PATH"
 fi
 
-if ! command -v node &> /dev/null; then
+# Verify node is actually a working binary (not a shell function)
+if ! type -P node &> /dev/null; then
     echo "❌ Node.js not found. Please install Node.js 18+ and run this setup again."
     echo ""
     echo "Install from: https://nodejs.org/"

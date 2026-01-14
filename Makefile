@@ -48,6 +48,8 @@ else
     MKDIR := mkdir -p
     RM := rm -rf
     NULL := /dev/null
+    # Source nvm for non-interactive shells (fixes WSL where Windows npm is in PATH)
+    SOURCE_NVM := export NVM_DIR="$$HOME/.nvm" && [ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh" ||:
 endif
 
 help:
@@ -102,16 +104,16 @@ else
 dev:
 	@echo "Starting Tauri development server (frontend + Rust)..."
 	@echo "  -> Starting Vite dev server in background..."
-	@cd frontend && npm run dev > /dev/null 2>&1 & echo $$! > ../.vite.pid
+	@$(SOURCE_NVM) && cd frontend && npm run dev > /dev/null 2>&1 & echo $$! > ../.vite.pid
 	@sleep 2
 	@echo "  -> Starting Tauri..."
-	@cd backend && ../frontend/node_modules/.bin/tauri dev || (kill `cat ../.vite.pid` 2>/dev/null; rm -f ../.vite.pid; exit 1)
+	@$(SOURCE_NVM) && cd backend && ../frontend/node_modules/.bin/tauri dev || (kill `cat ../.vite.pid` 2>/dev/null; rm -f ../.vite.pid; exit 1)
 	@kill `cat .vite.pid` 2>/dev/null || true
 	@rm -f .vite.pid
 
 dev-frontend:
 	@echo "Starting Vite dev server only (rapid UI iteration)..."
-	@cd frontend && npm run dev
+	@$(SOURCE_NVM) && cd frontend && npm run dev
 endif
 
 # ==================================================================
@@ -196,9 +198,9 @@ build-linux:
 	@echo "  -> Syncing version from .env..."
 	@$(SYNC_VERSION)
 	@echo "  -> Building frontend..."
-	@cd frontend && npm run build
+	@$(SOURCE_NVM) && cd frontend && npm run build
 	@echo "  -> Building Tauri app for Linux..."
-	@cd backend && ../frontend/node_modules/.bin/tauri build
+	@$(SOURCE_NVM) && cd backend && ../frontend/node_modules/.bin/tauri build
 	@echo ""
 	@echo "Linux build complete!"
 	@echo ""
@@ -216,9 +218,9 @@ build-macos:
 	@echo "  -> Syncing version from .env..."
 	@$(SYNC_VERSION)
 	@echo "  -> Building frontend..."
-	@cd frontend && npm run build
+	@$(SOURCE_NVM) && cd frontend && npm run build
 	@echo "  -> Building Tauri app for macOS..."
-	@cd backend && ../frontend/node_modules/.bin/tauri build
+	@$(SOURCE_NVM) && cd backend && ../frontend/node_modules/.bin/tauri build
 	@echo ""
 	@echo "macOS build complete!"
 	@echo ""
@@ -293,21 +295,21 @@ test:
 else
 lint:
 	@echo "Linting frontend code..."
-	@cd frontend && npm run lint
+	@$(SOURCE_NVM) && cd frontend && npm run lint
 	@echo "Linting Rust code..."
 	@cd backend && cargo clippy -- -D warnings
 	@echo "Lint complete"
 
 format:
 	@echo "Formatting frontend code..."
-	@cd frontend && npx prettier --write src/
+	@$(SOURCE_NVM) && cd frontend && npx prettier --write src/
 	@echo "Formatting Rust code..."
 	@cd backend && cargo fmt
 	@echo "Format complete"
 
 test:
 	@echo "Running frontend tests..."
-	@cd frontend && npm run test
+	@$(SOURCE_NVM) && cd frontend && npm run test
 	@echo "Running Rust tests..."
 	@cd backend && cargo test
 	@echo "Tests complete"
