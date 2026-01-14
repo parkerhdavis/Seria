@@ -8,7 +8,9 @@ import SettingsModal from "@components/modals/SettingsModal";
 import FindReplaceModal from "@components/modals/FindReplaceModal";
 import GoToModal from "@components/modals/GoToModal";
 import ColumnManagerModal from "@components/modals/ColumnManagerModal";
+import WorkspaceManagerModal from "@components/modals/WorkspaceManagerModal";
 import { useCellStore } from "@stores/cellStore";
+import { useWorkspaceStore } from "@stores/workspaceStore";
 import { useFindReplaceStore } from "@/stores/findReplaceStore";
 import { useDrawerStore } from "@/stores/drawerStore";
 import { useFileConfigStore } from "@/stores/fileConfigStore";
@@ -32,6 +34,7 @@ function App() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isGoToOpen, setIsGoToOpen] = useState(false);
     const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false);
+    const [isWorkspaceManagerOpen, setIsWorkspaceManagerOpen] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(100);
     const [isInitializing, setIsInitializing] = useState(true);
     const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
@@ -60,6 +63,9 @@ function App() {
 
     const printPreviewPosition = useDrawerStore((state) => state.position);
     const togglePosition = useDrawerStore((state) => state.togglePosition);
+    const setPosition = useDrawerStore((state) => state.setPosition);
+    const setRightDrawerSize = useDrawerStore((state) => state.setRightDrawerSize);
+    const setBottomDrawerSize = useDrawerStore((state) => state.setBottomDrawerSize);
     const rightDrawerSize = useDrawerStore((state) => state.rightDrawerSize);
     const bottomDrawerSize = useDrawerStore((state) => state.bottomDrawerSize);
 
@@ -186,6 +192,28 @@ function App() {
 
         return () => clearTimeout(autosaveTimer);
     }, [isTempFile, isDirty, currentFile, data, headers]);
+
+    // Apply workspace layout
+    const applyWorkspaceLayout = (layout: {
+        printDrawerPosition: "right" | "bottom" | null;
+        printDrawerSize: number;
+        sidebarOpen: boolean;
+        zoomLevel: number;
+    }) => {
+        // Apply drawer position and size
+        setPosition(layout.printDrawerPosition);
+        if (layout.printDrawerPosition === "right") {
+            setRightDrawerSize(layout.printDrawerSize);
+        } else if (layout.printDrawerPosition === "bottom") {
+            setBottomDrawerSize(layout.printDrawerSize);
+        }
+
+        // Apply sidebar state
+        setIsSidebarOpen(layout.sidebarOpen);
+
+        // Apply zoom level
+        setZoomLevel(layout.zoomLevel);
+    };
 
     // Global keyboard shortcuts
     useEffect(() => {
@@ -322,6 +350,26 @@ function App() {
                 e.preventDefault();
                 setIsColumnManagerOpen(true);
             }
+            // Ctrl+Shift+W - Open workspace manager
+            else if (e.ctrlKey && e.shiftKey && e.key === "W") {
+                e.preventDefault();
+                setIsWorkspaceManagerOpen(true);
+            }
+            // Ctrl+1 through Ctrl+9 - Quick switch to layout presets
+            else if (e.ctrlKey && e.key >= "1" && e.key <= "9" && !e.shiftKey && !e.altKey) {
+                e.preventDefault();
+                const layoutIndex = parseInt(e.key) - 1;
+                const layouts = useWorkspaceStore.getState().layouts
+                    .sort((a, b) => b.lastUsed - a.lastUsed);
+
+                if (layouts[layoutIndex]) {
+                    const layout = useWorkspaceStore.getState().loadLayout(layouts[layoutIndex].id);
+                    if (layout) {
+                        applyWorkspaceLayout(layout);
+                        useWorkspaceStore.getState().updateLayoutUsage(layouts[layoutIndex].id);
+                    }
+                }
+            }
             // Ctrl+Z - Undo
             else if (e.ctrlKey && !e.shiftKey && e.key === "z") {
                 e.preventDefault();
@@ -398,6 +446,17 @@ function App() {
                 <ColumnManagerModal
                     isOpen={isColumnManagerOpen}
                     onClose={() => setIsColumnManagerOpen(false)}
+                />
+
+                {/* Workspace Manager Modal */}
+                <WorkspaceManagerModal
+                    isOpen={isWorkspaceManagerOpen}
+                    onClose={() => setIsWorkspaceManagerOpen(false)}
+                    currentState={{
+                        isSidebarOpen,
+                        zoomLevel,
+                    }}
+                    onApplyLayout={applyWorkspaceLayout}
                 />
             </Layout>
         </DragProvider>
