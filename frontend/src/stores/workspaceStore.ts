@@ -18,7 +18,7 @@ interface WorkspaceStore {
 
     // Actions
     loadLayouts: () => Promise<void>;
-    saveLayout: (name: string, layout: Omit<WorkspaceLayout, "id" | "createdAt" | "lastUsed">) => Promise<void>;
+    saveLayout: (name: string, layout: Omit<WorkspaceLayout, "id" | "name" | "createdAt" | "lastUsed">) => Promise<void>;
     loadLayout: (id: string) => WorkspaceLayout | null;
     deleteLayout: (id: string) => Promise<void>;
     renameLayout: (id: string, newName: string) => Promise<void>;
@@ -62,7 +62,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     },
 
     // Save a new layout
-    saveLayout: async (name: string, layout: Omit<WorkspaceLayout, "id" | "createdAt" | "lastUsed">) => {
+    saveLayout: async (name: string, layout: Omit<WorkspaceLayout, "id" | "name" | "createdAt" | "lastUsed">) => {
         const { layouts } = get();
 
         const newLayout: WorkspaceLayout = {

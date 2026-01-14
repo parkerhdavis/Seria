@@ -65,7 +65,7 @@ export function getSuggestions(
     // Calculate similarity scores for all values
     const scoredValues: Array<{ value: string; score: number; isRecent: boolean }> = [];
 
-    for (const value of columnValues) {
+    for (const value of Array.from(columnValues)) {
         // Skip empty values
         if (value === "") continue;
 

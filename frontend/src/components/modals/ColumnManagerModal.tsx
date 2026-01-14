@@ -37,6 +37,7 @@ function ColumnManagerModal({ isOpen, onClose }: ColumnManagerModalProps) {
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [editingName, setEditingName] = useState("");
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dragStartColumnIndex, setDragStartColumnIndex] = useState<number | null>(null);
 
     // Calculate column statistics
     useEffect(() => {
@@ -87,7 +88,7 @@ function ColumnManagerModal({ isOpen, onClose }: ColumnManagerModalProps) {
         const columnValues = data.map(row => row[index] || "");
 
         // Add new column next to the original
-        addColumn(index + 1, newName);
+        addColumn(newName, index + 1);
 
         // Copy values to the new column
         columnValues.forEach((value, rowIndex) => {
@@ -112,6 +113,8 @@ function ColumnManagerModal({ isOpen, onClose }: ColumnManagerModalProps) {
 
     const handleDragStart = (index: number) => {
         setDraggedIndex(index);
+        // Store the original column's data index
+        setDragStartColumnIndex(columns[index].index);
     };
 
     const handleDragOver = (e: React.DragEvent, index: number) => {
@@ -131,12 +134,16 @@ function ColumnManagerModal({ isOpen, onClose }: ColumnManagerModalProps) {
     };
 
     const handleDragEnd = () => {
-        if (draggedIndex !== null) {
-            // Apply reorder to actual data
-            const newOrder = columns.map(col => col.index);
-            reorderColumns(newOrder);
+        if (draggedIndex !== null && dragStartColumnIndex !== null) {
+            // draggedIndex is now the visual position where the column should end up
+            // dragStartColumnIndex is the original data index of the column being dragged
+            // Only reorder if position actually changed
+            if (dragStartColumnIndex !== draggedIndex) {
+                reorderColumns(dragStartColumnIndex, draggedIndex);
+            }
         }
         setDraggedIndex(null);
+        setDragStartColumnIndex(null);
     };
 
     if (!isOpen) {
@@ -280,7 +287,7 @@ function ColumnManagerModal({ isOpen, onClose }: ColumnManagerModalProps) {
                     className="btn btn-outline btn-sm w-full mb-4"
                     onClick={() => {
                         const newName = `Column ${columns.length + 1}`;
-                        addColumn(columns.length, newName);
+                        addColumn(newName, columns.length);
                         setColumns(prev => [...prev, {
                             name: newName,
                             index: columns.length,
