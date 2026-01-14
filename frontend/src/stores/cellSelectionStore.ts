@@ -41,6 +41,7 @@ interface CellSelectionStore {
     selectedCell: CellSelection | null;
     selectedRange: RangeSelection | null;
     clipboard: ClipboardData | null;
+    multiCursors: CellSelection[];
 
     // Selection actions
     /**
@@ -91,6 +92,37 @@ interface CellSelectionStore {
      * Check if there is any selection
      */
     hasSelection: () => boolean;
+
+    // Multi-cursor actions
+    /**
+     * Add a cursor at the specified position
+     */
+    addCursor: (row: number, col: number) => void;
+
+    /**
+     * Remove a cursor at the specified position
+     */
+    removeCursor: (row: number, col: number) => void;
+
+    /**
+     * Toggle a cursor at the specified position (add if not present, remove if present)
+     */
+    toggleCursor: (row: number, col: number) => void;
+
+    /**
+     * Clear all multi-cursors
+     */
+    clearCursors: () => void;
+
+    /**
+     * Check if there are multiple cursors
+     */
+    hasMultipleCursors: () => boolean;
+
+    /**
+     * Get all cursor positions (includes selected cell and multi-cursors)
+     */
+    getAllCursors: () => CellSelection[];
 }
 
 /**
@@ -112,6 +144,7 @@ export const useCellSelectionStore = create<CellSelectionStore>((set, get) => ({
     selectedCell: null,
     selectedRange: null,
     clipboard: null,
+    multiCursors: [],
 
     // Select a single cell
     setSelectedCell: (row: number, col: number) => {
@@ -233,5 +266,76 @@ export const useCellSelectionStore = create<CellSelectionStore>((set, get) => ({
     hasSelection: () => {
         const { selectedCell, selectedRange } = get();
         return selectedCell !== null || selectedRange !== null;
+    },
+
+    // Add a cursor
+    addCursor: (row: number, col: number) => {
+        const { multiCursors } = get();
+
+        // Don't add if cursor already exists at this position
+        const exists = multiCursors.some((c) => c.row === row && c.col === col);
+        if (exists) {
+            return;
+        }
+
+        set({ multiCursors: [...multiCursors, { row, col }] });
+    },
+
+    // Remove a cursor
+    removeCursor: (row: number, col: number) => {
+        const { multiCursors } = get();
+        set({
+            multiCursors: multiCursors.filter((c) => c.row !== row || c.col !== col),
+        });
+    },
+
+    // Toggle a cursor (add if not present, remove if present)
+    toggleCursor: (row: number, col: number) => {
+        const { multiCursors, selectedCell } = get();
+
+        // Check if this is the selected cell
+        if (selectedCell && selectedCell.row === row && selectedCell.col === col) {
+            // If clicking on the primary selected cell, do nothing
+            return;
+        }
+
+        // Check if cursor exists in multi-cursors
+        const existsIndex = multiCursors.findIndex((c) => c.row === row && c.col === col);
+
+        if (existsIndex >= 0) {
+            // Remove cursor
+            set({
+                multiCursors: multiCursors.filter((_, i) => i !== existsIndex),
+            });
+        } else {
+            // Add cursor
+            set({
+                multiCursors: [...multiCursors, { row, col }],
+            });
+        }
+    },
+
+    // Clear all multi-cursors
+    clearCursors: () => {
+        set({ multiCursors: [] });
+    },
+
+    // Check if there are multiple cursors
+    hasMultipleCursors: () => {
+        return get().multiCursors.length > 0;
+    },
+
+    // Get all cursor positions
+    getAllCursors: () => {
+        const { selectedCell, multiCursors } = get();
+        const cursors: CellSelection[] = [];
+
+        if (selectedCell) {
+            cursors.push(selectedCell);
+        }
+
+        cursors.push(...multiCursors);
+
+        return cursors;
     },
 }));

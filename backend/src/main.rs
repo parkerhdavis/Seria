@@ -41,6 +41,8 @@ fn main() {
             storage::delete_custom_print,
             storage::load_file_configs,
             storage::save_file_configs,
+            storage::load_workspace_layouts,
+            storage::save_workspace_layouts,
             // File format converters
             converters::screenplay::convert_screenplay_to_csv,
             converters::screenplay::convert_csv_to_screenplay,

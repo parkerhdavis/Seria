@@ -75,6 +75,8 @@ import ColumnFilterDropdown from "../toolbar/ColumnFilterDropdown";
 import { calculateSummary } from "@utils/summaryCalculations";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 import { useAutosave } from "@utils/useAutosave";
+import { getSuggestions } from "@utils/autocomplete";
+import AutocompleteDropdown from "./AutocompleteDropdown";
 
 interface CellGridVirtualizedProps {
     onCellEdit?: (row: number, col: number, value: string) => void;
@@ -104,6 +106,12 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const setSelectedCell = useCellSelectionStore((state) => state.setSelectedCell);
     const setSelectedRange = useCellSelectionStore((state) => state.setSelectedRange);
     const clearSelection = useCellSelectionStore((state) => state.clearSelection);
+    // Multi-cursor state from cellSelectionStore
+    const multiCursors = useCellSelectionStore((state) => state.multiCursors);
+    const toggleCursor = useCellSelectionStore((state) => state.toggleCursor);
+    const clearCursors = useCellSelectionStore((state) => state.clearCursors);
+    const hasMultipleCursors = useCellSelectionStore((state) => state.hasMultipleCursors);
+    const getAllCursors = useCellSelectionStore((state) => state.getAllCursors);
     // Actions that modify data stay in cellStore
     const copySelection = useCellStore((state) => state.copySelection);
     const clearCells = useCellStore((state) => state.clearCells);
@@ -119,6 +127,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const isLoading = useCellStore((state) => state.isLoading);
     const loadingProgress = useCellStore((state) => state.loadingProgress);
     const isFullyLoaded = useCellStore((state) => state.isFullyLoaded);
+    const columnCache = useCellStore((state) => state.columnCache);
 
     const showColumnSeparators = useSettingsStore((state) => state.showColumnSeparators);
     const wrapText = useSettingsStore((state) => state.wrapText);
@@ -127,6 +136,8 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const rowColorFilter = useSettingsStore((state) => state.rowColorFilter);
     const cellFollowsPrintEdit = useSettingsStore((state) => state.cellFollowsPrintEdit);
     const hoverHighlightMode = useSettingsStore((state) => state.hoverHighlightMode);
+    const autocompleteEnabled = useSettingsStore((state) => state.autocompleteEnabled);
+    const autocompleteMinChars = useSettingsStore((state) => state.autocompleteMinChars);
 
     const matches = useFindReplaceStore((state) => state.matches);
     const currentMatchIndex = useFindReplaceStore((state) => state.currentMatchIndex);
@@ -191,6 +202,11 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         left: number;
         width: number;
     } | null>(null);
+
+    // Autocomplete state
+    const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
+    const [autocompleteSelectedIndex, setAutocompleteSelectedIndex] = useState(0);
+    const [showAutocomplete, setShowAutocomplete] = useState(false);
 
     // ===== REFS =====
     const parentRef = useRef<HTMLDivElement>(null);
@@ -445,6 +461,8 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                     const value = editingValue;
                     updateCell(editingCell.row, editingCell.col, value);
                     clearEditingCell();
+                    setShowAutocomplete(false);
+                    setAutocompleteSuggestions([]);
                 }
             }
         };
@@ -529,8 +547,20 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             }
 
             // Delete or Backspace to clear cells
-            if ((e.key === "Delete" || e.key === "Backspace") && (selectedCell || selectedRange)) {
-                clearCells();
+            if ((e.key === "Delete" || e.key === "Backspace") && (selectedCell || selectedRange || hasMultipleCursors())) {
+                // If multiple cursors are active, clear all cursor cells
+                if (hasMultipleCursors()) {
+                    const allCursors = getAllCursors();
+                    const cellUpdates = allCursors.map((cursor) => ({
+                        row: cursor.row,
+                        col: cursor.col,
+                        value: "",
+                    }));
+                    updateCells(cellUpdates);
+                } else {
+                    // Normal clear
+                    clearCells();
+                }
                 setCutCells(null); // Cancel any cut operation
                 e.preventDefault();
             }
@@ -538,6 +568,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             // Escape to clear selection and cancel cut operation
             if (e.key === "Escape") {
                 clearSelection();
+                clearCursors();
                 setCutCells(null);
             }
 
@@ -692,18 +723,63 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
     const handleSaveEdit = useCallback((row: number, col: number) => {
         if (editingCell) {
-            updateCell(row, col, editingValue);
-            if (onCellEdit) {
-                onCellEdit(row, col, editingValue);
+            // Check if we have multiple cursors - if so, update all of them
+            if (hasMultipleCursors()) {
+                const allCursors = getAllCursors();
+                const cellUpdates = allCursors.map((cursor) => ({
+                    row: cursor.row,
+                    col: cursor.col,
+                    value: editingValue,
+                }));
+                updateCells(cellUpdates);
+
+                // Call onCellEdit for each cursor
+                if (onCellEdit) {
+                    allCursors.forEach((cursor) => {
+                        onCellEdit(cursor.row, cursor.col, editingValue);
+                    });
+                }
+            } else {
+                // Single cursor - normal update
+                updateCell(row, col, editingValue);
+                if (onCellEdit) {
+                    onCellEdit(row, col, editingValue);
+                }
             }
         }
         clearEditingCell();
+        setShowAutocomplete(false);
+        setAutocompleteSuggestions([]);
 
         // Restore focus to grid
         if (gridFocusRef.current) {
             gridFocusRef.current.focus();
         }
-    }, [editingCell, editingValue, updateCell, onCellEdit, clearEditingCell]);
+    }, [editingCell, editingValue, updateCell, updateCells, onCellEdit, clearEditingCell, hasMultipleCursors, getAllCursors]);
+
+    // Update autocomplete suggestions based on current input
+    const updateAutocompleteSuggestions = useCallback((col: number, value: string) => {
+        if (!autocompleteEnabled) {
+            setShowAutocomplete(false);
+            return;
+        }
+
+        if (value.length < autocompleteMinChars) {
+            setShowAutocomplete(false);
+            return;
+        }
+
+        const columnValues = columnCache.get(col) || new Set<string>();
+        const suggestions = getSuggestions(col, value, columnValues, [], 10);
+
+        if (suggestions.length > 0) {
+            setAutocompleteSuggestions(suggestions);
+            setAutocompleteSelectedIndex(0);
+            setShowAutocomplete(true);
+        } else {
+            setShowAutocomplete(false);
+        }
+    }, [autocompleteEnabled, autocompleteMinChars, columnCache]);
 
     const handleKeyDown = (
         e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -711,6 +787,33 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         col: number
     ) => {
         const isTextarea = e.currentTarget instanceof HTMLTextAreaElement;
+
+        // Handle autocomplete keyboard navigation
+        if (showAutocomplete && autocompleteSuggestions.length > 0) {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setAutocompleteSelectedIndex((prev) =>
+                    prev < autocompleteSuggestions.length - 1 ? prev + 1 : prev
+                );
+                return;
+            }
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setAutocompleteSelectedIndex((prev) => prev > 0 ? prev - 1 : prev);
+                return;
+            }
+            if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                const selectedValue = autocompleteSuggestions[autocompleteSelectedIndex];
+                updateEditingValue(selectedValue);
+                setShowAutocomplete(false);
+                // Don't return - let it commit the edit
+            }
+            if (e.key === "Escape") {
+                setShowAutocomplete(false);
+                return;
+            }
+        }
 
         if (e.key === "Enter") {
             if (isTextarea && e.ctrlKey) {
@@ -761,6 +864,8 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         } else if (e.key === "Escape") {
             e.stopPropagation();
             clearEditingCell();
+            setShowAutocomplete(false);
+            setAutocompleteSuggestions([]);
             if (gridFocusRef.current) {
                 gridFocusRef.current.focus();
             }
@@ -853,19 +958,42 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             }
 
             // Build array of cell updates
-            const { row: startRow, col: startCol } = selectedCell;
             const cellUpdates: Array<{ row: number; col: number; value: string }> = [];
 
-            for (let r = 0; r < rows.length; r++) {
-                for (let c = 0; c < rows[r].length; c++) {
-                    const targetRow = startRow + r;
-                    const targetCol = startCol + c;
-                    if (targetRow < filteredData.length && targetCol < headers.length) {
-                        cellUpdates.push({
-                            row: targetRow,
-                            col: targetCol,
-                            value: rows[r][c],
-                        });
+            // Check if we have multiple cursors - if so, paste to all cursor positions
+            if (hasMultipleCursors()) {
+                const allCursors = getAllCursors();
+
+                // Paste the same data to each cursor position
+                allCursors.forEach((cursor) => {
+                    for (let r = 0; r < rows.length; r++) {
+                        for (let c = 0; c < rows[r].length; c++) {
+                            const targetRow = cursor.row + r;
+                            const targetCol = cursor.col + c;
+                            if (targetRow < filteredData.length && targetCol < headers.length) {
+                                cellUpdates.push({
+                                    row: targetRow,
+                                    col: targetCol,
+                                    value: rows[r][c],
+                                });
+                            }
+                        }
+                    }
+                });
+            } else {
+                // Single cursor - normal paste
+                const { row: startRow, col: startCol } = selectedCell;
+                for (let r = 0; r < rows.length; r++) {
+                    for (let c = 0; c < rows[r].length; c++) {
+                        const targetRow = startRow + r;
+                        const targetCol = startCol + c;
+                        if (targetRow < filteredData.length && targetCol < headers.length) {
+                            cellUpdates.push({
+                                row: targetRow,
+                                col: targetCol,
+                                value: rows[r][c],
+                            });
+                        }
                     }
                 }
             }
@@ -891,7 +1019,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         } catch (err) {
             console.error("Failed to paste from system clipboard:", err);
         }
-    }, [selectedCell, filteredData, headers, updateCells, cutCells, triggerAutosave]);
+    }, [selectedCell, filteredData, headers, updateCells, cutCells, triggerAutosave, hasMultipleCursors, getAllCursors]);
 
     // ===== CONTEXT MENU HANDLERS =====
     // Wrapped in useCallback to prevent recreation on every render
@@ -1258,18 +1386,27 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             gridFocusRef.current.focus();
         }
 
-        // Shift-click: extend selection
-        if (e.shiftKey && selectedCell) {
+        // Ctrl/Cmd-click: toggle multi-cursor
+        if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
-            setSelectedRange(selectedCell.row, selectedCell.col, row, col);
+            toggleCursor(row, col);
             return;
         }
 
-        // Normal click: start new selection
+        // Shift-click: extend selection (clears multi-cursors)
+        if (e.shiftKey && selectedCell) {
+            e.preventDefault();
+            setSelectedRange(selectedCell.row, selectedCell.col, row, col);
+            clearCursors();
+            return;
+        }
+
+        // Normal click: start new selection (clears multi-cursors)
         setIsSelecting(true);
         setSelectionStart({ row, col });
         setSelectedCell(row, col);
-    }, [selectedCell, setSelectedRange, setSelectedCell]);
+        clearCursors();
+    }, [selectedCell, setSelectedRange, setSelectedCell, toggleCursor, clearCursors]);
 
     const handleCellMouseEnter = useCallback((row: number, col: number) => {
         // Set hovered column for column highlighting
@@ -1671,6 +1808,11 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                     (cutCell) => cutCell.row === rowIndex && cutCell.col === colIndex
                                 );
 
+                                // Check if this cell is a multi-cursor
+                                const isMultiCursor = multiCursors.some(
+                                    (cursor) => cursor.row === rowIndex && cursor.col === colIndex
+                                );
+
                                 // Determine cell class with grid borders
                                 let cellClass = `p-0 border-b border-r ${showColumnSeparators ? "border-base-300" : "border-base-content/10"}`;
 
@@ -1682,6 +1824,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                     cellClass += " ring-2 ring-primary ring-inset";
                                 } else if (isInRange) {
                                     cellClass += " bg-primary/20";
+                                } else if (isMultiCursor) {
+                                    // Multi-cursor: dashed outline with lighter background
+                                    cellClass += " ring-2 ring-dashed ring-primary/60 bg-primary/5";
                                 }
 
                                 if (isCurrentMatch) {
@@ -1761,6 +1906,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                                     value={editingValue}
                                                     onChange={(e) => {
                                                         updateEditingValue(e.target.value);
+                                                        if (editingCell) {
+                                                            updateAutocompleteSuggestions(editingCell.col, e.target.value);
+                                                        }
                                                         e.target.style.height = "auto";
                                                         e.target.style.height = `${e.target.scrollHeight}px`;
                                                     }}
@@ -1786,7 +1934,12 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                                     className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight"
                                                     style={{ userSelect: "text", WebkitUserSelect: "text" }}
                                                     value={editingValue}
-                                                    onChange={(e) => updateEditingValue(e.target.value)}
+                                                    onChange={(e) => {
+                                                        updateEditingValue(e.target.value);
+                                                        if (editingCell) {
+                                                            updateAutocompleteSuggestions(editingCell.col, e.target.value);
+                                                        }
+                                                    }}
                                                     onClick={(e) => e.stopPropagation()}
                                                     onMouseDown={(e) => {
                                                         e.stopPropagation();
@@ -2127,6 +2280,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                             value={editingValue}
                             onChange={(e) => {
                                 updateEditingValue(e.target.value);
+                                if (editingCell) {
+                                    updateAutocompleteSuggestions(editingCell.col, e.target.value);
+                                }
                                 e.target.style.height = "auto";
                                 e.target.style.height = `${e.target.scrollHeight}px`;
                             }}
@@ -2153,6 +2309,34 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                     </div>,
                     document.body
                 )}
+
+            {/* Autocomplete dropdown */}
+            {showAutocomplete && editingCell && editingCellRef.current && (
+                <AutocompleteDropdown
+                    suggestions={autocompleteSuggestions}
+                    selectedIndex={autocompleteSelectedIndex}
+                    onSelect={(value) => {
+                        updateEditingValue(value);
+                        setShowAutocomplete(false);
+                    }}
+                    onClose={() => setShowAutocomplete(false)}
+                    onNavigate={(direction) => {
+                        if (direction === "down") {
+                            setAutocompleteSelectedIndex((prev) =>
+                                prev < autocompleteSuggestions.length - 1 ? prev + 1 : prev
+                            );
+                        } else {
+                            setAutocompleteSelectedIndex((prev) => prev > 0 ? prev - 1 : prev);
+                        }
+                    }}
+                    position={{
+                        top: editingCellRef.current.getBoundingClientRect().bottom + window.scrollY,
+                        left: editingCellRef.current.getBoundingClientRect().left + window.scrollX,
+                        width: editingCellRef.current.getBoundingClientRect().width,
+                        maxHeight: 300,
+                    }}
+                />
+            )}
         </div>
     );
 }

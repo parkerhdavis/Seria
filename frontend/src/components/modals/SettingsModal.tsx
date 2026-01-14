@@ -38,6 +38,12 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setAutosaveEnabled,
         autosaveIntervalSeconds,
         setAutosaveIntervalSeconds,
+        autocompleteEnabled,
+        setAutocompleteEnabled,
+        autocompleteMinChars,
+        setAutocompleteMinChars,
+        autocompleteRestrictToExisting,
+        setAutocompleteRestrictToExisting,
     } = useSettingsStore();
 
     const { exportConfigs, importConfigs, cleanupOldConfigs } = useFileConfigStore();
@@ -364,6 +370,73 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     <p>After you confirm a cell edit, the autosave timer starts. If you make another edit before the timer expires, it resets. When the timer reaches zero, your changes are automatically saved.</p>
                                 </div>
                             </div>
+
+                            <div className="divider mt-6 mb-2">Autocomplete</div>
+
+                            <div className="form-control">
+                                <label className="label cursor-pointer justify-start gap-4">
+                                    <input
+                                        type="checkbox"
+                                        className="checkbox checkbox-primary"
+                                        checked={autocompleteEnabled}
+                                        onChange={(e) => setAutocompleteEnabled(e.target.checked)}
+                                    />
+                                    <div>
+                                        <span className="label-text font-semibold block">Enable autocomplete</span>
+                                        <span className="label-text-alt block text-base-content/60">
+                                            Show suggestions based on existing values in the column
+                                        </span>
+                                    </div>
+                                </label>
+                            </div>
+
+                            {autocompleteEnabled && (
+                                <>
+                                    <div className="form-control mt-4">
+                                        <label className="label">
+                                            <span className="label-text font-semibold">Minimum characters</span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="5"
+                                            value={autocompleteMinChars}
+                                            onChange={(e) => setAutocompleteMinChars(Number(e.target.value))}
+                                            className="input input-bordered w-full max-w-xs"
+                                        />
+                                        <label className="label">
+                                            <span className="label-text-alt">Minimum characters to type before showing suggestions (0 shows all values)</span>
+                                        </label>
+                                    </div>
+
+                                    <div className="form-control mt-4">
+                                        <label className="label cursor-pointer justify-start gap-4">
+                                            <input
+                                                type="checkbox"
+                                                className="checkbox checkbox-primary"
+                                                checked={autocompleteRestrictToExisting}
+                                                onChange={(e) => setAutocompleteRestrictToExisting(e.target.checked)}
+                                            />
+                                            <div>
+                                                <span className="label-text font-semibold block">Restrict to existing values</span>
+                                                <span className="label-text-alt block text-base-content/60">
+                                                    Only allow values that already exist in the column
+                                                </span>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <div className="alert alert-info mt-4">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-5 h-5">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        <div className="text-sm">
+                                            <p className="font-semibold">How Autocomplete Works</p>
+                                            <p>When editing a cell, autocomplete shows suggestions based on existing values in that column. Use Arrow Up/Down to navigate, Enter/Tab to select, or Escape to dismiss.</p>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
 
