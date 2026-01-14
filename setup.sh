@@ -62,6 +62,18 @@ fi
 # ────────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "🔍 Checking for Node.js installation..."
+
+# Source nvm if available (needed for non-interactive shells)
+if [ -z "${NVM_DIR:-}" ]; then
+    export NVM_DIR="$HOME/.nvm"
+fi
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+    source "$NVM_DIR/nvm.sh"
+elif [ -s "/usr/local/opt/nvm/nvm.sh" ]; then
+    # Homebrew nvm location
+    source "/usr/local/opt/nvm/nvm.sh"
+fi
+
 if ! command -v node &> /dev/null; then
     echo "❌ Node.js not found. Please install Node.js 18+ and run this setup again."
     echo ""
