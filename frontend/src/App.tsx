@@ -6,6 +6,8 @@ import Editor from "./pages/Editor";
 import PrintDrawer from "@components/prints/PrintDrawer";
 import SettingsModal from "@components/modals/SettingsModal";
 import FindReplaceModal from "@components/modals/FindReplaceModal";
+import GoToModal from "@components/modals/GoToModal";
+import ColumnManagerModal from "@components/modals/ColumnManagerModal";
 import { useCellStore } from "@stores/cellStore";
 import { useFindReplaceStore } from "@/stores/findReplaceStore";
 import { useDrawerStore } from "@/stores/drawerStore";
@@ -28,6 +30,8 @@ import { logger } from "@/utils/logger";
 function App() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isGoToOpen, setIsGoToOpen] = useState(false);
+    const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(100);
     const [isInitializing, setIsInitializing] = useState(true);
     const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
@@ -308,6 +312,16 @@ function App() {
                 e.preventDefault();
                 openReplace();
             }
+            // Ctrl+G - Open go to
+            else if (e.ctrlKey && e.key === "g") {
+                e.preventDefault();
+                setIsGoToOpen(true);
+            }
+            // Ctrl+M - Open column manager
+            else if (e.ctrlKey && e.key === "m") {
+                e.preventDefault();
+                setIsColumnManagerOpen(true);
+            }
             // Ctrl+Z - Undo
             else if (e.ctrlKey && !e.shiftKey && e.key === "z") {
                 e.preventDefault();
@@ -375,6 +389,16 @@ function App() {
                 />
 
                 <FindReplaceModal />
+
+                <GoToModal
+                    isOpen={isGoToOpen}
+                    onClose={() => setIsGoToOpen(false)}
+                />
+
+                <ColumnManagerModal
+                    isOpen={isColumnManagerOpen}
+                    onClose={() => setIsColumnManagerOpen(false)}
+                />
             </Layout>
         </DragProvider>
     );
