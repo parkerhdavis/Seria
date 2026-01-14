@@ -1,0 +1,15 @@
+# Default to auto-detection
+* text=auto
+
+# Force LF for files that need to run on Linux
+*.sh text eol=lf
+Makefile text eol=lf
+*.py text eol=lf
+
+# Force CRLF for Windows-only stuff (if any)
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
