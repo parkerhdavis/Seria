@@ -170,7 +170,7 @@ function parseCSVInChunks(fileContent: string, chunkSize: number) {
                 postError(error.message);
             },
         });
-    } catch (error) {
+    } catch (error: unknown) {
         postError(error instanceof Error ? error.message : String(error));
     }
 }

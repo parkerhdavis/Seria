@@ -10,6 +10,7 @@ import { WorkspaceLayout } from "@/types/workspace";
 import { invoke } from "@tauri-apps/api/core";
 import { logger } from "@/utils/logger";
 
+
 interface WorkspaceStore {
     // State
     layouts: WorkspaceLayout[];
@@ -42,7 +43,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
             const layoutsJson = await invoke<string>("load_workspace_layouts");
             const layouts: WorkspaceLayout[] = JSON.parse(layoutsJson);
             set({ layouts, isLoading: false });
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to load workspace layouts:", error);
 
             // If backend fails, try localStorage as fallback
@@ -54,7 +55,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
                 } else {
                     set({ layouts: [], isLoading: false });
                 }
-            } catch (e) {
+            } catch (e: unknown) {
                 logger.error("Failed to load from localStorage:", e);
                 set({ layouts: [], isLoading: false });
             }
@@ -81,7 +82,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
             await invoke("save_workspace_layouts", {
                 layoutsJson: JSON.stringify(updatedLayouts),
             });
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to save to backend, using localStorage:", error);
             // Fallback to localStorage
             localStorage.setItem("seria_workspace_layouts", JSON.stringify(updatedLayouts));
@@ -115,7 +116,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
             await invoke("save_workspace_layouts", {
                 layoutsJson: JSON.stringify(updatedLayouts),
             });
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to save to backend, using localStorage:", error);
             localStorage.setItem("seria_workspace_layouts", JSON.stringify(updatedLayouts));
         }
@@ -134,7 +135,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
             await invoke("save_workspace_layouts", {
                 layoutsJson: JSON.stringify(updatedLayouts),
             });
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to save to backend, using localStorage:", error);
             localStorage.setItem("seria_workspace_layouts", JSON.stringify(updatedLayouts));
         }
@@ -154,7 +155,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
             await invoke("save_workspace_layouts", {
                 layoutsJson: JSON.stringify(updatedLayouts),
             });
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to save to backend, using localStorage:", error);
             localStorage.setItem("seria_workspace_layouts", JSON.stringify(updatedLayouts));
         }
@@ -178,7 +179,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
             await invoke("save_workspace_layouts", {
                 layoutsJson: JSON.stringify(updatedLayouts),
             });
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to save to backend, using localStorage:", error);
             localStorage.setItem("seria_workspace_layouts", JSON.stringify(updatedLayouts));
         }

@@ -16,6 +16,7 @@ import type {
 import { SCREENPLAY_RECIPE } from "@/data/screenplayRecipe";
 import { CORKBOARD_RECIPE } from "@/data/corkboardRecipe";
 import { autoMapRecipe, updateFieldMapping, validateRecipeConfiguration } from "@/utils/printRecipeMapper";
+import { logger } from "@/utils/logger";
 
 interface PrintRecipeState {
     // Available recipes (bundled + custom)
@@ -190,7 +191,7 @@ export const usePrintRecipeStore = create<PrintRecipeState>()(
                 );
 
                 if (error) {
-                    console.error("Error updating field mapping:", error);
+                    logger.error("Error updating field mapping:", error);
                     return;
                 }
 

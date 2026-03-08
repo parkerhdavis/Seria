@@ -71,6 +71,7 @@ import { useCellEditStore } from "@stores/cellEditStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { useDrawerStore } from "@stores/drawerStore";
+import { logger } from "@utils/logger";
 import ColumnFilterDropdown from "../toolbar/ColumnFilterDropdown";
 import { calculateSummary } from "@utils/summaryCalculations";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
@@ -906,8 +907,8 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                 const value = filteredData[selectedCell.row]?.[selectedCell.col] || "";
                 await writeText(value);
             }
-        } catch (err) {
-            console.error("Failed to copy to system clipboard:", err);
+        } catch (err: unknown) {
+            logger.error("Failed to copy to system clipboard:", err);
         }
     }, [copySelection, selectedRange, selectedCell, filteredData]);
 
@@ -1016,8 +1017,8 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
             // Trigger autosave after paste operation
             triggerAutosave();
-        } catch (err) {
-            console.error("Failed to paste from system clipboard:", err);
+        } catch (err: unknown) {
+            logger.error("Failed to paste from system clipboard:", err);
         }
     }, [selectedCell, filteredData, headers, updateCells, cutCells, triggerAutosave, hasMultipleCursors, getAllCursors]);
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useCellStore } from "@stores/cellStore";
 import CellGridVirtualized from "@components/cell/CellGridVirtualized";
+import { logger } from "@utils/logger";
 
 interface EditorProps {
     onFilePickerOpenChange: (isOpen: boolean) => void;
@@ -44,8 +45,8 @@ function Editor({ onFilePickerOpenChange }: EditorProps) {
                 // User cancelled, close overlay
                 onFilePickerOpenChange(false);
             }
-        } catch (error) {
-            console.error("Failed to open file:", error);
+        } catch (error: unknown) {
+            logger.error("Failed to open file:", error);
             onFilePickerOpenChange(false);
         }
     };
@@ -98,8 +99,8 @@ function Editor({ onFilePickerOpenChange }: EditorProps) {
                 const filePath = fileWithPath.path || file.name;
                 try {
                     await loadCells(filePath);
-                } catch (error) {
-                    console.error("Failed to load dropped file:", error);
+                } catch (error: unknown) {
+                    logger.error("Failed to load dropped file:", error);
                 }
             }
         }

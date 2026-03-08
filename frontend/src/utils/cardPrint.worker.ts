@@ -63,7 +63,7 @@ self.addEventListener("message", (e: MessageEvent<CalculateRequest>) => {
                 cards,
             };
             self.postMessage(response);
-        } catch (error) {
+        } catch (error: unknown) {
             const errorResponse: ErrorResponse = {
                 type: "error",
                 message: error instanceof Error ? error.message : "Unknown error",

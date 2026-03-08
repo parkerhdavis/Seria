@@ -28,6 +28,7 @@ export default function AutocompleteDropdown({
     suggestions,
     selectedIndex,
     onSelect,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     onClose,
     onNavigate,
     position,

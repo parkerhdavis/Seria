@@ -127,7 +127,7 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
             const jsonData = await invoke<string>("load_file_configs");
             const data: FileConfigData = JSON.parse(jsonData);
             set({ configData: data, isLoaded: true });
-        } catch (error) {
+        } catch (error: unknown) {
             // If file doesn't exist or is invalid, start with empty config
             logger.debug("No existing config file, starting fresh:", error);
             set({
@@ -148,7 +148,7 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
         try {
             const jsonData = JSON.stringify(configData, null, 2);
             await invoke("save_file_configs", { data: jsonData });
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to save file configs:", error);
         }
     },
@@ -295,7 +295,7 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
 
             set({ configData: newConfigData });
             await get().saveConfigs();
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to import configs:", error);
             throw error;
         }

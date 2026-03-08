@@ -9,6 +9,7 @@ import { useCellStore } from "@stores/cellStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useDrawerStore } from "@stores/drawerStore";
 import { useFileConfigStore, type FileIdentifiers, type FileConfig } from "@stores/fileConfigStore";
+import { logger } from "@utils/logger";
 
 /**
  * Collect current state from all relevant stores and save as file config
@@ -63,9 +64,9 @@ export async function saveCurrentFileConfig(): Promise<void> {
         // Save config
         await fileConfigStore.saveConfigForFile(identifiers, config);
 
-        console.log("Saved file config for:", cellStore.fileInfo?.name);
-    } catch (error) {
-        console.error("Failed to save file config:", error);
+        logger.debug("Saved file config for:", cellStore.fileInfo?.name);
+    } catch (error: unknown) {
+        logger.error("Failed to save file config:", error);
     }
 }
 

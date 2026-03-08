@@ -11,6 +11,7 @@ import { useGlobalConfigStore } from "@stores/globalConfigStore";
 import { useCellStore } from "@stores/cellStore";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { logger } from "@utils/logger";
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -63,10 +64,10 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             if (filePath) {
                 const configData = exportConfigs();
                 await writeTextFile(filePath, configData);
-                console.log("Configs exported to:", filePath);
+                logger.debug("Configs exported to:", filePath);
             }
-        } catch (error) {
-            console.error("Failed to export configs:", error);
+        } catch (error: unknown) {
+            logger.error("Failed to export configs:", error);
         }
     };
 
@@ -82,10 +83,10 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             if (filePath) {
                 const configData = await readTextFile(filePath as string);
                 await importConfigs(configData);
-                console.log("Configs imported from:", filePath);
+                logger.debug("Configs imported from:", filePath);
             }
-        } catch (error) {
-            console.error("Failed to import configs:", error);
+        } catch (error: unknown) {
+            logger.error("Failed to import configs:", error);
         }
     };
 
@@ -93,9 +94,9 @@ function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const handleCleanupConfigs = async () => {
         try {
             await cleanupOldConfigs();
-            console.log("Old configs cleaned up");
-        } catch (error) {
-            console.error("Failed to cleanup configs:", error);
+            logger.debug("Old configs cleaned up");
+        } catch (error: unknown) {
+            logger.error("Failed to cleanup configs:", error);
         }
     };
 

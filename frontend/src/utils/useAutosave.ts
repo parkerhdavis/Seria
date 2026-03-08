@@ -9,6 +9,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useCellStore } from "@/stores/cellStore";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { logger } from "@/utils/logger";
 
 /**
  * Custom hook for autosave functionality
@@ -53,11 +54,11 @@ export function useAutosave() {
         // Start new timer
         timerRef.current = setTimeout(async () => {
             try {
-                console.log("[Autosave] Timer expired, saving...");
+                logger.debug("[Autosave] Timer expired, saving...");
                 await saveCells();
-                console.log("[Autosave] Save completed");
-            } catch (error) {
-                console.error("[Autosave] Save failed:", error);
+                logger.debug("[Autosave] Save completed");
+            } catch (error: unknown) {
+                logger.error("[Autosave] Save failed:", error);
             }
         }, autosaveIntervalSeconds * 1000);
     }, [autosaveEnabled, currentFile, isDirty, autosaveIntervalSeconds, saveCells, clearTimer]);
@@ -76,11 +77,11 @@ export function useAutosave() {
         }
 
         try {
-            console.log("[Autosave] Manual trigger, saving...");
+            logger.debug("[Autosave] Manual trigger, saving...");
             await saveCells();
-            console.log("[Autosave] Save completed");
-        } catch (error) {
-            console.error("[Autosave] Save failed:", error);
+            logger.debug("[Autosave] Save completed");
+        } catch (error: unknown) {
+            logger.error("[Autosave] Save failed:", error);
         }
 
         // Restart timer after manual save

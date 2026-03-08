@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
-import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCellStore } from "@stores/cellStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useGlobalConfigStore } from "@stores/globalConfigStore";
-import { logger } from "@/utils/logger";
+import { useFileOperations } from "@/hooks/useFileOperations";
 import RowColoringDropdown from "../toolbar/RowColoringDropdown";
 
 interface HeaderProps {
@@ -26,13 +25,22 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
     const [showNewConfirm, setShowNewConfirm] = useState(false);
 
     // Get Cell Store state and actions
-    const { fileInfo, isDirty, isLoading, lastSavedAt, loadCellsProgressive, reloadCells, saveCells, addRow, createNew, importFromScreenplay } = useCellStore();
+    const { fileInfo, isDirty, isLoading, lastSavedAt, loadCellsProgressive, addRow, createNew } = useCellStore();
 
     // Get settings store state and actions
     const { wrapText, setWrapText, showColumnSeparators, setShowColumnSeparators, autoFitColumns, setAutoFitColumns } = useSettingsStore();
 
     // Get global config for recent files
     const { config } = useGlobalConfigStore();
+
+    // Centralized file operation handlers
+    const {
+        handleOpen,
+        handleSave,
+        handleReload,
+        handleNew: handleNewFromHook,
+        handleImportScreenplay: handleImport,
+    } = useFileOperations({ onFilePickerOpenChange });
 
     // Trigger save success animation when lastSavedAt changes
     useEffect(() => {
@@ -43,144 +51,25 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
         }
     }, [lastSavedAt]);
 
-    // Open file dialog and load selected file
-    const handleOpen = async () => {
-        onFilePickerOpenChange(true);
-        try {
-            const filePath = await open({
-                multiple: false,
-                filters: [
-                    { name: "Data Files", extensions: ["csv", "tsv", "json"] },
-                    { name: "All Files", extensions: ["*"] },
-                ],
-                title: "Open Data File",
-            });
-            if (filePath) {
-                // Use progressive loading for better UX (shows grid immediately, loads in chunks)
-                await loadCellsProgressive(filePath);
-                // Blur the active element (Open button) so keyboard shortcuts work
-                if (document.activeElement instanceof HTMLElement) {
-                    document.activeElement.blur();
-                }
-                onFilePickerOpenChange(false);
-            } else {
-                // User cancelled, close overlay
-                onFilePickerOpenChange(false);
-            }
-        } catch (error) {
-            logger.error("Failed to open file:", error);
-            onFilePickerOpenChange(false);
-        }
-    };
-
-    // Save current file
-    const handleSave = async () => {
-        try {
-            await saveCells();
-        } catch (error) {
-            // If this is a temp file, show the Save As dialog instead
-            if (error instanceof Error && error.message === "TEMP_FILE_NEEDS_LOCATION") {
-                await handleSaveAs();
-            } else {
-                logger.error("Failed to save file:", error);
-            }
-        }
-    };
-
-    // Reload current file from disk
-    const handleReload = async () => {
+    // Wrap reload to dismiss confirmation modal first
+    const handleReloadWithConfirm = async () => {
         setShowReloadConfirm(false);
-        try {
-            await reloadCells();
-        } catch (error) {
-            logger.error("Failed to reload file:", error);
-        }
+        await handleReload();
     };
 
-    // Save as - show save dialog and save to new location
-    const handleSaveAs = async () => {
-        onFilePickerOpenChange(true);
-        try {
-            const fileName = fileInfo?.name || "untitled.csv";
-            const filePath = await save({
-                filters: [
-                    { name: "CSV Files", extensions: ["csv"] },
-                    { name: "TSV Files", extensions: ["tsv"] },
-                    { name: "JSON Files", extensions: ["json"] },
-                    { name: "All Files", extensions: ["*"] },
-                ],
-                title: "Save Data File",
-                defaultPath: fileName,
-            });
-            if (filePath) {
-                const { saveCellAs } = useCellStore.getState();
-                // Keep overlay visible during save
-                await saveCellAs(filePath);
-                onFilePickerOpenChange(false);
-            } else {
-                // User cancelled, close overlay
-                onFilePickerOpenChange(false);
-            }
-        } catch (error) {
-            logger.error("Failed to save file:", error);
-            onFilePickerOpenChange(false);
-        }
-    };
-
-    // Create new file
+    // New file with unsaved changes check
     const handleNew = async () => {
-        // Check if current file has unsaved changes
         if (fileInfo && isDirty) {
             setShowNewConfirm(true);
         } else {
-            // No unsaved changes, create new file directly
             await createNew();
-        }
-    };
-
-    // Import file (screenplay to CSV for now)
-    const handleImport = async () => {
-        onFilePickerOpenChange(true);
-        try {
-            const filePath = await open({
-                multiple: false,
-                filters: [
-                    { name: "Screenplay Files", extensions: ["txt"] },
-                    { name: "All Files", extensions: ["*"] },
-                ],
-                title: "Import Screenplay File",
-            });
-
-            if (filePath && typeof filePath === "string") {
-                // Keep overlay visible during import
-                await importFromScreenplay(filePath);
-                // Blur the active element so keyboard shortcuts work
-                if (document.activeElement instanceof HTMLElement) {
-                    document.activeElement.blur();
-                }
-                onFilePickerOpenChange(false);
-            } else {
-                // User cancelled, close overlay
-                onFilePickerOpenChange(false);
-            }
-        } catch (error) {
-            logger.error("Failed to import file:", error);
-            onFilePickerOpenChange(false);
         }
     };
 
     // Confirm new file creation (with save option)
     const handleNewConfirm = async (saveFirst: boolean) => {
         setShowNewConfirm(false);
-        if (saveFirst) {
-            try {
-                await saveCells();
-            } catch (error) {
-                logger.error("Failed to save file before creating new:", error);
-                return;
-            }
-        }
-        await createNew();
+        await handleNewFromHook(saveFirst);
     };
 
     return (
@@ -467,7 +356,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                             </button>
                             <button
                                 className={`btn ${isDirty ? "btn-warning" : "btn-primary"}`}
-                                onClick={handleReload}
+                                onClick={handleReloadWithConfirm}
                             >
                                 Reload
                             </button>

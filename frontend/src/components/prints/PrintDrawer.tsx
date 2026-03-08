@@ -21,6 +21,7 @@ import ExportDialog, { type ExportSettings, type ExportProgress } from "@compone
 import { exportPrintToPDF } from "@/utils/pdfExport";
 import { exportScreenplayToPDF } from "@/utils/pdfExportScreenplay";
 import { logger } from "@/utils/logger";
+import { formatError } from "@/utils/tauriErrorHandler";
 import { toast } from "@stores/toastStore";
 
 // Title bar height constant (matches TitleBar.tsx h-10 = 40px)
@@ -190,13 +191,13 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
             setExportProgress(null);
             setIsExportDialogOpen(false);
             toast.success("PDF exported successfully");
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Export failed:", error);
             setIsExporting(false);
             setExportProgress(null);
 
             // Show error toast to user
-            const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+            const errorMessage = formatError(error);
             toast.error(`Export failed: ${errorMessage}`);
         }
     };

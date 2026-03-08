@@ -8,11 +8,10 @@
  */
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCellStore } from "@/stores/cellStore";
 import { useState, useEffect } from "react";
 import { logger } from "@/utils/logger";
-import { toast } from "@stores/toastStore";
+import { useFileOperations } from "@/hooks/useFileOperations";
 
 const appWindow = getCurrentWindow();
 
@@ -24,12 +23,17 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
     const fileInfo = useCellStore((state) => state.fileInfo);
     const isDirty = useCellStore((state) => state.isDirty);
     const isLoading = useCellStore((state) => state.isLoading);
-    const loadCellsProgressive = useCellStore((state) => state.loadCellsProgressive);
-    const saveCells = useCellStore((state) => state.saveCells);
-    const reloadCells = useCellStore((state) => state.reloadCells);
     const createNew = useCellStore((state) => state.createNew);
-    const importFromScreenplay = useCellStore((state) => state.importFromScreenplay);
-    const exportToScreenplay = useCellStore((state) => state.exportToScreenplay);
+
+    const {
+        handleOpen,
+        handleSave,
+        handleSaveAs,
+        handleReload,
+        handleNew: handleNewFromHook,
+        handleImportScreenplay: handleImportAsScreenplay,
+        handleExportScreenplay: handleExportAsScreenplay,
+    } = useFileOperations({ onFilePickerOpenChange });
 
     const [isMaximized, setIsMaximized] = useState(false);
     const [showReloadConfirm, setShowReloadConfirm] = useState(false);
@@ -83,89 +87,13 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
         appWindow.close();
     };
 
-    // File operation handlers (from Header component)
-    const handleOpen = async () => {
-        onFilePickerOpenChange(true);
-        try {
-            const filePath = await open({
-                multiple: false,
-                filters: [
-                    { name: "Data Files", extensions: ["csv", "tsv", "json"] },
-                    { name: "All Files", extensions: ["*"] },
-                ],
-                title: "Open Data File",
-            });
-            if (filePath) {
-                await loadCellsProgressive(filePath);
-                if (document.activeElement instanceof HTMLElement) {
-                    document.activeElement.blur();
-                }
-                onFilePickerOpenChange(false);
-            } else {
-                onFilePickerOpenChange(false);
-            }
-        } catch (error) {
-            logger.error("Failed to open file:", error);
-            const message = error instanceof Error ? error.message : "Unknown error";
-            toast.error(`Failed to open file: ${message}`);
-            onFilePickerOpenChange(false);
-        }
-    };
-
-    const handleSave = async () => {
-        try {
-            await saveCells();
-        } catch (error) {
-            if (error instanceof Error && error.message === "TEMP_FILE_NEEDS_LOCATION") {
-                await handleSaveAs();
-            } else {
-                logger.error("Failed to save file:", error);
-                const message = error instanceof Error ? error.message : "Unknown error";
-                toast.error(`Failed to save file: ${message}`);
-            }
-        }
-    };
-
-    const handleSaveAs = async () => {
-        onFilePickerOpenChange(true);
-        try {
-            const fileName = fileInfo?.name || "untitled.csv";
-            const filePath = await save({
-                filters: [
-                    { name: "CSV Files", extensions: ["csv"] },
-                    { name: "TSV Files", extensions: ["tsv"] },
-                    { name: "JSON Files", extensions: ["json"] },
-                    { name: "All Files", extensions: ["*"] },
-                ],
-                title: "Save Data File",
-                defaultPath: fileName,
-            });
-            if (filePath) {
-                const { saveCellAs } = useCellStore.getState();
-                await saveCellAs(filePath);
-                onFilePickerOpenChange(false);
-            } else {
-                onFilePickerOpenChange(false);
-            }
-        } catch (error) {
-            logger.error("Failed to save file:", error);
-            const message = error instanceof Error ? error.message : "Unknown error";
-            toast.error(`Failed to save file: ${message}`);
-            onFilePickerOpenChange(false);
-        }
-    };
-
-    const handleReload = async () => {
+    // Wrap reload to dismiss confirmation modal first
+    const handleReloadWithConfirm = async () => {
         setShowReloadConfirm(false);
-        try {
-            await reloadCells();
-        } catch (error) {
-            logger.error("Failed to reload file:", error);
-            const message = error instanceof Error ? error.message : "Unknown error";
-            toast.error(`Failed to reload file: ${message}`);
-        }
+        await handleReload();
     };
 
+    // New file with unsaved changes check
     const handleNew = async () => {
         if (fileInfo && isDirty) {
             setShowNewConfirm(true);
@@ -176,46 +104,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
 
     const handleNewConfirm = async (saveFirst: boolean) => {
         setShowNewConfirm(false);
-        if (saveFirst) {
-            try {
-                await saveCells();
-            } catch (error) {
-                logger.error("Failed to save file before creating new:", error);
-                const message = error instanceof Error ? error.message : "Unknown error";
-                toast.error(`Failed to save file: ${message}`);
-                return;
-            }
-        }
-        await createNew();
-    };
-
-    const handleImportAsScreenplay = async () => {
-        onFilePickerOpenChange(true);
-        try {
-            const filePath = await open({
-                multiple: false,
-                filters: [
-                    { name: "Screenplay Files", extensions: ["txt"] },
-                    { name: "All Files", extensions: ["*"] },
-                ],
-                title: "Import as Screenplay",
-            });
-
-            if (filePath && typeof filePath === "string") {
-                await importFromScreenplay(filePath);
-                if (document.activeElement instanceof HTMLElement) {
-                    document.activeElement.blur();
-                }
-                onFilePickerOpenChange(false);
-            } else {
-                onFilePickerOpenChange(false);
-            }
-        } catch (error) {
-            logger.error("Failed to import file:", error);
-            const message = error instanceof Error ? error.message : "Unknown error";
-            toast.error(`Failed to import file: ${message}`);
-            onFilePickerOpenChange(false);
-        }
+        await handleNewFromHook(saveFirst);
     };
 
     // Placeholder handlers for future import formats
@@ -229,47 +118,6 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
         logger.debug("PDF import coming soon");
     };
 
-    // Export handlers
-    const handleExportAsScreenplay = async () => {
-        if (!fileInfo) {
-            logger.error("No file is currently open");
-            toast.warning("No file is currently open");
-            return;
-        }
-
-        onFilePickerOpenChange(true);
-        try {
-            // Generate default filename
-            const defaultFilename = fileInfo.path
-                .split("/")
-                .pop()
-                ?.replace(/\.(csv|tsv)$/i, ".txt") || "screenplay.txt";
-
-            const filePath = await save({
-                filters: [
-                    { name: "Text Files", extensions: ["txt"] },
-                    { name: "All Files", extensions: ["*"] },
-                ],
-                title: "Export as Screenplay",
-                defaultPath: defaultFilename,
-            });
-
-            if (filePath) {
-                await exportToScreenplay(filePath);
-                if (document.activeElement instanceof HTMLElement) {
-                    document.activeElement.blur();
-                }
-                toast.success("Screenplay exported successfully");
-            }
-            onFilePickerOpenChange(false);
-        } catch (error) {
-            logger.error("Failed to export screenplay:", error);
-            const message = error instanceof Error ? error.message : "Unknown error";
-            toast.error(`Failed to export screenplay: ${message}`);
-            onFilePickerOpenChange(false);
-        }
-    };
-
     // Placeholder handlers for future export formats
     const handleExportAsFountain = async () => {
         // TODO: Implement Fountain export
@@ -280,7 +128,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
         <>
             <div
                 data-tauri-drag-region
-                className="relative flex flex-row items-center h-10 bg-gray-900 border-b-4 border-black/60 select-none"
+                className="relative flex flex-row items-center h-10 bg-base-300 border-b-4 border-base-300/60 select-none"
                 onMouseDown={(e) => {
                     logger.debug("Title bar mousedown:", {
                         target: e.target,
@@ -481,7 +329,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                         </button>
                         <button
                             className={`btn ${isDirty ? "btn-warning" : "btn-primary"}`}
-                            onClick={handleReload}
+                            onClick={handleReloadWithConfirm}
                         >
                             Reload
                         </button>

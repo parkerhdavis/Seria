@@ -1,10 +1,10 @@
 /**
  * Theme Toggle Component
  *
- * Toggles between light and dark themes and applies to the document.
+ * Toggles between light and dark themes. Theme application to the document
+ * is handled in App.tsx; this component only provides the toggle UI.
  */
 
-import { useState, useEffect } from "react";
 import { useSettingsStore } from "@stores/settingsStore";
 
 /**
@@ -12,14 +12,7 @@ import { useSettingsStore } from "@stores/settingsStore";
  */
 function ThemeToggle() {
     const { theme, setTheme } = useSettingsStore();
-    const [currentTheme, setCurrentTheme] = useState<"light" | "dark">(theme === "auto" ? "dark" : theme);
-
-    // Apply theme to document
-    useEffect(() => {
-        const effectiveTheme = theme === "auto" ? "dark" : theme;
-        setCurrentTheme(effectiveTheme);
-        document.documentElement.setAttribute("data-theme", effectiveTheme);
-    }, [theme]);
+    const currentTheme = theme === "auto" ? "dark" : theme;
 
     // Toggle between light and dark theme
     const toggleTheme = () => {

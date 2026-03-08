@@ -16,6 +16,10 @@ use std::env;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Monotonic counter to guarantee unique temp file names even within the same nanosecond
+static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Common path validation checks for preventing path traversal attacks
 /// Returns a PathBuf if basic validation passes, or an error if the path is suspicious
@@ -111,17 +115,19 @@ pub fn save_cell_file(path: String, content: String) -> Result<(), String> {
 pub fn create_temp_file() -> Result<String, String> {
     let temp_dir = env::temp_dir();
 
-    // Create a unique temp file name with timestamp and nanoseconds for uniqueness
-    // Using both seconds and nanoseconds prevents collisions when multiple files
-    // are created in rapid succession
+    // Create a unique temp file name using timestamp, nanoseconds, PID, and an
+    // atomic counter. This prevents collisions even when multiple files are created
+    // in rapid succession or across concurrent calls.
     let duration = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|e| format!("System time error: {}", e))?;
 
     let timestamp = duration.as_secs();
     let nanos = duration.subsec_nanos();
+    let pid = std::process::id();
+    let counter = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
 
-    let temp_file_name = format!("seria_temp_{}_{}.csv", timestamp, nanos);
+    let temp_file_name = format!("seria_temp_{}_{}_{}_{}.csv", timestamp, nanos, pid, counter);
     let temp_file_path = temp_dir.join(temp_file_name);
 
     // Create the file with empty CSV content (just headers)

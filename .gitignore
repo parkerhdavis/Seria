@@ -96,7 +96,6 @@ Thumbs.db
 # ────────────────────────────────────────────────────────────────────────────────
 wiki-internal/
 .obsidian
-CLAUDE.md
-.claude/
+AGENTS.md
 frontend/daisy-llms.txt
 *.local

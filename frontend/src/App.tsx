@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Layout from "@components/layout/Layout";
 import LoadingScreen from "@components/layout/LoadingScreen";
 import ToastContainer from "@components/Toast";
@@ -22,6 +22,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { serializeCell } from "@utils/cellParser";
 import { logger } from "@/utils/logger";
+import { isErrorWithMessage } from "@/utils/tauriErrorHandler";
 
 /**
  * Main application component
@@ -73,6 +74,7 @@ function App() {
     const loadConfig = useGlobalConfigStore((state) => state.loadConfig);
     const config = useGlobalConfigStore((state) => state.config);
 
+    const theme = useSettingsStore((state) => state.theme);
     const rowColoringMode = useSettingsStore((state) => state.rowColoringMode);
     const rowColorFilter = useSettingsStore((state) => state.rowColorFilter);
     const wrapText = useSettingsStore((state) => state.wrapText);
@@ -80,6 +82,12 @@ function App() {
     const autoFitColumns = useSettingsStore((state) => state.autoFitColumns);
     const hoverHighlightMode = useSettingsStore((state) => state.hoverHighlightMode);
     const appFont = useSettingsStore((state) => state.appFont);
+
+    // Apply theme to document whenever theme setting changes
+    useEffect(() => {
+        const effectiveTheme = theme === "auto" ? "dark" : theme;
+        document.documentElement.setAttribute("data-theme", effectiveTheme);
+    }, [theme]);
 
     // Load global config and file configs on app startup
     useEffect(() => {
@@ -90,7 +98,7 @@ function App() {
 
                 // Load global config
                 await loadConfig();
-            } catch (error) {
+            } catch (error: unknown) {
                 logger.error("Failed to initialize app:", error);
             } finally {
                 // Mark initialization as complete
@@ -108,7 +116,7 @@ function App() {
 
         // Only auto-open if enabled and there's a last file and no file is currently open
         if (config.autoReopenLastFile && config.lastOpenedFile && !currentFile) {
-            loadCellsProgressive(config.lastOpenedFile).catch((error) => {
+            loadCellsProgressive(config.lastOpenedFile).catch((error: unknown) => {
                 logger.error("Failed to auto-reopen last file:", error);
             });
         }
@@ -183,7 +191,7 @@ function App() {
                 useCellStore.setState({ isDirty: false });
 
                 logger.debug("Autosaved temp file");
-            } catch (error) {
+            } catch (error: unknown) {
                 logger.error("Autosave failed:", error);
             } finally {
                 isSavingRef.current = false;
@@ -194,7 +202,7 @@ function App() {
     }, [isTempFile, isDirty, currentFile, data, headers]);
 
     // Apply workspace layout
-    const applyWorkspaceLayout = (layout: {
+    const applyWorkspaceLayout = useCallback((layout: {
         printDrawerPosition: "right" | "bottom" | null;
         printDrawerSize: number;
         sidebarOpen: boolean;
@@ -213,7 +221,7 @@ function App() {
 
         // Apply zoom level
         setZoomLevel(layout.zoomLevel);
-    };
+    }, [setPosition, setRightDrawerSize, setBottomDrawerSize]);
 
     // Global keyboard shortcuts
     useEffect(() => {
@@ -243,7 +251,7 @@ function App() {
                         // User cancelled, close overlay
                         setIsFilePickerOpen(false);
                     }
-                } catch (error) {
+                } catch (error: unknown) {
                     logger.error("Open file failed:", error);
                     setIsFilePickerOpen(false);
                 }
@@ -258,9 +266,9 @@ function App() {
                 isSavingRef.current = true;
                 try {
                     await saveCells();
-                } catch (error) {
+                } catch (error: unknown) {
                     // If this is a temp file, show Save As dialog
-                    if (error instanceof Error && error.message === "TEMP_FILE_NEEDS_LOCATION") {
+                    if (isErrorWithMessage(error, "TEMP_FILE_NEEDS_LOCATION")) {
                         setIsFilePickerOpen(true);
                         try {
                             const fileInfo = useCellStore.getState().fileInfo;
@@ -284,7 +292,7 @@ function App() {
                                 // User cancelled, close overlay
                                 setIsFilePickerOpen(false);
                             }
-                        } catch (saveError) {
+                        } catch (saveError: unknown) {
                             logger.error("Save As failed:", saveError);
                             setIsFilePickerOpen(false);
                         }
@@ -388,7 +396,7 @@ function App() {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [saveCells, loadCells, openFind, openReplace, undo, redo, canUndo, canRedo, togglePosition]);
+    }, [saveCells, loadCells, openFind, openReplace, undo, redo, canUndo, canRedo, togglePosition, applyWorkspaceLayout]);
 
     // Determine loading state and message
     // Only show blocking LoadingScreen during initialization, not file loading

@@ -135,7 +135,7 @@ export const useGlobalConfigStore = create<GlobalConfigStore>((set, get) => ({
                 let parsedData: unknown;
                 try {
                     parsedData = JSON.parse(jsonData);
-                } catch (parseError) {
+                } catch (parseError: unknown) {
                     logger.error("Failed to parse config JSON:", parseError);
                     set({ config: DEFAULT_CONFIG, isLoaded: true });
                     return;
@@ -146,14 +146,14 @@ export const useGlobalConfigStore = create<GlobalConfigStore>((set, get) => ({
                 if (validatedConfig) {
                     set({ config: validatedConfig, isLoaded: true });
                 } else {
-                    console.warn("Config validation failed, using defaults");
+                    logger.warn("Config validation failed, using defaults");
                     set({ config: DEFAULT_CONFIG, isLoaded: true });
                 }
             } else {
                 // No existing config, use defaults
                 set({ config: DEFAULT_CONFIG, isLoaded: true });
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to load global config:", error);
             // Fall back to defaults on error
             set({ config: DEFAULT_CONFIG, isLoaded: true });
@@ -168,7 +168,7 @@ export const useGlobalConfigStore = create<GlobalConfigStore>((set, get) => ({
         try {
             const jsonData = JSON.stringify(config, null, 2);
             await invoke("save_preferences", { data: jsonData });
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to save global config:", error);
         }
     },

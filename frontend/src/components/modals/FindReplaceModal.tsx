@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { useCellStore } from "@stores/cellStore";
+import { logger } from "@utils/logger";
 
 /**
  * Convert a wildcard pattern to a regular expression
@@ -174,9 +175,9 @@ function FindReplaceModal() {
                 if (!matchCase) {
                     searchRegex = new RegExp(searchRegex.source, "i");
                 }
-            } catch (error) {
+            } catch (error: unknown) {
                 // Invalid regex pattern - treat as literal string search
-                console.warn("Invalid wildcard pattern:", error);
+                logger.warn("Invalid wildcard pattern:", error);
             }
         }
 
@@ -235,12 +236,12 @@ function FindReplaceModal() {
 
                 // Verify the replacement actually happened (regex matched)
                 if (newValue === cellValue && !searchRegex.test(cellValue)) {
-                    console.warn("Regex replacement: pattern did not match cell value");
+                    logger.warn("Regex replacement: pattern did not match cell value");
                     return; // Don't update cell if pattern didn't match
                 }
-            } catch (error) {
+            } catch (error: unknown) {
                 // If regex fails, notify user and skip this replacement
-                console.error("Regex replacement failed:", error);
+                logger.error("Regex replacement failed:", error);
                 return; // Don't update cell with potentially incorrect value
             }
         }
@@ -272,9 +273,9 @@ function FindReplaceModal() {
                     } else {
                         newValue = cellValue.replace(searchRegex, replaceTerm);
                     }
-                } catch (error) {
+                } catch (error: unknown) {
                     // If regex fails, use simple replacement
-                    console.warn("Regex replacement failed:", error);
+                    logger.warn("Regex replacement failed:", error);
                     newValue = replaceTerm;
                 }
             }

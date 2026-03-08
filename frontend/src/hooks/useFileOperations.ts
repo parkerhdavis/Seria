@@ -9,6 +9,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCellStore } from "@/stores/cellStore";
 import { logger } from "@/utils/logger";
 import { formatError } from "@/utils/tauriErrorHandler";
+import { toast } from "@/stores/toastStore";
 
 interface UseFileOperationsOptions {
     /** Callback when file picker opens/closes */
@@ -81,7 +82,9 @@ export function useFileOperations(
                 }
             }
         } catch (error: unknown) {
-            logger.error("Failed to open file:", formatError(error));
+            const message = formatError(error);
+            logger.error("Failed to open file:", message);
+            toast.error(`Failed to open file: ${message}`);
         } finally {
             onFilePickerOpenChange(false);
         }
@@ -99,7 +102,9 @@ export function useFileOperations(
             if (error instanceof Error && error.message === "TEMP_FILE_NEEDS_LOCATION") {
                 await handleSaveAs();
             } else {
-                logger.error("Failed to save file:", formatError(error));
+                const message = formatError(error);
+                logger.error("Failed to save file:", message);
+                toast.error(`Failed to save file: ${message}`);
             }
         }
     };
@@ -126,7 +131,9 @@ export function useFileOperations(
                 await saveCellAs(filePath);
             }
         } catch (error: unknown) {
-            logger.error("Failed to save file:", formatError(error));
+            const message = formatError(error);
+            logger.error("Failed to save file:", message);
+            toast.error(`Failed to save file: ${message}`);
         } finally {
             onFilePickerOpenChange(false);
         }
@@ -139,7 +146,9 @@ export function useFileOperations(
         try {
             await reloadCells();
         } catch (error: unknown) {
-            logger.error("Failed to reload file:", formatError(error));
+            const message = formatError(error);
+            logger.error("Failed to reload file:", message);
+            toast.error(`Failed to reload file: ${message}`);
         }
     };
 
@@ -152,7 +161,9 @@ export function useFileOperations(
             try {
                 await saveCells();
             } catch (error: unknown) {
-                logger.error("Failed to save file before creating new:", formatError(error));
+                const message = formatError(error);
+                logger.error("Failed to save file before creating new:", message);
+                toast.error(`Failed to save file: ${message}`);
                 return;
             }
         }
@@ -182,7 +193,9 @@ export function useFileOperations(
                 }
             }
         } catch (error: unknown) {
-            logger.error("Failed to import screenplay:", formatError(error));
+            const message = formatError(error);
+            logger.error("Failed to import screenplay:", message);
+            toast.error(`Failed to import file: ${message}`);
         } finally {
             onFilePickerOpenChange(false);
         }
@@ -194,6 +207,7 @@ export function useFileOperations(
     const handleExportScreenplay = async (): Promise<void> => {
         if (!fileInfo) {
             logger.warn("No file is currently open for export");
+            toast.warning("No file is currently open");
             return;
         }
 
@@ -221,9 +235,12 @@ export function useFileOperations(
                 if (document.activeElement instanceof HTMLElement) {
                     document.activeElement.blur();
                 }
+                toast.success("Screenplay exported successfully");
             }
         } catch (error: unknown) {
-            logger.error("Failed to export screenplay:", formatError(error));
+            const message = formatError(error);
+            logger.error("Failed to export screenplay:", message);
+            toast.error(`Failed to export screenplay: ${message}`);
         } finally {
             onFilePickerOpenChange(false);
         }

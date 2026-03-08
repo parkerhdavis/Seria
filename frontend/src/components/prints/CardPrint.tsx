@@ -13,6 +13,7 @@ import { getMappedColumn, getMappedColumns } from "@/utils/printRecipeMapper";
 import { useCellStore } from "@stores/cellStore";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
 import { useCellEditStore } from "@stores/cellEditStore";
+import { logger } from "@utils/logger";
 
 interface CardPrintProps {
     data: string[][];
@@ -710,7 +711,7 @@ function CardPrint({
                 setCards(message.cards);
                 setIsCalculating(false);
             } else if (message.type === "error") {
-                console.error("CardPrint worker error:", message.message);
+                logger.error("CardPrint worker error:", message.message);
                 setCards([]);
                 setIsCalculating(false);
             }
@@ -957,8 +958,8 @@ function CardPrint({
                                         if (colIndex === -1) return;
                                         updateCell(contextMenu.cardIndex, colIndex, text);
                                         setContextMenu(null);
-                                    } catch (err) {
-                                        console.error("Failed to paste:", err);
+                                    } catch (err: unknown) {
+                                        logger.error("Failed to paste:", err);
                                     }
                                 }}
                             >

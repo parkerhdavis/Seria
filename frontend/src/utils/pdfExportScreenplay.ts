@@ -17,6 +17,8 @@ import { jsPDF } from "jspdf";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import type { ExportSettings } from "@/components/prints/ExportDialog";
 import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
+import { logger } from "@/utils/logger";
+import { formatError } from "@/utils/tauriErrorHandler";
 
 // Extended jsPDF interface to include setGState (not in official types)
 interface ExtendedJsPDF extends jsPDF {
@@ -84,10 +86,10 @@ async function registerCourierPrimeFont(pdf: jsPDF): Promise<void> {
             pdf.addFont(font.name, "CourierPrime", font.style, font.weight);
         }
 
-        console.log("[Screenplay PDF Export] Courier Prime fonts registered successfully");
-    } catch (error) {
-        console.error("[Screenplay PDF Export] Failed to load Courier Prime fonts:", error);
-        console.warn("[Screenplay PDF Export] Falling back to default Courier font");
+        logger.debug("[Screenplay PDF Export] Courier Prime fonts registered successfully");
+    } catch (error: unknown) {
+        logger.error("[Screenplay PDF Export] Failed to load Courier Prime fonts:", error);
+        logger.warn("[Screenplay PDF Export] Falling back to default Courier font");
     }
 }
 
@@ -271,7 +273,7 @@ export async function exportScreenplayToPDF(
     settings: ExportSettings
 ): Promise<void> {
     try {
-        console.log("[Screenplay PDF Export] Starting text-based PDF export...");
+        logger.debug("[Screenplay PDF Export] Starting text-based PDF export...");
 
         // Report initial progress
         settings.onProgress?.({
@@ -284,7 +286,7 @@ export async function exportScreenplayToPDF(
         // Parse CSV data into screenplay elements
         // Elements are already sorted per-row during parsing
         const elements = parseScreenplayElements(data, headers, recipe, configuration);
-        console.log(`[Screenplay PDF Export] Parsed ${elements.length} screenplay elements`);
+        logger.debug(`[Screenplay PDF Export] Parsed ${elements.length} screenplay elements`);
 
         settings.onProgress?.({
             stage: "Parsing screenplay elements",
@@ -522,7 +524,7 @@ export async function exportScreenplayToPDF(
         const pdfBytes = new Uint8Array(pdfArrayBuffer);
         await writeFile(settings.savePath, pdfBytes);
 
-        console.log("[Screenplay PDF Export] PDF saved successfully");
+        logger.debug("[Screenplay PDF Export] PDF saved successfully");
 
         // Report completion
         settings.onProgress?.({
@@ -531,11 +533,9 @@ export async function exportScreenplayToPDF(
             total: elements.length,
             percentage: 100,
         });
-    } catch (error) {
-        console.error("Screenplay PDF export failed:", error);
-        throw new Error(
-            `Failed to export screenplay PDF: ${error instanceof Error ? error.message : "Unknown error"}`
-        );
+    } catch (error: unknown) {
+        logger.error("Screenplay PDF export failed:", error);
+        throw new Error(`Failed to export screenplay PDF: ${formatError(error)}`);
     }
 }
 
@@ -710,7 +710,7 @@ function renderElement(
 ): { y: number; spaceAfter: number } {
     const elementConfig = recipe.ingredients[element.type];
     if (!elementConfig) {
-        console.warn(`No ingredient config found for type: ${element.type}`);
+        logger.warn(`No ingredient config found for type: ${element.type}`);
         return { y: currentY, spaceAfter: 0 };
     }
 

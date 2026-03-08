@@ -18,6 +18,7 @@ import { useCellHistoryStore, createSnapshot } from "./cellHistoryStore";
 import { useCellSelectionStore } from "./cellSelectionStore";
 import { useCellEditStore } from "./cellEditStore";
 import { logger } from "@/utils/logger";
+import { formatError } from "@/utils/tauriErrorHandler";
 import { buildColumnCache, updateColumnCache } from "@utils/autocomplete";
 
 // Column filter
@@ -309,7 +310,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 } else {
                     logger.debug("No existing config for file, using defaults");
                 }
-            } catch (error) {
+            } catch (error: unknown) {
                 logger.error("Failed to load file config:", error);
                 // Continue without config - not a fatal error
             }
@@ -319,13 +320,13 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 const globalConfigStore = useGlobalConfigStore.getState();
                 await globalConfigStore.setLastOpenedFile(path);
                 await globalConfigStore.addRecentFile(path);
-            } catch (error) {
+            } catch (error: unknown) {
                 logger.error("Failed to update global config:", error);
                 // Non-fatal error, continue
             }
-        } catch (error) {
+        } catch (error: unknown) {
             set({
-                error: `Failed to load Cell: ${error}`,
+                error: `Failed to load Cell: ${formatError(error)}`,
                 isLoading: false,
             });
         }
@@ -517,7 +518,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
                             // Update last seen timestamp
                             await useFileConfigStore.getState().saveConfigForFile(identifiers, fileConfig.config);
                         }
-                    } catch (error) {
+                    } catch (error: unknown) {
                         logger.error("Failed to load file config:", error);
                         // Continue without config - not a fatal error
                     }
@@ -527,7 +528,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
                         const globalConfigStore = useGlobalConfigStore.getState();
                         await globalConfigStore.setLastOpenedFile(path);
                         await globalConfigStore.addRecentFile(path);
-                    } catch (error) {
+                    } catch (error: unknown) {
                         logger.error("Failed to update global config:", error);
                     }
                 },
@@ -547,14 +548,14 @@ export const useCellStore = create<CellStore>((set, get) => ({
                     });
                 },
             });
-        } catch (error) {
+        } catch (error: unknown) {
             // Check if this load was cancelled
             if (loadId !== currentLoadId) {
                 return;
             }
 
             set({
-                error: `Failed to load Cell: ${error}`,
+                error: `Failed to load Cell: ${formatError(error)}`,
                 isLoading: false,
                 isFullyLoaded: false,
                 loadingProgress: 0,
@@ -609,9 +610,9 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 error: null,
                 lastSavedAt: Date.now(),
             });
-        } catch (error) {
+        } catch (error: unknown) {
             set({
-                error: `Failed to save Cell: ${error}`,
+                error: `Failed to save Cell: ${formatError(error)}`,
                 isLoading: false,
             });
         }
@@ -660,12 +661,12 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 const globalConfigStore = useGlobalConfigStore.getState();
                 await globalConfigStore.setLastOpenedFile(path);
                 await globalConfigStore.addRecentFile(path);
-            } catch (error) {
+            } catch (error: unknown) {
                 logger.error("Failed to update global config:", error);
             }
-        } catch (error) {
+        } catch (error: unknown) {
             set({
-                error: `Failed to save Cell: ${error}`,
+                error: `Failed to save Cell: ${formatError(error)}`,
                 isLoading: false,
             });
         }
@@ -687,9 +688,9 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 isTempFile: true,
                 isDirty: true,
             });
-        } catch (error) {
+        } catch (error: unknown) {
             set({
-                error: `Failed to create new file: ${error}`,
+                error: `Failed to create new file: ${formatError(error)}`,
                 isLoading: false,
             });
         }
@@ -725,9 +726,9 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 isTempFile: true,
                 isDirty: true,
             });
-        } catch (error) {
+        } catch (error: unknown) {
             set({
-                error: `Failed to import screenplay: ${error}`,
+                error: `Failed to import screenplay: ${formatError(error)}`,
                 isLoading: false,
             });
         }
@@ -758,9 +759,9 @@ export const useCellStore = create<CellStore>((set, get) => ({
             });
 
             set({ isLoading: false });
-        } catch (error) {
+        } catch (error: unknown) {
             set({
-                error: `Failed to export screenplay: ${error}`,
+                error: `Failed to export screenplay: ${formatError(error)}`,
                 isLoading: false,
             });
         }
@@ -943,7 +944,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
         try {
             const globalConfigStore = useGlobalConfigStore.getState();
             globalConfigStore.setLastOpenedFile(null);
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to clear last opened file from global config:", error);
         }
     },

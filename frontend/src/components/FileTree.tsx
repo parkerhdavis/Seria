@@ -41,7 +41,7 @@ function FileTree() {
                 setRootDirectory(selectedDir);
                 await loadDirectoryContents(selectedDir);
             }
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to open directory:", error);
         }
     };
@@ -79,9 +79,8 @@ function FileTree() {
 
             logger.debug("Processed file list:", fileList);
             setFiles(fileList);
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Failed to read directory:", error);
-            logger.error("Error details:", JSON.stringify(error));
             setFiles([]);
         }
     };
@@ -106,7 +105,7 @@ function FileTree() {
             // Open Cell file
             try {
                 await loadCells(file.path);
-            } catch (error) {
+            } catch (error: unknown) {
                 logger.error("Failed to open file:", error);
             }
         }

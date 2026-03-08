@@ -13,6 +13,7 @@ import { useCellStore } from "@stores/cellStore";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
 import { useCellEditStore } from "@stores/cellEditStore";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
+import { logger } from "@utils/logger";
 
 interface ScreenplayPrintProps {
     data: string[][];
@@ -507,8 +508,8 @@ function ScreenplayPrint({
 
                 try {
                     await writeText(copiedValues.join("\n"));
-                } catch (err) {
-                    console.error("Failed to copy to system clipboard:", err);
+                } catch (err: unknown) {
+                    logger.error("Failed to copy to system clipboard:", err);
                 }
                 return;
             }
@@ -528,8 +529,8 @@ function ScreenplayPrint({
                     await writeText(copiedValues.join("\n"));
                     // Mark elements as cut (they'll be cleared on paste)
                     setCutElements([...allSelectedElements]);
-                } catch (err) {
-                    console.error("Failed to cut to system clipboard:", err);
+                } catch (err: unknown) {
+                    logger.error("Failed to cut to system clipboard:", err);
                 }
                 return;
             }
@@ -583,8 +584,8 @@ function ScreenplayPrint({
                         useCellStore.getState().updateCells(clearUpdates);
                         setCutElements([]);
                     }
-                } catch (err) {
-                    console.error("Failed to paste from system clipboard:", err);
+                } catch (err: unknown) {
+                    logger.error("Failed to paste from system clipboard:", err);
                 }
                 return;
             }
@@ -884,7 +885,7 @@ function ScreenplayPrint({
                 setPages(message.pages);
                 setIsCalculating(false);
             } else if (message.type === "error") {
-                console.error("ScreenplayPrint worker error:", message.message);
+                logger.error("ScreenplayPrint worker error:", message.message);
                 setElements([]);
                 setPages([{ elements: [], pageNumber: 1 }]);
                 setIsCalculating(false);
@@ -893,7 +894,7 @@ function ScreenplayPrint({
 
         // Listen for worker errors
         worker.addEventListener("error", (e) => {
-            console.error("ScreenplayPrint worker error event:", e);
+            logger.error("ScreenplayPrint worker error event:", e);
             setElements([]);
             setPages([{ elements: [], pageNumber: 1 }]);
             setIsCalculating(false);
@@ -1240,8 +1241,8 @@ function ScreenplayPrint({
                                         if (colIndex === -1) return;
                                         updateCell(contextMenu.rowIndex, colIndex, text);
                                         setContextMenu(null);
-                                    } catch (err) {
-                                        console.error("Failed to paste:", err);
+                                    } catch (err: unknown) {
+                                        logger.error("Failed to paste:", err);
                                     }
                                 }}
                             >

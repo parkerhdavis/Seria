@@ -9,6 +9,8 @@ import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import type { ExportSettings } from "@/components/prints/ExportDialog";
+import { logger } from "@/utils/logger";
+import { formatError } from "@/utils/tauriErrorHandler";
 
 /**
  * Exports a Print view element to PDF with the specified settings
@@ -21,7 +23,7 @@ export async function exportPrintToPDF(
     settings: ExportSettings
 ): Promise<void> {
     try {
-        console.log("[PDF Export] Starting PDF export...");
+        logger.debug("[PDF Export] Starting PDF export...");
 
         // Report initial progress
         settings.onProgress?.({
@@ -33,12 +35,12 @@ export async function exportPrintToPDF(
 
         // Clone the element so we can modify it without affecting the UI
         const clone = printElement.cloneNode(true) as HTMLElement;
-        console.log("[PDF Export] Element cloned");
+        logger.debug("[PDF Export] Element cloned");
 
         // Count total elements for progress tracking
         // This gives users an accurate estimate of how many elements need to be processed
         const totalElements = countElements(clone);
-        console.log(`[PDF Export] Total elements to process: ${totalElements}`);
+        logger.debug(`[PDF Export] Total elements to process: ${totalElements}`);
 
         settings.onProgress?.({
             stage: "Cloning element",
@@ -49,29 +51,29 @@ export async function exportPrintToPDF(
 
         // Apply export-specific styling with progress tracking
         // This is the most time-consuming step, especially for large documents
-        console.log("[PDF Export] Applying export styles...");
+        logger.debug("[PDF Export] Applying export styles...");
         applyExportStyles(clone, settings, totalElements);
-        console.log("[PDF Export] Export styles applied");
+        logger.debug("[PDF Export] Export styles applied");
 
         // Add watermark if enabled
         if (settings.watermark) {
-            console.log("[PDF Export] Adding watermark...");
+            logger.debug("[PDF Export] Adding watermark...");
             addWatermark(clone, settings.watermark);
         }
 
         // Add headers/footers if enabled
         if (settings.includeHeaders && settings.headerText) {
-            console.log("[PDF Export] Adding header...");
+            logger.debug("[PDF Export] Adding header...");
             addHeader(clone, settings.headerText);
         }
         if (settings.includeFooters && settings.footerText) {
-            console.log("[PDF Export] Adding footer...");
+            logger.debug("[PDF Export] Adding footer...");
             addFooter(clone, settings.footerText);
         }
 
         // Filter pages if custom page range is specified
         if (settings.pageRange === "custom" && settings.customPageStart && settings.customPageEnd) {
-            console.log("[PDF Export] Filtering page range...");
+            logger.debug("[PDF Export] Filtering page range...");
             filterPageRange(clone, settings.customPageStart, settings.customPageEnd);
         }
 
@@ -94,7 +96,7 @@ export async function exportPrintToPDF(
         iframe.style.width = "8.5in";  // US Letter width
         iframe.style.height = "11in";   // US Letter height
         document.body.appendChild(iframe);
-        console.log("[PDF Export] Iframe created");
+        logger.debug("[PDF Export] Iframe created");
 
         // Wait for iframe to be fully initialized
         await new Promise((resolve) => {
@@ -129,7 +131,7 @@ export async function exportPrintToPDF(
 
         // Add the clone (with all inlined RGB styles) to the iframe body
         iframeDoc.body.appendChild(clone);
-        console.log("[PDF Export] Clone added to iframe");
+        logger.debug("[PDF Export] Clone added to iframe");
 
         // Force browser to recalculate layout before rendering
         void clone.offsetHeight;
@@ -141,7 +143,7 @@ export async function exportPrintToPDF(
             percentage: 50,
         });
 
-        console.log("[PDF Export] Generating canvas with html2canvas...");
+        logger.debug("[PDF Export] Generating canvas with html2canvas...");
 
         settings.onProgress?.({
             stage: "Rendering to canvas",
@@ -163,7 +165,7 @@ export async function exportPrintToPDF(
             foreignObjectRendering: false, // Disable SVG rendering (would try to access stylesheets)
         });
 
-        console.log("[PDF Export] Canvas generated, creating PDF...");
+        logger.debug("[PDF Export] Canvas generated, creating PDF...");
 
         settings.onProgress?.({
             stage: "Creating PDF document",
@@ -206,7 +208,7 @@ export async function exportPrintToPDF(
 
         // Save the PDF to the user-specified path using Tauri's file system API
         // jsPDF generates the PDF as an ArrayBuffer, which we convert to bytes
-        console.log("[PDF Export] Saving PDF to disk...");
+        logger.debug("[PDF Export] Saving PDF to disk...");
         const pdfArrayBuffer = pdf.output("arraybuffer");
         const pdfBytes = new Uint8Array(pdfArrayBuffer);
 
@@ -220,7 +222,7 @@ export async function exportPrintToPDF(
         // Write the PDF file to disk at the exact path the user chose
         await writeFile(settings.savePath, pdfBytes);
 
-        console.log("[PDF Export] PDF saved successfully");
+        logger.debug("[PDF Export] PDF saved successfully");
 
         // Report completion
         settings.onProgress?.({
@@ -232,12 +234,10 @@ export async function exportPrintToPDF(
 
         // Remove the temporary iframe
         document.body.removeChild(iframe);
-        console.log("[PDF Export] Cleanup complete");
-    } catch (error) {
-        console.error("PDF export failed:", error);
-        throw new Error(
-            `Failed to export PDF: ${error instanceof Error ? error.message : "Unknown error"}`
-        );
+        logger.debug("[PDF Export] Cleanup complete");
+    } catch (error: unknown) {
+        logger.error("PDF export failed:", error);
+        throw new Error(`Failed to export PDF: ${formatError(error)}`);
     }
 }
 
@@ -275,7 +275,7 @@ function inlineAllComputedStyles(
     // This is where oklch gets converted to RGB automatically by the browser
     const computedStyle = window.getComputedStyle(element);
 
-    console.log("[Style Inline] Processing element:", element.tagName, element.className);
+    logger.trace("[Style Inline] Processing element:", element.tagName, element.className);
 
     // Color properties are most likely to contain oklch, so prioritize them
     const criticalProps = [
@@ -296,10 +296,10 @@ function inlineAllComputedStyles(
     criticalProps.forEach((prop) => {
         const value = computedStyle.getPropertyValue(prop);
         if (value) {
-            console.log(`  ${prop}: ${value}`);
+            logger.trace(`  ${prop}: ${value}`);
             // Debug check: if we still see oklch here, something is wrong
             if (value.includes("oklch")) {
-                console.warn(`  WARNING: oklch found in ${prop}: ${value}`);
+                logger.warn(`  WARNING: oklch found in ${prop}: ${value}`);
             }
             // Set as inline style with !important to override everything
             element.style.setProperty(prop, value, "important");
@@ -340,7 +340,7 @@ function inlineAllComputedStyles(
     // Also remove id attribute to be extra safe
     element.removeAttribute("id");
 
-    console.log(`  Removed classes and id from ${element.tagName}`);
+    logger.trace(`  Removed classes and id from ${element.tagName}`);
 
     // Increment counter and report progress
     elementCount.value++;

@@ -9,6 +9,7 @@ import { CellData } from "@/types/cellData";
 import type {
     WorkerResponse,
 } from "./cellParser.worker";
+import { logger } from "@/utils/logger";
 
 /**
  * Parsed Cell data with metadata
@@ -31,7 +32,7 @@ export function parseCells(cellContent: string): ParsedCellData {
     });
 
     if (result.errors.length > 0) {
-        console.warn("Cell parsing errors:", result.errors);
+        logger.warn("Cell parsing errors:", result.errors);
     }
 
     const data = result.data;
