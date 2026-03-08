@@ -62,7 +62,7 @@
  *   Worker sends chunks, main thread batches state updates
  */
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCellStore } from "@stores/cellStore";
@@ -73,13 +73,15 @@ import { useCellFilterStore } from "@stores/cellFilterStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { useDrawerStore } from "@stores/drawerStore";
-import { logger } from "@utils/logger";
 import ColumnFilterDropdown from "../toolbar/ColumnFilterDropdown";
-import { calculateSummary } from "@utils/summaryCalculations";
-import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
+import { useClipboard } from "@/hooks/useClipboard";
 import { useAutosave } from "@utils/useAutosave";
-import { getSuggestions } from "@utils/autocomplete";
+import { useAutocomplete } from "@/hooks/useAutocomplete";
 import AutocompleteDropdown from "./AutocompleteDropdown";
+import SummaryRow from "./SummaryRow";
+import ContextMenu from "./ContextMenu";
+import FillDialog from "./FillDialog";
+import { useContextMenu } from "@/hooks/useContextMenu";
 import { useFilteredData } from "@/hooks/useFilteredData";
 import { useColumnWidths } from "@/hooks/useColumnWidths";
 import { useColumnResize } from "@/hooks/useColumnResize";
@@ -163,19 +165,8 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const [isSelecting, setIsSelecting] = useState(false);
     const [selectionStart, setSelectionStart] = useState<{ row: number; col: number } | null>(null);
 
-    // Cut cells state - tracks cells that have been cut but not yet pasted
-    const [cutCells, setCutCells] = useState<{ row: number; col: number }[] | null>(null);
-
     // Hover state for column highlighting
     const [hoveredColumn, setHoveredColumn] = useState<number | null>(null);
-
-    // Context menu state
-    const [contextMenu, setContextMenu] = useState<{
-        x: number;
-        y: number;
-        row: number;
-        col: number;
-    } | null>(null);
 
     // Multi-cell fill dialog state
     const [showFillDialog, setShowFillDialog] = useState(false);
@@ -184,8 +175,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const pendingSelectionRef = useRef<{ row: number; col: number } | null>(null);
     const rafIdRef = useRef<number | null>(null);
 
-    // Summary row scroll sync
-    const [summaryRowScrollLeft, setSummaryRowScrollLeft] = useState(0);
+
 
     // Popout edit box position (for multi-line editing when wrap text is off)
     const [popoutEditPosition, setPopoutEditPosition] = useState<{
@@ -194,17 +184,14 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         width: number;
     } | null>(null);
 
-    // Autocomplete state
-    const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
-    const [autocompleteSelectedIndex, setAutocompleteSelectedIndex] = useState(0);
-    const [showAutocomplete, setShowAutocomplete] = useState(false);
+
 
     // ===== REFS =====
     const parentRef = useRef<HTMLDivElement>(null);
     const gridFocusRef = useRef<HTMLDivElement>(null);
     const editingCellRef = useRef<HTMLDivElement | null>(null);
     const editingInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
-    const summaryRowContentRef = useRef<HTMLDivElement>(null);
+
 
     // ===== EXTRACTED HOOKS =====
     // Filtered data
@@ -241,6 +228,52 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         handleColumnDragEnd,
     } = useColumnDragAndDrop(reorderColumns, triggerAutosave);
 
+    // Clipboard operations hook
+    const {
+        cutCells,
+        setCutCells,
+        handleCopyToClipboard,
+        handleCutToClipboard,
+        handlePasteFromSystemClipboard,
+    } = useClipboard({
+        selectedCell,
+        selectedRange,
+        filteredData,
+        headers,
+        copySelection,
+        updateCells,
+        triggerAutosave,
+        hasMultipleCursors,
+        getAllCursors,
+    });
+
+    // Context menu hook
+    const {
+        contextMenu,
+        closeContextMenu,
+        handleCellContextMenu,
+    } = useContextMenu({
+        selectedCell,
+        selectedRange,
+        setSelectedCell,
+    });
+
+    // Autocomplete hook
+    const {
+        autocompleteSuggestions,
+        autocompleteSelectedIndex,
+        showAutocomplete,
+        updateAutocompleteSuggestions,
+        closeAutocomplete,
+        navigateAutocomplete,
+        getSelectedSuggestion,
+        handleAutocompleteKeyDown,
+    } = useAutocomplete({
+        autocompleteEnabled,
+        autocompleteMinChars,
+        columnCache,
+    });
+
     // ===== VIRTUALIZER SETUP WITH DYNAMIC SIZING =====
     const rowVirtualizer = useVirtualizer({
         count: filteredData.length,
@@ -258,16 +291,6 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
     // ===== MEMOIZED SUMMARY CALCULATIONS =====
     // Prevents expensive recalculation on every render - only recalculates when data changes
-    const memoizedSummaryValues = useMemo(() => {
-        const summaries: Record<string, string> = {};
-        headers.forEach((columnName, colIndex) => {
-            const summaryType = columnSummaries[columnName] || "count";
-            const columnData = filteredData.map((row) => row[colIndex] || "");
-            summaries[columnName] = calculateSummary(columnData, summaryType);
-        });
-        return summaries;
-    }, [headers, filteredData, columnSummaries]);
-
     // ===== ROW COLORING =====
     const rowMatchesFilter = (row: string[]) => {
         if (!rowColorFilter || !rowColorFilter.value) return false;
@@ -294,30 +317,6 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
 
     // Container resize observer and auto-fit initialization handled by useColumnWidths hook
-
-    // ===== SUMMARY ROW SCROLL SYNC =====
-
-    // Sync summary row horizontal scroll with main grid scroll
-    useEffect(() => {
-        const handleScroll = () => {
-            if (parentRef.current) {
-                setSummaryRowScrollLeft(parentRef.current.scrollLeft);
-            }
-        };
-
-        const container = parentRef.current;
-        if (container) {
-            container.addEventListener("scroll", handleScroll);
-            return () => container.removeEventListener("scroll", handleScroll);
-        }
-    }, []);
-
-    // Apply scroll position to summary row content
-    useEffect(() => {
-        if (summaryRowContentRef.current) {
-            summaryRowContentRef.current.scrollLeft = summaryRowScrollLeft;
-        }
-    }, [summaryRowScrollLeft]);
 
     // ===== GLOBAL EVENT HANDLERS =====
 
@@ -353,15 +352,14 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                     const value = editingValue;
                     updateCell(editingCell.row, editingCell.col, value);
                     clearEditingCell();
-                    setShowAutocomplete(false);
-                    setAutocompleteSuggestions([]);
+                    closeAutocomplete();
                 }
             }
         };
 
         document.addEventListener("mousedown", handleMouseDown);
         return () => document.removeEventListener("mousedown", handleMouseDown);
-    }, [editingCell, editingSource, editingValue, updateCell, clearEditingCell]);
+    }, [editingCell, editingSource, editingValue, updateCell, clearEditingCell, closeAutocomplete]);
 
     // ===== KEYBOARD SHORTCUTS =====
     useEffect(() => {
@@ -640,38 +638,13 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             }
         }
         clearEditingCell();
-        setShowAutocomplete(false);
-        setAutocompleteSuggestions([]);
+        closeAutocomplete();
 
         // Restore focus to grid
         if (gridFocusRef.current) {
             gridFocusRef.current.focus();
         }
-    }, [editingCell, editingValue, updateCell, updateCells, onCellEdit, clearEditingCell, hasMultipleCursors, getAllCursors]);
-
-    // Update autocomplete suggestions based on current input
-    const updateAutocompleteSuggestions = useCallback((col: number, value: string) => {
-        if (!autocompleteEnabled) {
-            setShowAutocomplete(false);
-            return;
-        }
-
-        if (value.length < autocompleteMinChars) {
-            setShowAutocomplete(false);
-            return;
-        }
-
-        const columnValues = columnCache.get(col) || new Set<string>();
-        const suggestions = getSuggestions(col, value, columnValues, [], 10);
-
-        if (suggestions.length > 0) {
-            setAutocompleteSuggestions(suggestions);
-            setAutocompleteSelectedIndex(0);
-            setShowAutocomplete(true);
-        } else {
-            setShowAutocomplete(false);
-        }
-    }, [autocompleteEnabled, autocompleteMinChars, columnCache]);
+    }, [editingCell, editingValue, updateCell, updateCells, onCellEdit, clearEditingCell, closeAutocomplete, hasMultipleCursors, getAllCursors]);
 
     const handleKeyDown = (
         e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -681,30 +654,17 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         const isTextarea = e.currentTarget instanceof HTMLTextAreaElement;
 
         // Handle autocomplete keyboard navigation
-        if (showAutocomplete && autocompleteSuggestions.length > 0) {
-            if (e.key === "ArrowDown") {
-                e.preventDefault();
-                setAutocompleteSelectedIndex((prev) =>
-                    prev < autocompleteSuggestions.length - 1 ? prev + 1 : prev
-                );
-                return;
-            }
-            if (e.key === "ArrowUp") {
-                e.preventDefault();
-                setAutocompleteSelectedIndex((prev) => prev > 0 ? prev - 1 : prev);
-                return;
-            }
-            if (e.key === "Enter" || e.key === "Tab") {
-                e.preventDefault();
-                const selectedValue = autocompleteSuggestions[autocompleteSelectedIndex];
+        if (handleAutocompleteKeyDown(e)) {
+            return; // Event fully consumed by autocomplete (arrow nav or escape)
+        }
+        // For Enter/Tab with autocomplete open, accept the suggestion and continue
+        if (showAutocomplete && (e.key === "Enter" || e.key === "Tab")) {
+            const selectedValue = getSelectedSuggestion();
+            if (selectedValue) {
                 updateEditingValue(selectedValue);
-                setShowAutocomplete(false);
-                // Don't return - let it commit the edit
             }
-            if (e.key === "Escape") {
-                setShowAutocomplete(false);
-                return;
-            }
+            closeAutocomplete();
+            // Don't return - let normal Enter/Tab handling commit the edit
         }
 
         if (e.key === "Enter") {
@@ -756,193 +716,16 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         } else if (e.key === "Escape") {
             e.stopPropagation();
             clearEditingCell();
-            setShowAutocomplete(false);
-            setAutocompleteSuggestions([]);
+            closeAutocomplete();
             if (gridFocusRef.current) {
                 gridFocusRef.current.focus();
             }
         }
     };
 
-    // ===== CLIPBOARD OPERATIONS =====
-    // Wrapped in useCallback to prevent recreation on every render
-
-    // Copy selection to both internal and system clipboard
-    const handleCopyToClipboard = useCallback(async () => {
-        // Cancel any pending cut operation
-        setCutCells(null);
-
-        // Copy to internal clipboard (for advanced paste operations like tiling)
-        copySelection();
-
-        // Also copy to system clipboard in tab-delimited format using Tauri's clipboard API
-        try {
-            if (selectedRange) {
-                const { startRow, startCol, endRow, endCol } = selectedRange;
-                const minRow = Math.min(startRow, endRow);
-                const maxRow = Math.max(startRow, endRow);
-                const minCol = Math.min(startCol, endCol);
-                const maxCol = Math.max(startCol, endCol);
-
-                const copiedRows: string[] = [];
-                for (let r = minRow; r <= maxRow; r++) {
-                    const rowCells: string[] = [];
-                    for (let c = minCol; c <= maxCol; c++) {
-                        rowCells.push(filteredData[r]?.[c] || "");
-                    }
-                    copiedRows.push(rowCells.join("\t"));
-                }
-
-                await writeText(copiedRows.join("\n"));
-            } else if (selectedCell) {
-                const value = filteredData[selectedCell.row]?.[selectedCell.col] || "";
-                await writeText(value);
-            }
-        } catch (err: unknown) {
-            logger.error("Failed to copy to system clipboard:", err);
-        }
-    }, [copySelection, selectedRange, selectedCell, filteredData]);
-
-    // Cut selection to clipboard and mark cells for later clearing
-    const handleCutToClipboard = useCallback(async () => {
-        // First copy to clipboard
-        await handleCopyToClipboard();
-
-        // Mark the cells as cut (to show dotted outline) instead of clearing immediately
-        // They will be cleared when pasted
-        const cellsToCut: { row: number; col: number }[] = [];
-
-        if (selectedRange) {
-            const { startRow, startCol, endRow, endCol } = selectedRange;
-            const minRow = Math.min(startRow, endRow);
-            const maxRow = Math.max(startRow, endRow);
-            const minCol = Math.min(startCol, endCol);
-            const maxCol = Math.max(startCol, endCol);
-
-            for (let r = minRow; r <= maxRow; r++) {
-                for (let c = minCol; c <= maxCol; c++) {
-                    cellsToCut.push({ row: r, col: c });
-                }
-            }
-        } else if (selectedCell) {
-            cellsToCut.push({ row: selectedCell.row, col: selectedCell.col });
-        }
-
-        setCutCells(cellsToCut);
-    }, [handleCopyToClipboard, selectedRange, selectedCell]);
-
-    // Paste from system clipboard
-    const handlePasteFromSystemClipboard = useCallback(async () => {
-        try {
-            // Read text from system clipboard using Tauri's clipboard API
-            const text = await readText();
-
-            if (!text || !selectedCell) {
-                return;
-            }
-
-            // Parse clipboard text - treat tabs as column separators, newlines as row separators
-            const rows = text.split("\n").map((row) => row.split("\t"));
-
-            // Remove trailing empty row if the clipboard text ended with a newline
-            if (rows.length > 0 && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") {
-                rows.pop();
-            }
-
-            // Build array of cell updates
-            const cellUpdates: Array<{ row: number; col: number; value: string }> = [];
-
-            // Check if we have multiple cursors - if so, paste to all cursor positions
-            if (hasMultipleCursors()) {
-                const allCursors = getAllCursors();
-
-                // Paste the same data to each cursor position
-                allCursors.forEach((cursor) => {
-                    for (let r = 0; r < rows.length; r++) {
-                        for (let c = 0; c < rows[r].length; c++) {
-                            const targetRow = cursor.row + r;
-                            const targetCol = cursor.col + c;
-                            if (targetRow < filteredData.length && targetCol < headers.length) {
-                                cellUpdates.push({
-                                    row: targetRow,
-                                    col: targetCol,
-                                    value: rows[r][c],
-                                });
-                            }
-                        }
-                    }
-                });
-            } else {
-                // Single cursor - normal paste
-                const { row: startRow, col: startCol } = selectedCell;
-                for (let r = 0; r < rows.length; r++) {
-                    for (let c = 0; c < rows[r].length; c++) {
-                        const targetRow = startRow + r;
-                        const targetCol = startCol + c;
-                        if (targetRow < filteredData.length && targetCol < headers.length) {
-                            cellUpdates.push({
-                                row: targetRow,
-                                col: targetCol,
-                                value: rows[r][c],
-                            });
-                        }
-                    }
-                }
-            }
-
-            // Update all cells at once (single undo entry)
-            if (cellUpdates.length > 0) {
-                updateCells(cellUpdates);
-            }
-
-            // If there were cut cells, clear them now that paste is complete
-            if (cutCells && cutCells.length > 0) {
-                const clearUpdates = cutCells.map((cell) => ({
-                    row: cell.row,
-                    col: cell.col,
-                    value: "",
-                }));
-                updateCells(clearUpdates);
-                setCutCells(null);
-            }
-
-            // Trigger autosave after paste operation
-            triggerAutosave();
-        } catch (err: unknown) {
-            logger.error("Failed to paste from system clipboard:", err);
-        }
-    }, [selectedCell, filteredData, headers, updateCells, cutCells, triggerAutosave, hasMultipleCursors, getAllCursors]);
-
-    // ===== CONTEXT MENU HANDLERS =====
-    // Wrapped in useCallback to prevent recreation on every render
-
-    const handleCellContextMenu = useCallback((e: React.MouseEvent, row: number, col: number) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        // If right-clicking on an unselected cell, select it first
-        const isClickedCellSelected = selectedCell?.row === row && selectedCell?.col === col;
-        const isClickedCellInRange = selectedRange &&
-            row >= Math.min(selectedRange.startRow, selectedRange.endRow) &&
-            row <= Math.max(selectedRange.startRow, selectedRange.endRow) &&
-            col >= Math.min(selectedRange.startCol, selectedRange.endCol) &&
-            col <= Math.max(selectedRange.startCol, selectedRange.endCol);
-
-        if (!isClickedCellSelected && !isClickedCellInRange) {
-            setSelectedCell(row, col);
-        }
-
-        // Show context menu at cursor position
-        setContextMenu({
-            x: e.clientX,
-            y: e.clientY,
-            row,
-            col,
-        });
-    }, [selectedCell, selectedRange, setSelectedCell]);
-
+    // Context menu action handler
     const handleContextMenuAction = useCallback((action: string) => {
-        setContextMenu(null);
+        closeContextMenu();
 
         switch (action) {
             case "copy":
@@ -970,29 +753,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                 }
                 break;
         }
-    }, [handleCopyToClipboard, handleCutToClipboard, handlePasteFromSystemClipboard, clearCells, selectedRange, selectedCell, filteredData, handleStartEdit]);
-
-    // Close context menu on click outside
-    useEffect(() => {
-        if (!contextMenu) return;
-
-        const handleClickOutside = () => {
-            setContextMenu(null);
-        };
-
-        // Use setTimeout to avoid closing the menu immediately when it opens
-        // (the right-click event that opened it would otherwise close it)
-        const timeoutId = setTimeout(() => {
-            document.addEventListener("click", handleClickOutside);
-            document.addEventListener("contextmenu", handleClickOutside);
-        }, 0);
-
-        return () => {
-            clearTimeout(timeoutId);
-            document.removeEventListener("click", handleClickOutside);
-            document.removeEventListener("contextmenu", handleClickOutside);
-        };
-    }, [contextMenu]);
+    }, [closeContextMenu, handleCopyToClipboard, handleCutToClipboard, handlePasteFromSystemClipboard, clearCells, setCutCells, selectedRange, selectedCell, filteredData, handleStartEdit]);
 
     // Column resize hook (see useColumnResize)
 
@@ -1636,254 +1397,38 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             )}
 
             {/* Context Menu */}
-            {contextMenu && (() => {
-                const isMultiCell = selectedRange !== null;
-
-                return (
-                    <div
-                        className="fixed z-50 bg-base-100 border border-base-300 rounded-lg shadow-lg py-1 min-w-[180px]"
-                        style={{
-                            left: `${contextMenu.x}px`,
-                            top: `${contextMenu.y}px`,
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                    >
-                        {/* Single cell: Edit option */}
-                        {!isMultiCell && (
-                            <>
-                                <button
-                                    className="w-full px-4 py-2 text-left hover:bg-base-200 text-sm flex items-center gap-2"
-                                    onClick={() => handleContextMenuAction("edit")}
-                                >
-                                    <span className="w-4">✏️</span>
-                                    Edit Cell
-                                </button>
-                                <div className="border-t border-base-300 my-1"></div>
-                            </>
-                        )}
-
-                        {/* Multi-cell: Fill option at top */}
-                        {isMultiCell && (
-                            <>
-                                <button
-                                    className="w-full px-4 py-2 text-left hover:bg-base-200 text-sm flex items-center gap-2"
-                                    onClick={() => handleContextMenuAction("fill")}
-                                >
-                                    <span className="w-4">🔄</span>
-                                    Fill Selected Cells...
-                                </button>
-                                <div className="border-t border-base-300 my-1"></div>
-                            </>
-                        )}
-
-                        {/* Common: Clipboard operations */}
-                        <button
-                            className="w-full px-4 py-2 text-left hover:bg-base-200 text-sm flex items-center gap-2"
-                            onClick={() => handleContextMenuAction("copy")}
-                        >
-                            <span className="w-4">📋</span>
-                            Copy
-                            <span className="ml-auto text-xs text-base-content/50">Ctrl+C</span>
-                        </button>
-                        <button
-                            className="w-full px-4 py-2 text-left hover:bg-base-200 text-sm flex items-center gap-2"
-                            onClick={() => handleContextMenuAction("cut")}
-                        >
-                            <span className="w-4">✂️</span>
-                            Cut
-                            <span className="ml-auto text-xs text-base-content/50">Ctrl+X</span>
-                        </button>
-                        <button
-                            className="w-full px-4 py-2 text-left hover:bg-base-200 text-sm flex items-center gap-2"
-                            onClick={() => handleContextMenuAction("paste")}
-                        >
-                            <span className="w-4">📄</span>
-                            Paste
-                            <span className="ml-auto text-xs text-base-content/50">Ctrl+V</span>
-                        </button>
-
-                        <div className="border-t border-base-300 my-1"></div>
-
-                        {/* Common: Clear */}
-                        <button
-                            className="w-full px-4 py-2 text-left hover:bg-base-200 text-sm flex items-center gap-2"
-                            onClick={() => handleContextMenuAction("clear")}
-                        >
-                            <span className="w-4">🗑️</span>
-                            {isMultiCell ? "Clear Selected Cells" : "Clear"}
-                            <span className="ml-auto text-xs text-base-content/50">Del</span>
-                        </button>
-                    </div>
-                );
-            })()}
+            {contextMenu && (
+                <ContextMenu
+                    position={{ x: contextMenu.x, y: contextMenu.y }}
+                    isMultiCell={selectedRange !== null}
+                    onAction={handleContextMenuAction}
+                />
+            )}
 
             {/* Multi-Cell Fill Dialog */}
             {showFillDialog && selectedRange && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="bg-base-100 rounded-lg shadow-xl p-6 w-96">
-                        <h3 className="text-lg font-bold mb-4">Fill Selected Cells</h3>
-                        <p className="text-sm text-base-content/70 mb-4">
-                            Enter a value to fill all selected cells:
-                        </p>
-                        <input
-                            type="text"
-                            className="input input-bordered w-full mb-4"
-                            placeholder="Enter value..."
-                            autoFocus
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    const value = (e.target as HTMLInputElement).value;
-                                    const { startRow, startCol, endRow, endCol } = selectedRange;
-                                    const minRow = Math.min(startRow, endRow);
-                                    const maxRow = Math.max(startRow, endRow);
-                                    const minCol = Math.min(startCol, endCol);
-                                    const maxCol = Math.max(startCol, endCol);
-
-                                    const cellUpdates: Array<{ row: number; col: number; value: string }> = [];
-                                    for (let r = minRow; r <= maxRow; r++) {
-                                        for (let c = minCol; c <= maxCol; c++) {
-                                            cellUpdates.push({ row: r, col: c, value });
-                                        }
-                                    }
-                                    updateCells(cellUpdates);
-                                    triggerAutosave();
-                                    setShowFillDialog(false);
-                                } else if (e.key === "Escape") {
-                                    setShowFillDialog(false);
-                                }
-                            }}
-                        />
-                        <div className="flex gap-2 justify-end">
-                            <button
-                                className="btn btn-ghost"
-                                onClick={() => setShowFillDialog(false)}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="btn btn-primary"
-                                onClick={(e) => {
-                                    const input = (e.target as HTMLElement)
-                                        .closest(".bg-base-100")
-                                        ?.querySelector("input") as HTMLInputElement;
-                                    if (input) {
-                                        const value = input.value;
-                                        const { startRow, startCol, endRow, endCol } = selectedRange;
-                                        const minRow = Math.min(startRow, endRow);
-                                        const maxRow = Math.max(startRow, endRow);
-                                        const minCol = Math.min(startCol, endCol);
-                                        const maxCol = Math.max(startCol, endCol);
-
-                                        const cellUpdates: Array<{ row: number; col: number; value: string }> = [];
-                                        for (let r = minRow; r <= maxRow; r++) {
-                                            for (let c = minCol; c <= maxCol; c++) {
-                                                cellUpdates.push({ row: r, col: c, value });
-                                            }
-                                        }
-                                        updateCells(cellUpdates);
-                                        triggerAutosave();
-                                    }
-                                    setShowFillDialog(false);
-                                }}
-                            >
-                                Fill
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <FillDialog
+                    selectedRange={selectedRange}
+                    updateCells={updateCells}
+                    triggerAutosave={triggerAutosave}
+                    onClose={() => setShowFillDialog(false)}
+                />
             )}
 
             {/* Summary row */}
-            <div
-                className="fixed bg-base-300 border-t-2 border-base-300 shadow-lg z-40"
-                style={{
-                    left: 0,
-                    right: drawerPosition === "right" ? `${rightDrawerSize}px` : 0,
-                    bottom: 0,
-                    height: "60px",
-                    overflow: "hidden"
-                }}
-            >
-                {/* Row number column placeholder (left) - sticky */}
-                <div className="absolute left-0 h-full bg-base-300 border-r-2 border-base-300 z-10" style={{ width: "64px" }}></div>
-
-                {/* Row number column placeholder (right) - sticky */}
-                <div className="absolute right-0 h-full bg-base-300 border-l-2 border-base-300 z-10" style={{ width: "64px" }}></div>
-
-                <div
-                    ref={summaryRowContentRef}
-                    className="h-full summary-row-scroll"
-                    style={{
-                        overflowX: autoFitColumns ? "hidden" : "scroll",
-                        overflowY: "hidden",
-                        scrollbarWidth: "none",
-                        msOverflowStyle: "none",
-                        paddingLeft: "64px",
-                        paddingRight: "64px",
-                    }}
-                >
-                    <div className="flex items-center h-full" style={{ width: `${pixelWidths.reduce((sum: number, w: number) => sum + w, 0)}px` }}>
-                        {/* Summary dropdowns for each column */}
-                        {headers.map((columnName, colIndex) => {
-                            const summaryType = columnSummaries[columnName] || "count";
-                            // Use memoized summary values instead of recalculating on every render
-                            const summaryValue = memoizedSummaryValues[columnName] || "";
-                            const columnWidth = pixelWidths[colIndex];
-
-                            // Apply hover highlight to summary row as well
-                            const summaryClass = `flex-shrink-0 h-full flex items-center border-r-2 ${hoveredColumn === colIndex ? "bg-base-200/70" : ""} ${showColumnSeparators ? "border-base-300" : "border-transparent"}`;
-
-                            return (
-                                <div
-                                    key={colIndex}
-                                    className={summaryClass}
-                                    style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
-                                >
-                                    <div className="flex flex-col-reverse gap-1 p-2">
-                                        {/* Summary value (displayed above dropdown) */}
-                                        <div className="text-sm font-semibold text-primary truncate min-h-[20px]" title={summaryValue}>
-                                            {summaryValue || "\u00A0"}
-                                        </div>
-
-                                        {/* Summary type selector (opens upward) */}
-                                        <div className="relative">
-                                            <select
-                                                className="select select-xs select-bordered w-full bg-base-100"
-                                                value={summaryType}
-                                                onChange={(e) => setColumnSummary(columnName, e.target.value as "count" | "unique" | "mode" | "average" | "min" | "max" | "sum")}
-                                                style={{
-                                                    appearance: "none",
-                                                    backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4-4 4 4\'/%3e%3c/svg%3e")',
-                                                    backgroundPosition: "right 0.5rem center",
-                                                    backgroundRepeat: "no-repeat",
-                                                    backgroundSize: "1.5em 1.5em",
-                                                    paddingRight: "2.5rem"
-                                                }}
-                                            >
-                                                <option value="count">Count</option>
-                                                <option value="unique">Unique</option>
-                                                <option value="mode">Mode</option>
-                                                <option value="average">Average</option>
-                                                <option value="min">Min</option>
-                                                <option value="max">Max</option>
-                                                <option value="sum">Sum</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-
-            {/* Scrollbar styling - hide scrollbar for summary row */}
-            <style>{`
-                .summary-row-scroll::-webkit-scrollbar {
-                    display: none;
-                }
-            `}</style>
+            <SummaryRow
+                parentRef={parentRef}
+                headers={headers}
+                filteredData={filteredData}
+                pixelWidths={pixelWidths}
+                columnSummaries={columnSummaries}
+                setColumnSummary={setColumnSummary}
+                hoveredColumn={hoveredColumn}
+                showColumnSeparators={showColumnSeparators}
+                autoFitColumns={autoFitColumns}
+                drawerPosition={drawerPosition}
+                rightDrawerSize={rightDrawerSize}
+            />
 
             {/* Popout edit box for multi-line cells when wrap text is off */}
             {popoutEditPosition &&
@@ -1950,18 +1495,10 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                     selectedIndex={autocompleteSelectedIndex}
                     onSelect={(value) => {
                         updateEditingValue(value);
-                        setShowAutocomplete(false);
+                        closeAutocomplete();
                     }}
-                    onClose={() => setShowAutocomplete(false)}
-                    onNavigate={(direction) => {
-                        if (direction === "down") {
-                            setAutocompleteSelectedIndex((prev) =>
-                                prev < autocompleteSuggestions.length - 1 ? prev + 1 : prev
-                            );
-                        } else {
-                            setAutocompleteSelectedIndex((prev) => prev > 0 ? prev - 1 : prev);
-                        }
-                    }}
+                    onClose={closeAutocomplete}
+                    onNavigate={navigateAutocomplete}
                     position={{
                         top: editingCellRef.current.getBoundingClientRect().bottom + window.scrollY,
                         left: editingCellRef.current.getBoundingClientRect().left + window.scrollX,
