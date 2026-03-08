@@ -11,7 +11,7 @@
  * print-type-specific ref lookup strategies.
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
 import { useCellEditStore } from "@stores/cellEditStore";
 import { useCellStore } from "@stores/cellStore";
@@ -47,20 +47,33 @@ export function usePrintSelectionSync({
     const selectedCell = useCellSelectionStore((state) => state.selectedCell);
     const selectedRange = useCellSelectionStore((state) => state.selectedRange);
 
+    // Use refs for callback params to avoid effect dependency on caller identity.
+    // Callers pass inline arrow functions (e.g. `() => setState(null)`) which
+    // create new references every render. Without refs, effects that depend on
+    // these callbacks would re-run every render → state updates → infinite loop.
+    const clearPrintSelectionRef = useRef(clearPrintSelection);
+    clearPrintSelectionRef.current = clearPrintSelection;
+
+    const closeContextMenuRef = useRef(closeContextMenu);
+    closeContextMenuRef.current = closeContextMenu;
+
+    const setIsEditingFromPrintRef = useRef(setIsEditingFromPrint);
+    setIsEditingFromPrintRef.current = setIsEditingFromPrint;
+
     // Effect 2: Clear print selection when cell grid enters edit mode
     useEffect(() => {
         if (editingCell && !isEditingFromPrint) {
-            clearPrintSelection();
+            clearPrintSelectionRef.current();
         }
-    }, [editingCell, isEditingFromPrint, clearPrintSelection]);
+    }, [editingCell, isEditingFromPrint]);
 
     // Effect 3: Clear print selection when a cell is selected in the grid
     useEffect(() => {
         if ((selectedCell || selectedRange) && hasPrintSelection && !isEditingFromPrint) {
-            clearPrintSelection();
+            clearPrintSelectionRef.current();
         }
         // Intentionally omitting isEditingFromPrint and hasPrintSelection from deps
-        // to avoid infinite loops — we only want to react to cell selection changes
+        // to avoid re-triggering — we only want to react to cell selection changes
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedCell, selectedRange]);
 
@@ -70,24 +83,24 @@ export function usePrintSelectionSync({
             const target = e.target as Node;
             const cellGrid = document.querySelector(".cell-grid-container");
             if (cellGrid && cellGrid.contains(target) && hasPrintSelection && !isEditingFromPrint) {
-                clearPrintSelection();
+                clearPrintSelectionRef.current();
             }
         };
 
         document.addEventListener("click", handleClick);
         return () => document.removeEventListener("click", handleClick);
-    }, [hasPrintSelection, isEditingFromPrint, clearPrintSelection]);
+    }, [hasPrintSelection, isEditingFromPrint]);
 
     // Effect 5: Close context menu on any click
     useEffect(() => {
         if (contextMenu) {
             const handleClick = () => {
-                closeContextMenu();
+                closeContextMenuRef.current();
             };
             document.addEventListener("click", handleClick);
             return () => document.removeEventListener("click", handleClick);
         }
-    }, [contextMenu, closeContextMenu]);
+    }, [contextMenu]);
 
     // Effect 6: Save editing when clicking outside an input/textarea
     useEffect(() => {
@@ -102,11 +115,11 @@ export function usePrintSelectionSync({
             ) {
                 updateCell(editingCell.row, editingCell.col, editingValue);
                 clearEditingCell();
-                setIsEditingFromPrint(false);
+                setIsEditingFromPrintRef.current(false);
             }
         };
 
         document.addEventListener("mousedown", handleMouseDown);
         return () => document.removeEventListener("mousedown", handleMouseDown);
-    }, [isEditingFromPrint, editingCell, editingValue, updateCell, clearEditingCell, setIsEditingFromPrint]);
+    }, [isEditingFromPrint, editingCell, editingValue, updateCell, clearEditingCell]);
 }
