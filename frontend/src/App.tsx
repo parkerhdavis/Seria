@@ -9,6 +9,9 @@ import FindReplaceModal from "@components/modals/FindReplaceModal";
 import GoToModal from "@components/modals/GoToModal";
 import ColumnManagerModal from "@components/modals/ColumnManagerModal";
 import WorkspaceManagerModal from "@components/modals/WorkspaceManagerModal";
+import DiffViewModal from "@components/modals/DiffViewModal";
+import ExportModal from "@components/modals/ExportModal";
+import CellHistoryModal from "@components/modals/CellHistoryModal";
 import { useCellStore } from "@stores/cellStore";
 import { useCellColumnStore } from "@stores/cellColumnStore";
 import { useCellFilterStore } from "@stores/cellFilterStore";
@@ -38,6 +41,9 @@ function App() {
     const [isGoToOpen, setIsGoToOpen] = useState(false);
     const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false);
     const [isWorkspaceManagerOpen, setIsWorkspaceManagerOpen] = useState(false);
+    const [isDiffViewOpen, setIsDiffViewOpen] = useState(false);
+    const [isExportOpen, setIsExportOpen] = useState(false);
+    const [isCellHistoryOpen, setIsCellHistoryOpen] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(100);
     const [isInitializing, setIsInitializing] = useState(true);
     const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
@@ -360,6 +366,21 @@ function App() {
                 e.preventDefault();
                 setIsColumnManagerOpen(true);
             }
+            // Ctrl+Shift+D - Open diff view
+            else if (e.ctrlKey && e.shiftKey && e.key === "D") {
+                e.preventDefault();
+                setIsDiffViewOpen(true);
+            }
+            // Ctrl+Shift+E - Open export modal
+            else if (e.ctrlKey && e.shiftKey && e.key === "E") {
+                e.preventDefault();
+                setIsExportOpen(true);
+            }
+            // Ctrl+Shift+H - Open cell edit history
+            else if (e.ctrlKey && e.shiftKey && e.key === "H") {
+                e.preventDefault();
+                setIsCellHistoryOpen(true);
+            }
             // Ctrl+Shift+W - Open workspace manager
             else if (e.ctrlKey && e.shiftKey && e.key === "W") {
                 e.preventDefault();
@@ -456,6 +477,21 @@ function App() {
                 <ColumnManagerModal
                     isOpen={isColumnManagerOpen}
                     onClose={() => setIsColumnManagerOpen(false)}
+                />
+
+                <DiffViewModal
+                    isOpen={isDiffViewOpen}
+                    onClose={() => setIsDiffViewOpen(false)}
+                />
+
+                <ExportModal
+                    isOpen={isExportOpen}
+                    onClose={() => setIsExportOpen(false)}
+                />
+
+                <CellHistoryModal
+                    isOpen={isCellHistoryOpen}
+                    onClose={() => setIsCellHistoryOpen(false)}
                 />
 
                 {/* Workspace Manager Modal */}

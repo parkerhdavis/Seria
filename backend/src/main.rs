@@ -18,6 +18,7 @@
  * - File format converters (screenplay, Fountain, Excel, PDF to CSV)
  */
 mod converters;
+mod diff;
 mod file_ops;
 mod storage;
 
@@ -46,6 +47,8 @@ fn main() {
             // File format converters
             converters::screenplay::convert_screenplay_to_csv,
             converters::screenplay::convert_csv_to_screenplay,
+            // CSV diff comparison
+            diff::compare_csv_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

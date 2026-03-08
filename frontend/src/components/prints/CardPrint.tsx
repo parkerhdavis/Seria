@@ -13,8 +13,65 @@ import { getMappedColumn, getMappedColumns } from "@/utils/printRecipeMapper";
 import { useCellStore } from "@stores/cellStore";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
 import { useCellEditStore } from "@stores/cellEditStore";
+import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { logger } from "@utils/logger";
 import { usePrintSelectionSync } from "@/hooks/usePrintSelectionSync";
+
+/**
+ * Highlights search term matches within text content for Card print view.
+ * Splits text into alternating non-match and match segments rendered as spans.
+ *
+ * @param text - The text content to search within
+ * @param searchTerm - The term to highlight
+ * @param matchCase - Whether to perform case-sensitive matching
+ * @param isCurrentMatch - Whether this field contains the current active match
+ * @returns React nodes with highlighted spans, or the original text if no matches
+ */
+function highlightCardSearchText(
+    text: string,
+    searchTerm: string,
+    matchCase: boolean,
+    isCurrentMatch: boolean
+): React.ReactNode {
+    if (!searchTerm || !text) return text;
+
+    const flags = matchCase ? "g" : "gi";
+    const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    let regex: RegExp;
+    try {
+        regex = new RegExp(escapedTerm, flags);
+    } catch {
+        return text;
+    }
+
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    let matchIndex = 0;
+
+    while ((match = regex.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+            parts.push(text.slice(lastIndex, match.index));
+        }
+        parts.push(
+            <mark
+                key={matchIndex}
+                className={`${isCurrentMatch && matchIndex === 0 ? "bg-warning/80 text-warning-content" : "bg-warning/40"} rounded-sm px-0`}
+            >
+                {match[0]}
+            </mark>
+        );
+        lastIndex = match.index + match[0].length;
+        matchIndex++;
+        if (match[0].length === 0) break;
+    }
+
+    if (parts.length === 0) return text;
+    if (lastIndex < text.length) {
+        parts.push(text.slice(lastIndex));
+    }
+    return <>{parts}</>;
+}
 
 interface CardPrintProps {
     data: string[][];
@@ -68,6 +125,11 @@ function Card({
     onFieldDoubleClick,
     onFieldContextMenu,
     setRef,
+    searchTerm,
+    searchMatchCase,
+    searchMatchRows,
+    currentMatchRow,
+    currentMatchCol,
 }: {
     card: CardData;
     onDragStart: (index: number) => void;
@@ -84,6 +146,11 @@ function Card({
     onFieldDoubleClick: (fieldType: "title" | "subtitle" | "content", contentIndex?: number) => void;
     onFieldContextMenu: (e: React.MouseEvent, fieldType: "title" | "subtitle" | "content", contentIndex?: number) => void;
     setRef?: (el: HTMLDivElement | null) => void;
+    searchTerm?: string;
+    searchMatchCase?: boolean;
+    searchMatchRows?: Set<number>;
+    currentMatchRow?: number;
+    currentMatchCol?: number;
 }) {
     const [isHovered, setIsHovered] = useState(false);
     const [hoveredField, setHoveredField] = useState<{ type: "title" | "subtitle" | "content"; index?: number } | null>(null);
@@ -269,7 +336,11 @@ function Card({
                         />
                     ) : (
                         <h3 className={`text-base font-bold text-base-content mb-2 pr-8 rounded px-2 py-1 transition-colors relative z-10 ${isTitleEditing ? "ring-2 ring-primary ring-inset bg-primary/10" : isTitleSelected ? "bg-primary/20" : ""}`}>
-                            {card.title || <span className="text-base-content/30 italic">Click to add title</span>}
+                            {card.title
+                                ? (searchTerm
+                                    ? highlightCardSearchText(card.title, searchTerm, !!searchMatchCase, currentMatchRow === card.index && card.titleColumnName !== undefined && headers.indexOf(card.titleColumnName) === currentMatchCol)
+                                    : card.title)
+                                : <span className="text-base-content/30 italic">Click to add title</span>}
                         </h3>
                     )}
                 </div>
@@ -302,7 +373,11 @@ function Card({
                         />
                     ) : (
                         <p className={`text-sm italic text-base-content/70 mb-3 rounded px-2 py-1 transition-colors relative z-10 ${isSubtitleEditing ? "ring-2 ring-primary ring-inset bg-primary/10" : isSubtitleSelected ? "bg-primary/20" : ""}`}>
-                            {card.subtitle || <span className="text-base-content/30">Click to add subtitle</span>}
+                            {card.subtitle
+                                ? (searchTerm
+                                    ? highlightCardSearchText(card.subtitle, searchTerm, !!searchMatchCase, currentMatchRow === card.index && card.subtitleColumnName !== undefined && headers.indexOf(card.subtitleColumnName) === currentMatchCol)
+                                    : card.subtitle)
+                                : <span className="text-base-content/30">Click to add subtitle</span>}
                         </p>
                     )}
                 </div>
@@ -367,7 +442,9 @@ function Card({
                                     />
                                 ) : (
                                     <p className={`line-clamp-3 rounded px-2 py-1 transition-colors relative z-10 ${isContentEditing ? "ring-2 ring-primary ring-inset bg-primary/10" : isContentSelected ? "bg-primary/20" : ""}`}>
-                                        {text}
+                                        {searchTerm
+                                            ? highlightCardSearchText(text, searchTerm, !!searchMatchCase, currentMatchRow === card.index && headers.indexOf(card.contentColumnNames[idx]) === currentMatchCol)
+                                            : text}
                                     </p>
                                 )}
                             </div>
@@ -416,6 +493,11 @@ function CardPrint({
     const updateCell = useCellStore(state => state.updateCell);
     // Selection from cellSelectionStore
     const clearSelection = useCellSelectionStore(state => state.clearSelection);
+    // Find/Replace for print view search highlighting
+    const searchTerm = useFindReplaceStore(state => state.searchTerm);
+    const searchOptions = useFindReplaceStore(state => state.searchOptions);
+    const matches = useFindReplaceStore(state => state.matches);
+    const currentMatchIndex = useFindReplaceStore(state => state.currentMatchIndex);
 
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
@@ -832,6 +914,11 @@ function CardPrint({
                                             onFieldDoubleClick={(fieldType, contentIndex) => handleFieldDoubleClick(card.index, fieldType, contentIndex)}
                                             onFieldContextMenu={(e, fieldType, contentIndex) => handleFieldContextMenu(e, card.index, fieldType, contentIndex)}
                                             setRef={setRef}
+                                            searchTerm={(searchOptions.searchContext === "print" || searchOptions.searchContext === "all") ? searchTerm : undefined}
+                                            searchMatchCase={searchOptions.matchCase}
+                                            searchMatchRows={new Set(matches.map(m => m.row))}
+                                            currentMatchRow={currentMatchIndex >= 0 ? matches[currentMatchIndex]?.row : undefined}
+                                            currentMatchCol={currentMatchIndex >= 0 ? matches[currentMatchIndex]?.col : undefined}
                                         />
                                     </div>
                                 );

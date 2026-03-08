@@ -496,27 +496,45 @@ function FindReplaceModal() {
                     </div>
                 </div>
 
-                {/* Column selector */}
+                {/* Search context and column selector */}
                 <div className="form-control my-8">
                     <label className="label">
                         <span className="label-text font-semibold mr-4">Search in:</span>
                     </label>
-                    <select
-                        className="select select-bordered"
-                        value={searchOptions.searchInColumn || ""}
-                        onChange={(e) =>
-                            setSearchOptions({
-                                searchInColumn: e.target.value || null,
-                            })
-                        }
-                    >
-                        <option value="">All columns</option>
-                        {headers.map((header) => (
-                            <option key={header} value={header}>
-                                {header}
-                            </option>
-                        ))}
-                    </select>
+                    <div className="flex gap-4">
+                        {/* View context selector */}
+                        <select
+                            className="select select-bordered w-48"
+                            value={searchOptions.searchContext || "cell"}
+                            onChange={(e) =>
+                                setSearchOptions({
+                                    searchContext: e.target.value as "cell" | "print" | "all",
+                                })
+                            }
+                        >
+                            <option value="cell">Cell View</option>
+                            <option value="print">Print View</option>
+                            <option value="all">All Views</option>
+                        </select>
+
+                        {/* Column selector */}
+                        <select
+                            className="select select-bordered flex-1"
+                            value={searchOptions.searchInColumn || ""}
+                            onChange={(e) =>
+                                setSearchOptions({
+                                    searchInColumn: e.target.value || null,
+                                })
+                            }
+                        >
+                            <option value="">All columns</option>
+                            {headers.map((header) => (
+                                <option key={header} value={header}>
+                                    {header}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
                 {/* Match status badge - always visible */}

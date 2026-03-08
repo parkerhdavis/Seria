@@ -2,6 +2,7 @@
  * Cell History Store
  *
  * Manages undo/redo history for Cell data mutations.
+ * Also tracks per-cell edit history for audit trail.
  * Extracted from cellStore to improve separation of concerns.
  */
 
@@ -13,6 +14,24 @@ import { create } from "zustand";
 export interface DataSnapshot {
     data: string[][];
     headers: string[];
+}
+
+/**
+ * Represents a single cell edit event for the per-cell audit trail
+ */
+export interface CellEdit {
+    /** Unix timestamp of the edit */
+    timestamp: number;
+    /** Row index */
+    row: number;
+    /** Column index */
+    col: number;
+    /** Column header name at time of edit */
+    columnName: string;
+    /** Value before the edit */
+    oldValue: string;
+    /** Value after the edit */
+    newValue: string;
 }
 
 /**
@@ -66,6 +85,31 @@ interface CellHistoryStore {
      * Get the current redo stack length (for debugging/UI)
      */
     getRedoCount: () => number;
+
+    // --- Per-cell edit tracking ---
+
+    /** Per-cell edit history map: "row:col" -> CellEdit[] */
+    cellEdits: Map<string, CellEdit[]>;
+
+    /**
+     * Record a cell edit for the audit trail
+     */
+    recordCellEdit: (edit: CellEdit) => void;
+
+    /**
+     * Get edit history for a specific cell
+     */
+    getCellHistory: (row: number, col: number) => CellEdit[];
+
+    /**
+     * Get all cell edits (flattened) sorted by timestamp descending
+     */
+    getAllCellEdits: () => CellEdit[];
+
+    /**
+     * Clear per-cell edit history (e.g., when loading a new file)
+     */
+    clearCellEdits: () => void;
 }
 
 /**
@@ -191,5 +235,38 @@ export const useCellHistoryStore = create<CellHistoryStore>((set, get) => ({
     // Get redo count
     getRedoCount: () => {
         return get().redoStack.length;
+    },
+
+    // --- Per-cell edit tracking ---
+
+    cellEdits: new Map(),
+
+    recordCellEdit: (edit: CellEdit) => {
+        const { cellEdits } = get();
+        const key = `${edit.row}:${edit.col}`;
+        const existing = cellEdits.get(key) || [];
+        // Cap at 100 edits per cell to prevent memory issues
+        const updated = [...existing, edit].slice(-100);
+        const newMap = new Map(cellEdits);
+        newMap.set(key, updated);
+        set({ cellEdits: newMap });
+    },
+
+    getCellHistory: (row: number, col: number) => {
+        const { cellEdits } = get();
+        return cellEdits.get(`${row}:${col}`) || [];
+    },
+
+    getAllCellEdits: () => {
+        const { cellEdits } = get();
+        const allEdits: CellEdit[] = [];
+        for (const edits of cellEdits.values()) {
+            allEdits.push(...edits);
+        }
+        return allEdits.sort((a, b) => b.timestamp - a.timestamp);
+    },
+
+    clearCellEdits: () => {
+        set({ cellEdits: new Map() });
     },
 }));

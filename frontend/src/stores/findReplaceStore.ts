@@ -17,6 +17,7 @@ export interface SearchOptions {
     matchWholeCell: boolean;
     searchInColumn: string | null; // null means search all columns
     useWildcards: boolean; // Enable wildcard/regex pattern matching
+    searchContext: "cell" | "print" | "all"; // Where to search: cell grid, print view, or both
 }
 
 interface FindReplaceStore {
@@ -56,6 +57,7 @@ export const useFindReplaceStore = create<FindReplaceStore>((set, get) => ({
         matchWholeCell: false,
         searchInColumn: null,
         useWildcards: true,
+        searchContext: "cell",
     },
 
     // Open in find mode

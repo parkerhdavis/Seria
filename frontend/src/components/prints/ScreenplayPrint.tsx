@@ -13,6 +13,7 @@ import type { ScreenplayElement } from "@/types/workerMessages";
 import { useCellStore } from "@stores/cellStore";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
 import { useCellEditStore } from "@stores/cellEditStore";
+import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 import { logger } from "@utils/logger";
 import { getElementStyle, isMultiLineElement } from "@utils/screenplayUtils";
@@ -54,6 +55,62 @@ interface PrintSelection {
 /**
  * Individual screenplay element renderer
  */
+/**
+ * Highlights search term matches within text content.
+ * Splits text into alternating non-match and match segments rendered as spans.
+ *
+ * @param text - The text content to search within
+ * @param searchTerm - The term to highlight
+ * @param matchCase - Whether to perform case-sensitive matching
+ * @param isCurrentMatch - Whether this element contains the current active match
+ * @returns React nodes with highlighted spans, or the original text if no matches
+ */
+function highlightSearchText(
+    text: string,
+    searchTerm: string,
+    matchCase: boolean,
+    isCurrentMatch: boolean
+): React.ReactNode {
+    if (!searchTerm || !text) return text;
+
+    const flags = matchCase ? "g" : "gi";
+    const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    let regex: RegExp;
+    try {
+        regex = new RegExp(escapedTerm, flags);
+    } catch {
+        return text;
+    }
+
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    let matchIndex = 0;
+
+    while ((match = regex.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+            parts.push(text.slice(lastIndex, match.index));
+        }
+        parts.push(
+            <mark
+                key={matchIndex}
+                className={`${isCurrentMatch && matchIndex === 0 ? "bg-warning/80 text-warning-content" : "bg-warning/40"} rounded-sm px-0`}
+            >
+                {match[0]}
+            </mark>
+        );
+        lastIndex = match.index + match[0].length;
+        matchIndex++;
+        if (match[0].length === 0) break; // prevent infinite loop on zero-length match
+    }
+
+    if (parts.length === 0) return text;
+    if (lastIndex < text.length) {
+        parts.push(text.slice(lastIndex));
+    }
+    return <>{parts}</>;
+}
+
 function ScreenplayElementView({
     element,
     recipe,
@@ -69,6 +126,9 @@ function ScreenplayElementView({
     onDoubleClick,
     onContextMenu,
     setRef,
+    searchTerm,
+    searchMatchCase,
+    isCurrentSearchMatch,
 }: {
     element: ScreenplayElement;
     recipe: PrintRecipe;
@@ -84,6 +144,9 @@ function ScreenplayElementView({
     onDoubleClick: () => void;
     onContextMenu: (e: React.MouseEvent) => void;
     setRef?: (el: HTMLDivElement | null) => void;
+    searchTerm?: string;
+    searchMatchCase?: boolean;
+    isCurrentSearchMatch?: boolean;
 }) {
     const inputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -263,7 +326,9 @@ function ScreenplayElementView({
                     className={`font-mono text-base leading-tight rounded transition-colors relative z-10 ${isBeingEdited ? "ring-2 ring-primary ring-inset bg-primary/10" : ""} ${isSelected ? "bg-primary/20" : ""} ${isCut ? "ring-2 ring-dashed ring-primary ring-inset opacity-60" : ""}`}
                     style={style as React.CSSProperties}
                 >
-                    {formatContent(element.content)}
+                    {searchTerm
+                        ? highlightSearchText(formatContent(element.content), searchTerm, !!searchMatchCase, !!isCurrentSearchMatch)
+                        : formatContent(element.content)}
                 </p>
             )}
         </div>
@@ -298,6 +363,11 @@ function ScreenplayPrint({
     const updateCell = useCellStore(state => state.updateCell);
     // Selection from cellSelectionStore
     const clearSelection = useCellSelectionStore(state => state.clearSelection);
+    // Find/Replace for print view search highlighting
+    const searchTerm = useFindReplaceStore(state => state.searchTerm);
+    const searchOptions = useFindReplaceStore(state => state.searchOptions);
+    const matches = useFindReplaceStore(state => state.matches);
+    const currentMatchIndex = useFindReplaceStore(state => state.currentMatchIndex);
 
     const elementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -959,6 +1029,13 @@ function ScreenplayPrint({
                                 }
                             };
 
+                            // Determine if this element is the current search match
+                            const colIndex = headers.indexOf(element.columnName);
+                            const isPrintSearch = searchOptions.searchContext === "print" || searchOptions.searchContext === "all";
+                            const isCurrentSearchMatch = isPrintSearch && currentMatchIndex >= 0 &&
+                                matches[currentMatchIndex]?.row === element.rowIndex &&
+                                matches[currentMatchIndex]?.col === colIndex;
+
                             return (
                                 <ScreenplayElementView
                                     key={`continuous-${index}`}
@@ -976,6 +1053,9 @@ function ScreenplayPrint({
                                     onDoubleClick={() => handleElementDoubleClick(element, index)}
                                     onContextMenu={(e) => handleElementContextMenu(e, element, index)}
                                     setRef={setRef}
+                                    searchTerm={isPrintSearch ? searchTerm : undefined}
+                                    searchMatchCase={searchOptions.matchCase}
+                                    isCurrentSearchMatch={isCurrentSearchMatch}
                                 />
                             );
                         })}
@@ -1075,6 +1155,13 @@ function ScreenplayPrint({
                                     }
                                 };
 
+                                // Determine if this element is the current search match
+                                const colIndex = headers.indexOf(element.columnName);
+                                const isPrintSearch = searchOptions.searchContext === "print" || searchOptions.searchContext === "all";
+                                const isCurrentSearchMatch = isPrintSearch && currentMatchIndex >= 0 &&
+                                    matches[currentMatchIndex]?.row === element.rowIndex &&
+                                    matches[currentMatchIndex]?.col === colIndex;
+
                                 return (
                                     <ScreenplayElementView
                                         key={`${page.pageNumber}-${globalIndex}`}
@@ -1092,6 +1179,9 @@ function ScreenplayPrint({
                                         onDoubleClick={() => handleElementDoubleClick(element, globalIndex)}
                                         onContextMenu={(e) => handleElementContextMenu(e, element, globalIndex)}
                                         setRef={setRef}
+                                        searchTerm={isPrintSearch ? searchTerm : undefined}
+                                        searchMatchCase={searchOptions.matchCase}
+                                        isCurrentSearchMatch={isCurrentSearchMatch}
                                     />
                                 );
                             })}

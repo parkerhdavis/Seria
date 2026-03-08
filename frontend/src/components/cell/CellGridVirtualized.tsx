@@ -154,6 +154,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
     const matches = useFindReplaceStore((state) => state.matches);
     const currentMatchIndex = useFindReplaceStore((state) => state.currentMatchIndex);
+    const searchContext = useFindReplaceStore((state) => state.searchOptions.searchContext);
 
     const drawerPosition = useDrawerStore((state) => state.position);
     const rightDrawerSize = useDrawerStore((state) => state.rightDrawerSize);
@@ -1081,9 +1082,10 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                     colIndex >= Math.min(selectedRange.startCol, selectedRange.endCol) &&
                                     colIndex <= Math.max(selectedRange.startCol, selectedRange.endCol);
 
-                                // Check if this cell is a search match
-                                const isMatch = matches.some((match) => match.row === rowIndex && match.col === colIndex);
-                                const isCurrentMatch =
+                                // Check if this cell is a search match (only highlight in cell view or all views)
+                                const isCellSearch = searchContext === "cell" || searchContext === "all";
+                                const isMatch = isCellSearch && matches.some((match) => match.row === rowIndex && match.col === colIndex);
+                                const isCurrentMatch = isCellSearch &&
                                     currentMatchIndex >= 0 &&
                                     matches[currentMatchIndex]?.row === rowIndex &&
                                     matches[currentMatchIndex]?.col === colIndex;

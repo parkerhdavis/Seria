@@ -719,11 +719,13 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
     // Update a single cell
     updateCell: (row: number, col: number, value: string) => {
-        const { data } = get();
+        const { data, headers } = get();
 
         if (row < 0 || row >= data.length || col < 0 || col >= data[row].length) {
             return;
         }
+
+        const oldValue = data[row][col] || "";
 
         // Push current state to undo stack
         pushToUndoStack(get);
@@ -734,6 +736,18 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
         // Update column cache in sub-store
         useCellColumnStore.getState().updateColumnCacheEntry(col, value);
+
+        // Record per-cell edit for audit trail
+        if (oldValue !== value) {
+            useCellHistoryStore.getState().recordCellEdit({
+                timestamp: Date.now(),
+                row,
+                col,
+                columnName: headers[col] || `Column ${col}`,
+                oldValue,
+                newValue: value,
+            });
+        }
 
         set({ data: newData, isDirty: true });
     },
@@ -893,6 +907,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
         // Reset all sub-stores to clean state
         useCellHistoryStore.getState().clearHistory();
+        useCellHistoryStore.getState().clearCellEdits();
         useCellColumnStore.getState().resetColumns();
         useCellFilterStore.getState().resetFilters();
         useCellSelectionStore.getState().clearSelection();

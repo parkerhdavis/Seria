@@ -65,476 +65,225 @@ This document provides detailed implementation plans for the UI/UX improvements 
 
 **Keyboard Shortcuts:** `Ctrl+M` - Open Column Manager
 
----
-
-## 🚧 Remaining Features to Implement
-
 ### 4. Smart Autocomplete & Data Entry Assistance
-**Status:** 🔄 Not Started
+**Status:** ✅ Complete
 
-**Priority:** HIGH (Very High Impact)
+**Implementation:**
+- Created `autocomplete.ts` utility with fuzzy matching via `calculateSimilarity()` (exact=1000, starts-with=100, contains=50, fuzzy match)
+- Created `useAutocomplete.ts` hook with suggestion state, keyboard navigation (ArrowUp/Down, Enter/Tab to accept, Escape to dismiss)
+- Created `AutocompleteDropdown.tsx` component with fixed positioning, highlighted selection, scroll-into-view, click-to-select
+- Column value caching in `cellColumnStore.ts` with `buildColumnCache()` and `updateColumnCache()` (capped at 1000 unique values per column)
+- Integrated into `CellGridVirtualized.tsx` for cell editing
+- Settings UI in `SettingsModal.tsx`: enable/disable toggle, minimum characters, restrict to existing values
 
-**Implementation Plan:**
+**Files Created:**
+- `frontend/src/utils/autocomplete.ts`
+- `frontend/src/hooks/useAutocomplete.ts`
+- `frontend/src/components/cell/AutocompleteDropdown.tsx`
 
-#### Backend Requirements:
-1. Add column value caching to `cellStore.ts`:
-   ```typescript
-   interface ColumnCache {
-     [columnIndex: number]: {
-       uniqueValues: Set<string>;
-       recentValues: string[]; // Most recently used
-       lastUpdated: number;
-     };
-   }
-   ```
+**Files Modified:**
+- `frontend/src/stores/cellColumnStore.ts`
+- `frontend/src/stores/settingsStore.ts`
+- `frontend/src/components/cell/CellGridVirtualized.tsx`
+- `frontend/src/components/modals/SettingsModal.tsx`
 
-2. Create autocomplete utility function:
-   ```typescript
-   // frontend/src/utils/autocomplete.ts
-   export function getSuggestions(
-     columnIndex: number,
-     inputValue: string,
-     columnCache: Map<number, Set<string>>,
-     maxSuggestions: number = 10
-   ): string[] {
-     // Fuzzy matching logic
-     // Prioritize exact prefix matches
-     // Then fuzzy matches
-   }
-   ```
-
-#### Frontend Requirements:
-1. Modify cell editing in `CellGridVirtualized.tsx`:
-   - Add autocomplete dropdown component
-   - Position dropdown below/above input based on available space
-   - Handle keyboard navigation (Arrow Up/Down, Enter, Escape)
-   - Filter suggestions as user types
-
-2. Create `AutocompleteDropdown.tsx` component:
-   ```tsx
-   interface AutocompleteDropdownProps {
-     suggestions: string[];
-     onSelect: (value: string) => void;
-     onClose: () => void;
-     position: { top: number; left: number };
-   }
-   ```
-
-#### Settings Integration:
-- Add toggle in Settings: "Enable autocomplete suggestions"
-- Add setting: "Minimum characters before showing suggestions" (default: 1)
-- Add setting: "Restrict to existing values only" (boolean)
-
-**Estimated Complexity:** Medium
-**Estimated Time:** 4-6 hours
-
----
-
-### 5. Print View Search & Editing Enhancements
-**Status:** 🔄 Not Started
-
-**Priority:** HIGH (Very High Impact for Writers)
-
-**Implementation Plan:**
-
-#### Requirements:
-1. Extend `FindReplaceModal.tsx` to support Print view search:
-   - Add "Search in:" dropdown with options:
-     - Cell View (current)
-     - Current Print View
-     - All Views
-
-2. For Print View search:
-   - Search rendered/formatted content (not just raw cell values)
-   - Highlight matches in Print view
-   - Navigate between matches visually
-   - Support replace in Print view
-
-#### Technical Approach:
-1. Add search context to `findReplaceStore.ts`:
-   ```typescript
-   interface FindReplaceState {
-     searchContext: 'cell' | 'print' | 'all';
-     printMatches: Array<{
-       rowIndex: number;
-       element: string; // For screenplay: element type
-       matchText: string;
-     }>;
-   }
-   ```
-
-2. Modify Print components (`ScreenplayPrint.tsx`, `CardPrint.tsx`):
-   - Add highlight wrapper for search matches
-   - Subscribe to findReplaceStore for current search term
-   - Implement scrollIntoView for match navigation
-
-3. Create unified search function:
-   ```typescript
-   // Searches both cell data and rendered Print content
-   function searchAllViews(term: string, options: SearchOptions): SearchResults
-   ```
-
-**Estimated Complexity:** High
-**Estimated Time:** 8-12 hours
+**Keyboard Shortcuts:** Arrow Up/Down to navigate suggestions, Enter/Tab to accept, Escape to dismiss
 
 ---
 
 ### 6. Workspace Layouts & Panel Presets
-**Status:** 🔄 Not Started
+**Status:** ✅ Complete
 
-**Priority:** MEDIUM-HIGH
+**Implementation:**
+- Created `workspace.ts` types with `WorkspaceLayout` interface (id, name, printDrawerPosition, printDrawerSize, sidebarOpen, selectedPrintRecipe, zoomLevel, columnWidths, isDefault, createdAt, lastUsed)
+- Created `workspaceStore.ts` Zustand store with full CRUD: `loadLayouts()`, `saveLayout()`, `loadLayout()`, `deleteLayout()`, `renameLayout()`, `setDefaultLayout()`, `updateLayoutUsage()`
+- Created `WorkspaceManagerModal.tsx` with save-current-layout form, layout list sorted by last used, load/rename/set-default/delete actions, layout detail display
+- Backend persistence via Tauri commands `load_workspace_layouts` and `save_workspace_layouts` in `storage.rs` with localStorage fallback
+- Ctrl+Shift+W opens workspace manager, Ctrl+1 through Ctrl+9 for quick-switch
 
-**Implementation Plan:**
+**Files Created:**
+- `frontend/src/types/workspace.ts`
+- `frontend/src/stores/workspaceStore.ts`
+- `frontend/src/components/modals/WorkspaceManagerModal.tsx`
 
-#### Data Structure:
-```typescript
-// frontend/src/types/workspace.ts
-export interface WorkspaceLayout {
-  id: string;
-  name: string;
-  printDrawerPosition: 'right' | 'bottom' | null;
-  printDrawerSize: number;
-  sidebarOpen: boolean;
-  selectedPrintRecipe: string | null;
-  zoomLevel: number;
-  columnWidths?: Record<string, number>;
-  isDefault?: boolean;
-}
-```
+**Files Modified:**
+- `backend/src/storage.rs`
+- `backend/src/main.rs`
+- `frontend/src/App.tsx`
 
-#### Backend Requirements:
-1. Create `workspaceStore.ts`:
-   ```typescript
-   interface WorkspaceStore {
-     layouts: WorkspaceLayout[];
-     currentLayoutId: string | null;
-
-     saveLayout: (name: string) => void;
-     loadLayout: (id: string) => void;
-     deleteLayout: (id: string) => void;
-     setDefaultLayout: (id: string) => void;
-   }
-   ```
-
-2. Persist layouts to backend via Tauri:
-   ```rust
-   // backend/src/workspace.rs
-   pub async fn save_workspace_layout(layout: WorkspaceLayout) -> Result<()>
-   pub async fn load_workspace_layouts() -> Result<Vec<WorkspaceLayout>>
-   ```
-
-#### Frontend Requirements:
-1. Create `WorkspaceManager.tsx` modal:
-   - List all saved layouts
-   - Save current layout with custom name
-   - Load/delete/rename layouts
-   - Set default layout
-
-2. Add workspace switcher to toolbar:
-   - Dropdown showing all layouts
-   - Quick-switch between layouts
-
-3. Keyboard shortcuts:
-   - `Ctrl+1` through `Ctrl+9` for layout presets 1-9
-
-**Estimated Complexity:** Medium
-**Estimated Time:** 6-8 hours
-
----
-
-### 7. Comparison & Diff View for CSV Files
-**Status:** 🔄 Not Started
-
-**Priority:** HIGH (Critical for Git Workflows)
-
-**Implementation Plan:**
-
-#### Data Structure:
-```typescript
-interface DiffResult {
-  addedRows: number[];
-  deletedRows: number[];
-  modifiedCells: Array<{
-    row: number;
-    col: number;
-    oldValue: string;
-    newValue: string;
-  }>;
-  columnChanges: {
-    added: string[];
-    deleted: string[];
-    renamed: Array<{ from: string; to: string }>;
-  };
-}
-```
-
-#### Backend Requirements:
-1. Create diff utility in Rust:
-   ```rust
-   // backend/src/diff.rs
-   pub fn compare_csv_files(
-     file1_path: String,
-     file2_path: String
-   ) -> Result<DiffResult>
-   ```
-
-2. Implement LCS (Longest Common Subsequence) algorithm for row matching
-3. Handle column reordering detection
-
-#### Frontend Requirements:
-1. Create `DiffViewModal.tsx`:
-   - Two-panel layout showing both files side-by-side
-   - Color-coded diff:
-     - Green: Added rows/cells
-     - Red: Deleted rows/cells
-     - Yellow: Modified cells
-   - Synchronized scrolling
-   - Navigation between changes
-
-2. Add "Compare with..." command:
-   - File menu option
-   - Keyboard shortcut: `Ctrl+Shift+D`
-
-3. Integration with git:
-   - "Compare with last commit" option
-   - Uses `git show HEAD:file.csv` to get previous version
-
-**Estimated Complexity:** High
-**Estimated Time:** 12-16 hours
-
----
-
-### 8. Export Templates & Custom Export Formats
-**Status:** 🔄 Not Started
-
-**Priority:** VERY HIGH (Core Value Proposition)
-
-**Implementation Plan:**
-
-#### Data Structure:
-```typescript
-interface ExportTemplate {
-  id: string;
-  name: string;
-  description: string;
-  outputFormat: 'json' | 'yaml' | 'xml' | 'custom';
-
-  // Field mapping
-  fieldMappings: Array<{
-    csvColumn: string;
-    exportField: string;
-    transform?: TransformFunction;
-  }>;
-
-  // Template strings
-  headerTemplate?: string;
-  rowTemplate: string;
-  footerTemplate?: string;
-
-  // Options
-  options: {
-    prettyPrint?: boolean;
-    indentation?: number;
-    encoding?: string;
-  };
-}
-
-type TransformFunction =
-  | 'uppercase'
-  | 'lowercase'
-  | 'trim'
-  | 'parseNumber'
-  | 'parseBoolean'
-  | { custom: string }; // JavaScript expression
-```
-
-#### Backend Requirements:
-1. Create export engine:
-   ```rust
-   // backend/src/exporters/
-   pub mod json_exporter;
-   pub mod yaml_exporter;
-   pub mod xml_exporter;
-   pub mod template_exporter;
-
-   pub trait Exporter {
-     fn export(&self, data: &CsvData, template: &ExportTemplate) -> Result<String>;
-   }
-   ```
-
-2. Template storage:
-   ```rust
-   pub async fn save_export_template(template: ExportTemplate) -> Result<()>
-   pub async fn load_export_templates() -> Result<Vec<ExportTemplate>>
-   ```
-
-#### Frontend Requirements:
-1. Create `ExportTemplateEditor.tsx`:
-   - Visual template builder
-   - Field mapping drag-and-drop
-   - Live preview of output
-   - Test export with sample rows
-
-2. Bundled templates for common engines:
-   - Unity ScriptableObject JSON
-   - Unreal DataTable JSON
-   - Godot Resource format
-   - Ink/Yarn dialogue format
-   - Generic JSON/YAML
-
-3. Export workflow:
-   - "Export As..." menu option
-   - Select template
-   - Preview output
-   - Save to file
-
-**Example Unity Template:**
-```json
-{
-  "id": "unity-scriptable-object",
-  "name": "Unity ScriptableObject",
-  "outputFormat": "json",
-  "rowTemplate": "  {\n    \"id\": \"{id}\",\n    \"displayName\": \"{name}\",\n    \"description\": \"{description}\",\n    \"value\": {value}\n  }",
-  "headerTemplate": "{\n  \"items\": [\n",
-  "footerTemplate": "\n  ]\n}"
-}
-```
-
-**Estimated Complexity:** High
-**Estimated Time:** 16-20 hours
+**Keyboard Shortcuts:** `Ctrl+Shift+W` - Open Workspace Manager, `Ctrl+1`-`Ctrl+9` - Quick-switch layouts
 
 ---
 
 ### 9. Multi-Cursor & Multi-Cell Editing
-**Status:** 🔄 Not Started
+**Status:** ✅ Complete
 
-**Priority:** MEDIUM
+**Implementation:**
+- Added `multiCursors` array to `cellSelectionStore.ts` with `addMultiCursor`, `removeMultiCursor`, `toggleMultiCursor`, `clearMultiCursors`, `hasMultiCursors`, `getAllCursorPositions`
+- Ctrl/Cmd-click toggles multi-cursor in `useCellSelection.ts`
+- Multi-cursor cells rendered with distinct visual styling in `CellGridVirtualized.tsx`
+- Clipboard operations support multi-cursor positions via `useClipboard.ts`
 
-**Implementation Plan:**
+**Files Modified:**
+- `frontend/src/stores/cellSelectionStore.ts`
+- `frontend/src/hooks/useCellSelection.ts`
+- `frontend/src/hooks/useClipboard.ts`
+- `frontend/src/components/cell/CellGridVirtualized.tsx`
 
-#### Data Structure:
-```typescript
-// Add to cellSelectionStore.ts
-interface CellSelectionStore {
-  multiCursors: Array<{ row: number; col: number }>;
+**Keyboard Shortcuts:** `Ctrl+Click` / `Cmd+Click` - Toggle multi-cursor at cell
 
-  addCursor: (row: number, col: number) => void;
-  removeCursor: (row: number, col: number) => void;
-  clearCursors: () => void;
-  hasMultipleCursors: () => boolean;
-}
-```
+---
 
-#### Frontend Requirements:
-1. Modify `CellGridVirtualized.tsx`:
-   - Handle Ctrl+Click to add cursors
-   - Render multiple cursors visually
-   - Sync typing across all cursors
+### 5. Print View Search & Editing Enhancements
+**Status:** ✅ Complete
 
-2. Multi-cursor operations:
-   - Type to update all cells simultaneously
-   - Paste to update all cells
-   - Delete to clear all cells
-   - Undo/redo for multi-cursor edits
+**Implementation:**
+- Added `searchContext` field to `SearchOptions` in `findReplaceStore.ts` with values: "cell", "print", "all"
+- Created `highlightSearchText()` function in `ScreenplayPrint.tsx` for text-level search highlighting with `<mark>` spans
+- Created `highlightCardSearchText()` function in `CardPrint.tsx` for card content highlighting
+- Both print components subscribe to `findReplaceStore` for search term, options, matches, and current match
+- `ScreenplayElementView` receives search props and highlights matching text within element content (both continuous and paged modes)
+- `Card` component highlights search matches in title, subtitle, and content fields
+- Current active match uses brighter highlight (`bg-warning/80`), other matches use dimmer highlight (`bg-warning/40`)
+- `CellGridVirtualized` respects `searchContext` — only shows cell highlights when context is "cell" or "all"
+- `FindReplaceModal` updated with view context selector dropdown (Cell View / Print View / All Views)
 
-3. Visual feedback:
-   - Primary cursor: solid outline
-   - Secondary cursors: dashed outline or different color
+**Files Modified:**
+- `frontend/src/stores/findReplaceStore.ts`
+- `frontend/src/components/modals/FindReplaceModal.tsx`
+- `frontend/src/components/prints/ScreenplayPrint.tsx`
+- `frontend/src/components/prints/CardPrint.tsx`
+- `frontend/src/components/cell/CellGridVirtualized.tsx`
 
-**Estimated Complexity:** Medium
-**Estimated Time:** 6-8 hours
+**Keyboard Shortcuts:** `Ctrl+F` (existing) with view context selector
+
+---
+
+### 7. Comparison & Diff View for CSV Files
+**Status:** ✅ Complete
+
+**Priority:** HIGH (Critical for Git Workflows)
+
+**Implementation:**
+- Created `backend/src/diff.rs` with full CSV diff engine:
+  - LCS (Longest Common Subsequence) algorithm for row matching
+  - Two-pass matching: exact row match first, then ID-column (first column) matching for modified rows
+  - Hash-based matching fallback for large files (>5000 rows)
+  - CSV parsing with proper quote/escape handling
+  - Column change detection (added/deleted columns)
+  - 5 unit tests (all passing)
+- Created `DiffViewModal.tsx` with:
+  - Side-by-side two-panel layout with synchronized scrolling
+  - Color-coded diff: green (added), red (deleted), yellow (modified)
+  - Change navigation with Ctrl+Up/Down
+  - Summary badges showing counts of added/deleted/modified rows and columns
+  - File picker to select comparison file
+  - Modified cells show tooltip with previous value
+- Registered `compare_csv_files` Tauri command in `main.rs`
+
+**Files Created:**
+- `backend/src/diff.rs`
+- `frontend/src/components/modals/DiffViewModal.tsx`
+
+**Files Modified:**
+- `backend/src/main.rs`
+- `frontend/src/App.tsx`
+
+**Keyboard Shortcuts:** `Ctrl+Shift+D` - Open Compare Files
+
+---
+
+### 8. Export Templates & Custom Export Formats
+**Status:** ✅ Complete
+
+**Priority:** VERY HIGH (Core Value Proposition)
+
+**Implementation:**
+- Created `ExportTemplate` type definitions in `frontend/src/types/exportTemplate.ts` with:
+  - `FieldMapping` for CSV-to-export field mapping with optional transforms
+  - `TransformFunction` type (uppercase, lowercase, trim, parseNumber, parseBoolean, escapeHtml, escapeJson)
+  - `ExportOptions` for format-specific settings
+- Created `exportTemplateStore.ts` Zustand store with:
+  - Template CRUD operations (load, save, delete custom templates)
+  - `executeExport()` engine supporting JSON, YAML, XML, and custom output formats
+  - Template placeholder processing ({columnName}, {N}, {row_json}, {row_fields_yaml}, {row_fields_xml}, etc.)
+  - Custom templates persisted via Tauri preferences
+- Created 8 built-in templates in `exportTemplates.ts`:
+  - JSON Array, Unity ScriptableObject JSON, Unreal DataTable JSON
+  - Godot Resource (.tres), Ink Dialogue, Yarn Spinner
+  - XML, YAML
+- Created `ExportModal.tsx` with:
+  - Template list with category filtering (General, Game Engines, Dialogue)
+  - Live preview with configurable row count
+  - Template detail display
+  - Export to file via save dialog
+  - Copy to clipboard functionality
+  - Template info badges (format, file extension, category)
+
+**Files Created:**
+- `frontend/src/types/exportTemplate.ts`
+- `frontend/src/data/exportTemplates.ts`
+- `frontend/src/stores/exportTemplateStore.ts`
+- `frontend/src/components/modals/ExportModal.tsx`
+
+**Files Modified:**
+- `frontend/src/App.tsx`
+
+**Keyboard Shortcuts:** `Ctrl+Shift+E` - Open Export dialog
 
 ---
 
 ### 10. Cell Edit History & Audit Trail
-**Status:** 🔄 Not Started
+**Status:** ✅ Complete
 
 **Priority:** MEDIUM-LOW
 
-**Implementation Plan:**
+**Implementation:**
+- Extended `cellHistoryStore.ts` with per-cell edit tracking:
+  - `CellEdit` interface: timestamp, row, col, columnName, oldValue, newValue
+  - `cellEdits` Map keyed by "row:col" for O(1) cell history lookup
+  - `recordCellEdit()` - records an edit (capped at 100 per cell)
+  - `getCellHistory()` - get history for a specific cell
+  - `getAllCellEdits()` - get all edits sorted by timestamp
+  - `clearCellEdits()` - clear on file load
+- Integrated `recordCellEdit()` into `cellStore.updateCell()` to automatically track all cell mutations
+- Created `CellHistoryModal.tsx` with:
+  - Two view modes: "Selected Cell" (specific cell history) and "All Edits" (session-wide)
+  - Column filter dropdown in "All Edits" mode
+  - Timeline display with relative timestamps and old→new value changes
+  - Color-coded value display (red for old, green for new)
+  - "Restore" button to revert to any previous value
+  - Edit count display
 
-#### Data Structure:
-```typescript
-interface CellEdit {
-  timestamp: number;
-  row: number;
-  col: number;
-  oldValue: string;
-  newValue: string;
-  user?: string; // For future multi-user support
-  commitHash?: string; // Git integration
-}
+**Files Created:**
+- `frontend/src/components/modals/CellHistoryModal.tsx`
 
-interface CellHistory {
-  [cellKey: string]: CellEdit[]; // cellKey = "row:col"
-}
-```
+**Files Modified:**
+- `frontend/src/stores/cellHistoryStore.ts`
+- `frontend/src/stores/cellStore.ts`
+- `frontend/src/App.tsx`
 
-#### Backend Requirements:
-1. Create history tracking:
-   ```typescript
-   // frontend/src/stores/cellHistoryStore.ts
-   interface CellHistoryStore {
-     history: CellHistory;
-
-     recordEdit: (edit: CellEdit) => void;
-     getCellHistory: (row: number, col: number) => CellEdit[];
-     clearHistory: () => void;
-   }
-   ```
-
-2. Optional: Git integration
-   ```rust
-   // backend/src/git.rs
-   pub async fn get_cell_history_from_git(
-     file_path: String,
-     row: usize,
-     col: usize
-   ) -> Result<Vec<GitCommit>>
-   ```
-
-#### Frontend Requirements:
-1. Create `CellHistoryModal.tsx`:
-   - Timeline view of cell changes
-   - Show old → new values
-   - Git commit attribution (if available)
-   - Restore previous value option
-
-2. Context menu integration:
-   - Right-click cell → "View History"
-
-3. History persistence:
-   - Store in-session history
-   - Optional: Persist to file for long-term tracking
-
-**Estimated Complexity:** Medium-High
-**Estimated Time:** 8-10 hours
+**Keyboard Shortcuts:** `Ctrl+Shift+H` - Open Edit History
 
 ---
 
 ## Implementation Priority Recommendations
 
-### Phase 1: High-Impact, Medium Complexity (Next Sprint)
-1. ✅ Recent Files (Completed)
-2. ✅ Quick Navigation (Completed)
-3. ✅ Column Manager (Completed)
-4. **Smart Autocomplete** - 4-6 hours
-5. **Workspace Layouts** - 6-8 hours
+### Phase 1: High-Impact, Medium Complexity ✅ COMPLETE
+1. ✅ Recent Files
+2. ✅ Quick Navigation
+3. ✅ Column Manager
+4. ✅ Smart Autocomplete
+6. ✅ Workspace Layouts
+9. ✅ Multi-Cursor
 
-**Total Time:** 10-14 hours
+### Phase 2: High-Impact, High Complexity ✅ COMPLETE
+5. ✅ Print View Search
+7. ✅ Diff View
+8. ✅ Export Templates
 
-### Phase 2: High-Impact, High Complexity (Following Sprint)
-6. **Print View Search** - 8-12 hours
-7. **Export Templates** - 16-20 hours
-8. **Diff View** - 12-16 hours
-
-**Total Time:** 36-48 hours
-
-### Phase 3: Power User Features (Future)
-9. **Multi-Cursor** - 6-8 hours
-10. **Cell History** - 8-10 hours
-
-**Total Time:** 14-18 hours
+### Phase 3: Power User Features ✅ COMPLETE
+10. ✅ Cell Edit History
 
 ---
 
@@ -660,15 +409,20 @@ All features are additive and don't modify existing APIs or data formats.
 
 ## Summary
 
-**Completed:** 3 features (Recent Files, Quick Navigation, Column Manager)
-**Remaining:** 7 features
-**Total Estimated Time:** 60-80 hours for all remaining features
+**Completed:** 10 of 10 features - ALL FEATURES IMPLEMENTED
 
-**Recommended Next Steps:**
-1. Implement Smart Autocomplete (highest ROI)
-2. Implement Workspace Layouts (good UX improvement)
-3. Implement Print View Search (critical for writers)
-4. Implement Export Templates (core value prop)
+| # | Feature | Shortcut |
+|---|---------|----------|
+| 1 | Recent Files & Session Management | UI |
+| 2 | Quick Navigation / GoTo | Ctrl+G |
+| 3 | Column Manager | Ctrl+M |
+| 4 | Smart Autocomplete | Automatic |
+| 5 | Print View Search | Ctrl+F (view selector) |
+| 6 | Workspace Layouts | Ctrl+Shift+W, Ctrl+1-9 |
+| 7 | Comparison / Diff View | Ctrl+Shift+D |
+| 8 | Export Templates | Ctrl+Shift+E |
+| 9 | Multi-Cursor Editing | Ctrl+Click |
+| 10 | Cell Edit History | Ctrl+Shift+H |
 
 **All features align with Seria's vision:**
 - Writer-friendly workflows ✅
