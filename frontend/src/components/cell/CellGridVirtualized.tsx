@@ -63,7 +63,6 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCellStore } from "@stores/cellStore";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
@@ -78,10 +77,12 @@ import { useClipboard } from "@/hooks/useClipboard";
 import { useAutosave } from "@utils/useAutosave";
 import { useAutocomplete } from "@/hooks/useAutocomplete";
 import AutocompleteDropdown from "./AutocompleteDropdown";
+import PopoutEditBox from "./PopoutEditBox";
 import SummaryRow from "./SummaryRow";
 import ContextMenu from "./ContextMenu";
 import FillDialog from "./FillDialog";
 import { useContextMenu } from "@/hooks/useContextMenu";
+import { useCellSelection } from "@/hooks/useCellSelection";
 import { useFilteredData } from "@/hooks/useFilteredData";
 import { useColumnWidths } from "@/hooks/useColumnWidths";
 import { useColumnResize } from "@/hooks/useColumnResize";
@@ -161,21 +162,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const { triggerAutosave } = useAutosave();
 
     // ===== LOCAL STATE =====
-    // Selection state for drag selection
-    const [isSelecting, setIsSelecting] = useState(false);
-    const [selectionStart, setSelectionStart] = useState<{ row: number; col: number } | null>(null);
-
-    // Hover state for column highlighting
-    const [hoveredColumn, setHoveredColumn] = useState<number | null>(null);
 
     // Multi-cell fill dialog state
     const [showFillDialog, setShowFillDialog] = useState(false);
-
-    // Performance: Batch selection updates using RAF
-    const pendingSelectionRef = useRef<{ row: number; col: number } | null>(null);
-    const rafIdRef = useRef<number | null>(null);
-
-
 
     // Popout edit box position (for multi-line editing when wrap text is off)
     const [popoutEditPosition, setPopoutEditPosition] = useState<{
@@ -258,6 +247,26 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         setSelectedCell,
     });
 
+    // Cell selection hook
+    const {
+        isSelecting,
+        hoveredColumn,
+        handleCellMouseDown,
+        handleCellMouseEnter,
+        handleCellMouseLeave,
+    } = useCellSelection({
+        selectedCell,
+        setSelectedCell,
+        setSelectedRange,
+        toggleCursor,
+        clearCursors,
+        editingCellRef,
+        gridFocusRef,
+        editingCell,
+        editingSource,
+        hoverHighlightMode,
+    });
+
     // Autocomplete hook
     const {
         autocompleteSuggestions,
@@ -319,24 +328,6 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     // Container resize observer and auto-fit initialization handled by useColumnWidths hook
 
     // ===== GLOBAL EVENT HANDLERS =====
-
-    // Handle global mouseup for selection
-    useEffect(() => {
-        const handleMouseUp = (e: MouseEvent) => {
-            const target = e.target as Node;
-            const isInsideEditingCell = editingCellRef.current && editingCellRef.current.contains(target);
-
-            if (isInsideEditingCell) {
-                return;
-            }
-
-            setIsSelecting(false);
-            setSelectionStart(null);
-        };
-
-        document.addEventListener("mouseup", handleMouseUp);
-        return () => document.removeEventListener("mouseup", handleMouseUp);
-    }, []);
 
     // Handle clicking outside editing cell to save
     useEffect(() => {
@@ -583,24 +574,6 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         }
     }, [filteredData.length]);
 
-    // Cleanup RAF on unmount or when selection ends
-    useEffect(() => {
-        return () => {
-            if (rafIdRef.current !== null) {
-                cancelAnimationFrame(rafIdRef.current);
-                rafIdRef.current = null;
-            }
-        };
-    }, []);
-
-    // Cancel pending selection update when selection ends
-    useEffect(() => {
-        if (!isSelecting && rafIdRef.current !== null) {
-            cancelAnimationFrame(rafIdRef.current);
-            rafIdRef.current = null;
-            pendingSelectionRef.current = null;
-        }
-    }, [isSelecting]);
 
     // ===== CELL EDITING HANDLERS =====
     // Wrapped in useCallback to prevent recreation on every render
@@ -758,88 +731,6 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     // Column resize hook (see useColumnResize)
 
     // Row and column drag-and-drop hooks (see useRowDragAndDrop / useColumnDragAndDrop)
-
-    // ===== CELL SELECTION HANDLERS =====
-    // Wrapped in useCallback to prevent recreation on every render (critical for performance)
-
-    const handleCellMouseDown = useCallback((e: React.MouseEvent, row: number, col: number) => {
-        if (e.button !== 0) return;
-
-        const target = e.target as HTMLElement;
-        const isClickInsideEditor =
-            target instanceof HTMLInputElement ||
-            target instanceof HTMLTextAreaElement ||
-            target.closest("input[type='text']") !== null ||
-            target.closest("textarea") !== null;
-
-        if (isClickInsideEditor) {
-            return;
-        }
-
-        if (gridFocusRef.current) {
-            gridFocusRef.current.focus();
-        }
-
-        // Ctrl/Cmd-click: toggle multi-cursor
-        if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            toggleCursor(row, col);
-            return;
-        }
-
-        // Shift-click: extend selection (clears multi-cursors)
-        if (e.shiftKey && selectedCell) {
-            e.preventDefault();
-            setSelectedRange(selectedCell.row, selectedCell.col, row, col);
-            clearCursors();
-            return;
-        }
-
-        // Normal click: start new selection (clears multi-cursors)
-        setIsSelecting(true);
-        setSelectionStart({ row, col });
-        setSelectedCell(row, col);
-        clearCursors();
-    }, [selectedCell, setSelectedRange, setSelectedCell, toggleCursor, clearCursors]);
-
-    const handleCellMouseEnter = useCallback((row: number, col: number) => {
-        // Set hovered column for column highlighting
-        if (hoverHighlightMode === "column" || hoverHighlightMode === "row-and-column") {
-            setHoveredColumn(col);
-        }
-
-        // Don't handle drag selection if editing
-        if (editingCell && editingSource === "cell") {
-            return;
-        }
-
-        // Handle drag selection with RAF batching for performance
-        if (isSelecting && selectionStart) {
-            if (row !== selectionStart.row || col !== selectionStart.col) {
-                // Store pending selection instead of updating immediately
-                pendingSelectionRef.current = { row, col };
-
-                // Cancel any pending RAF
-                if (rafIdRef.current !== null) {
-                    cancelAnimationFrame(rafIdRef.current);
-                }
-
-                // Schedule update for next animation frame (max 60fps)
-                rafIdRef.current = requestAnimationFrame(() => {
-                    if (pendingSelectionRef.current && selectionStart) {
-                        const { row: endRow, col: endCol } = pendingSelectionRef.current;
-                        setSelectedRange(selectionStart.row, selectionStart.col, endRow, endCol);
-                        pendingSelectionRef.current = null;
-                    }
-                    rafIdRef.current = null;
-                });
-            }
-        }
-    }, [hoverHighlightMode, editingCell, editingSource, isSelecting, selectionStart, setSelectedRange]);
-
-    const handleCellMouseLeave = useCallback(() => {
-        setHoveredColumn(null);
-    }, []);
 
     // ===== RENDER =====
 
@@ -1431,62 +1322,17 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             />
 
             {/* Popout edit box for multi-line cells when wrap text is off */}
-            {popoutEditPosition &&
-                editingCell &&
-                createPortal(
-                        <div
-                            className="fixed z-[9999] bg-base-100 shadow-2xl border-2 border-primary/50 rounded-lg"
-                            style={{
-                                top: `${popoutEditPosition.top}px`,
-                                left: `${popoutEditPosition.left}px`,
-                                width: `${popoutEditPosition.width}px`,
-                                minWidth: "200px",
-                                maxWidth: "600px",
-                            }}
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => {
-                            e.stopPropagation();
-                            e.nativeEvent.stopImmediatePropagation();
-                        }}
-                    >
-                        <textarea
-                            ref={(el) => {
-                                editingInputRef.current = el;
-                            }}
-                            className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight resize-none overflow-hidden rounded-lg"
-                            style={{ userSelect: "text", WebkitUserSelect: "text" }}
-                            value={editingValue}
-                            onChange={(e) => {
-                                updateEditingValue(e.target.value);
-                                if (editingCell) {
-                                    updateAutocompleteSuggestions(editingCell.col, e.target.value);
-                                }
-                                e.target.style.height = "auto";
-                                e.target.style.height = `${e.target.scrollHeight}px`;
-                            }}
-                            onKeyDown={(e) => {
-                                if (editingCell) {
-                                    handleKeyDown(e, editingCell.row, editingCell.col);
-                                }
-                            }}
-                            onInput={(e) => {
-                                const target = e.target as HTMLTextAreaElement;
-                                target.style.height = "auto";
-                                target.style.height = `${target.scrollHeight}px`;
-                            }}
-                            onFocus={(e) => {
-                                // Position cursor at end when focused
-                                const length = e.target.value.length;
-                                e.target.setSelectionRange(length, length);
-                                // Auto-size to fit content
-                                e.target.style.height = "auto";
-                                e.target.style.height = `${e.target.scrollHeight}px`;
-                            }}
-                            autoFocus
-                        />
-                    </div>,
-                    document.body
-                )}
+            {popoutEditPosition && editingCell && (
+                <PopoutEditBox
+                    position={popoutEditPosition}
+                    editingValue={editingValue}
+                    editingCell={editingCell}
+                    updateEditingValue={updateEditingValue}
+                    inputRefCallback={(el) => { editingInputRef.current = el; }}
+                    onKeyDown={handleKeyDown}
+                    onInputChange={updateAutocompleteSuggestions}
+                />
+            )}
 
             {/* Autocomplete dropdown */}
             {showAutocomplete && editingCell && editingCellRef.current && (
