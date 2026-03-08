@@ -137,31 +137,37 @@ function ColumnFilterDropdown({
             {/* Dropdown menu */}
             {isOpen && (
                 <div className="absolute top-full right-0 mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg z-50 w-64 p-3">
-                    <div className="flex flex-col gap-2">
-                        {/* Operation selector */}
-                        <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-3">
+                        {/* Operation */}
+                        <div>
+                            <label className="text-xs text-base-content/60 font-medium mb-1 block">Operation</label>
                             <button
-                                className="btn btn-sm btn-outline flex-shrink-0"
+                                className="btn btn-sm btn-outline w-full justify-start gap-2 font-mono"
                                 onClick={handleOperationClick}
                                 title={OPERATION_LABELS[localOperation]}
                             >
-                                {OPERATION_SYMBOLS[localOperation]}
+                                <span className="text-lg min-w-[1.5rem]">
+                                    {OPERATION_SYMBOLS[localOperation]}
+                                </span>
+                                <span className="text-xs font-sans">
+                                    {OPERATION_LABELS[localOperation]}
+                                </span>
                             </button>
-                            <span className="text-xs text-base-content/70">
-                                {OPERATION_LABELS[localOperation]}
-                            </span>
                         </div>
 
-                        {/* Filter value input */}
-                        <input
-                            type="text"
-                            className="input input-sm input-bordered w-full"
-                            placeholder="Filter value..."
-                            value={localValue}
-                            onChange={(e) => setLocalValue(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            autoFocus
-                        />
+                        {/* Filter text */}
+                        <div>
+                            <label className="text-xs text-base-content/60 font-medium mb-1 block">Filter text</label>
+                            <input
+                                type="text"
+                                className="input input-sm input-bordered w-full"
+                                placeholder="Filter value..."
+                                value={localValue}
+                                onChange={(e) => setLocalValue(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                autoFocus
+                            />
+                        </div>
 
                         {/* Unique values list or message */}
                         {showValueList ? (
@@ -183,7 +189,7 @@ function ColumnFilterDropdown({
                             </div>
                         ) : uniqueValues.length > 10 && localValue.trim() === "" ? (
                             <div className="text-xs text-base-content/60 p-2 bg-base-200/50 rounded border border-base-300">
-                                More than 10 unique values in this field. Type to filter and we'll show a list of options when ready, or you can filter just on the text.
+                                More than 10 unique values in this field. Type to filter and we&apos;ll show a list of options when ready, or you can filter just on the text.
                             </div>
                         ) : null}
 

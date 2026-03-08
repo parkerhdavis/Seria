@@ -129,6 +129,28 @@ button,
   animation: toast-fade-out 0.2s ease-in forwards;
 }
 
+/* Title bar background — darkest per theme */
+[data-theme="dark"] .titlebar-bg {
+  background-color: #0d0f12;
+  border-color: #0a0c0e;
+}
+
+[data-theme="light"] .titlebar-bg {
+  background-color: #0f172a;
+  border-color: #0c1322;
+}
+
+/* Toolbar background — high-contrast per theme */
+[data-theme="dark"] .toolbar-bg {
+  background-color: #111418;
+  border-color: #0d0f12;
+}
+
+[data-theme="light"] .toolbar-bg {
+  background-color: #1e293b;
+  border-color: #0f172a;
+}
+
 /* Custom utility classes */
 @layer utilities {
   .text-balance {

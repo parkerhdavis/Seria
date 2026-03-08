@@ -73,7 +73,7 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
     };
 
     return (
-        <header className="bg-black/70 border-b-6 border-black/80 shadow-sm flex">
+        <header className="toolbar-bg border-b-6 shadow-sm flex">
             {/* Sidebar toggle - spans full toolbar height */}
             {!isSidebarOpen && (
                 <button
@@ -105,7 +105,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            New
                         </button>
 
                         <button
@@ -117,7 +116,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                             </svg>
-                            Import
                         </button>
 
                         {/* File operations - Open and Save */}
@@ -129,7 +127,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                             </svg>
-                            Open
                         </button>
 
                         {/* Recent Files Dropdown */}
@@ -143,7 +140,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
-                                    Recent
                                 </button>
                                 <ul
                                     tabIndex={0}
@@ -192,7 +188,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                             </svg>
-                            Save
                         </button>
 
                         <button
@@ -204,7 +199,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
-                            Reload
                         </button>
 
                         {/* Divider */}
@@ -229,7 +223,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                                     d="M12 4v16m8-8H4"
                                 />
                             </svg>
-                            Add Row
                         </button>
 
                         {/* Wrap Text toggle */}
@@ -252,7 +245,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                                     d="M4 6h16M4 12h16m-7 6h7"
                                 />
                             </svg>
-                            Wrap Text
                         </button>
 
                         {/* Column Lines toggle */}
@@ -275,7 +267,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                                     d="M9 4v16m6-16v16M4 9h16M4 15h16"
                                 />
                             </svg>
-                            Column Lines
                         </button>
 
                         {/* Auto-Fit toggle */}
@@ -298,7 +289,6 @@ function Header({ onTogglePrintPreview, onToggleSidebar, isSidebarOpen, onFilePi
                                     d="M8 7H20m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4-4m-4 4l4 4"
                                 />
                             </svg>
-                            Auto-Fit
                         </button>
 
                         {/* Row Coloring dropdown */}

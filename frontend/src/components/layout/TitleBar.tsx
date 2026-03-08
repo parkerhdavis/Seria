@@ -144,7 +144,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
         <>
             <div
                 data-tauri-drag-region
-                className="relative flex flex-row items-center h-10 bg-base-300 border-b-4 border-base-300/60 select-none"
+                className="relative flex flex-row items-center h-10 titlebar-bg border-b-4 text-gray-100 select-none"
                 onMouseDown={(e) => {
                     logger.debug("Title bar mousedown:", {
                         target: e.target,
@@ -160,7 +160,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                     <div className="dropdown" style={{ pointerEvents: 'auto', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
                         <label
                             tabIndex={0}
-                            className="btn btn-ghost btn-sm h-full rounded-none px-3 text-xs font-medium hover:bg-base-200"
+                            className="btn btn-ghost btn-sm h-full rounded-none px-3 text-xs font-medium hover:bg-white/10"
                         >
                             File
                         </label>
@@ -293,7 +293,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                     {/* Minimize button */}
                     <button
                         onClick={handleMinimize}
-                        className="flex items-center justify-center w-12 h-full hover:bg-base-200 transition-colors"
+                        className="flex items-center justify-center w-12 h-full hover:bg-white/10 transition-colors"
                         aria-label="Minimize window"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -304,7 +304,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                     {/* Maximize/Restore button */}
                     <button
                         onClick={handleMaximize}
-                        className="flex items-center justify-center w-12 h-full hover:bg-base-200 transition-colors"
+                        className="flex items-center justify-center w-12 h-full hover:bg-white/10 transition-colors"
                         aria-label={isMaximized ? "Restore window" : "Maximize window"}
                     >
                         {isMaximized ? (

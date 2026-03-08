@@ -69,7 +69,7 @@ import { useCellSelectionStore } from "@stores/cellSelectionStore";
 import { useCellEditStore } from "@stores/cellEditStore";
 import { useCellColumnStore } from "@stores/cellColumnStore";
 import { useCellFilterStore } from "@stores/cellFilterStore";
-import { useSettingsStore } from "@stores/settingsStore";
+import { useSettingsStore, type FilterOperation } from "@stores/settingsStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { useDrawerStore } from "@stores/drawerStore";
 import ColumnFilterDropdown from "../toolbar/ColumnFilterDropdown";
@@ -80,6 +80,7 @@ import AutocompleteDropdown from "./AutocompleteDropdown";
 import PopoutEditBox from "./PopoutEditBox";
 import SummaryRow from "./SummaryRow";
 import ContextMenu from "./ContextMenu";
+import RowColumnContextMenu from "./RowColumnContextMenu";
 import FillDialog from "./FillDialog";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { useCellSelection } from "@/hooks/useCellSelection";
@@ -130,6 +131,10 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const setColumnFilter = useCellFilterStore((state) => state.setColumnFilter);
     const clearColumnFilter = useCellFilterStore((state) => state.clearColumnFilter);
     const setColumnSummary = useCellFilterStore((state) => state.setColumnSummary);
+    const addRow = useCellStore((state) => state.addRow);
+    const deleteRows = useCellStore((state) => state.deleteRows);
+    const addColumn = useCellStore((state) => state.addColumn);
+    const deleteColumn = useCellStore((state) => state.deleteColumn);
     const reorderRows = useCellStore((state) => state.reorderRows);
     const reorderColumns = useCellStore((state) => state.reorderColumns);
     const isLoading = useCellStore((state) => state.isLoading);
@@ -147,6 +152,8 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const autoFitColumns = useSettingsStore((state) => state.autoFitColumns);
     const rowColoringMode = useSettingsStore((state) => state.rowColoringMode);
     const rowColorFilter = useSettingsStore((state) => state.rowColorFilter);
+    const setRowColoringMode = useSettingsStore((state) => state.setRowColoringMode);
+    const setRowColorFilter = useSettingsStore((state) => state.setRowColorFilter);
     const cellFollowsPrintEdit = useSettingsStore((state) => state.cellFollowsPrintEdit);
     const hoverHighlightMode = useSettingsStore((state) => state.hoverHighlightMode);
     const autocompleteEnabled = useSettingsStore((state) => state.autocompleteEnabled);
@@ -166,6 +173,18 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
     // Multi-cell fill dialog state
     const [showFillDialog, setShowFillDialog] = useState(false);
+
+    // Row/column context menu state
+    const [rcContextMenu, setRcContextMenu] = useState<{
+        x: number;
+        y: number;
+        type: "row" | "column";
+        index: number;
+    } | null>(null);
+
+    // Row coloring filter popover state (which column index is open, null = closed)
+    const [rowColorPopoverCol, setRowColorPopoverCol] = useState<number | null>(null);
+    const rowColorPopoverRef = useRef<HTMLDivElement>(null);
 
     // Popout edit box position (for multi-line editing when wrap text is off)
     const [popoutEditPosition, setPopoutEditPosition] = useState<{
@@ -729,6 +748,150 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         }
     }, [closeContextMenu, handleCopyToClipboard, handleCutToClipboard, handlePasteFromSystemClipboard, clearCells, setCutCells, selectedRange, selectedCell, filteredData, handleStartEdit]);
 
+    // Row/column context menu handlers
+    const handleRowContextMenu = useCallback((e: React.MouseEvent, rowIndex: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setRcContextMenu({ x: e.clientX, y: e.clientY, type: "row", index: rowIndex });
+    }, []);
+
+    const handleColumnContextMenu = useCallback((e: React.MouseEvent, colIndex: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setRcContextMenu({ x: e.clientX, y: e.clientY, type: "column", index: colIndex });
+    }, []);
+
+    const handleRcContextMenuAction = useCallback((action: string) => {
+        if (!rcContextMenu) return;
+        const { type, index } = rcContextMenu;
+        setRcContextMenu(null);
+
+        if (type === "row") {
+            switch (action) {
+                case "insertBefore":
+                    addRow(index);
+                    break;
+                case "insertAfter":
+                    addRow(index + 1);
+                    break;
+                case "duplicate": {
+                    const rowData = filteredData[index];
+                    if (rowData) {
+                        addRow(index + 1);
+                        // After adding, copy the data into the new row
+                        const newRowIndex = index + 1;
+                        const cellUpdates = rowData.map((value, col) => ({
+                            row: newRowIndex,
+                            col,
+                            value,
+                        }));
+                        // Use setTimeout to ensure the row is added first
+                        setTimeout(() => updateCells(cellUpdates), 0);
+                    }
+                    break;
+                }
+                case "delete":
+                    deleteRows([index]);
+                    break;
+            }
+        } else {
+            switch (action) {
+                case "insertBefore":
+                    addColumn(`Column ${headers.length + 1}`, index);
+                    break;
+                case "insertAfter":
+                    addColumn(`Column ${headers.length + 1}`, index + 1);
+                    break;
+                case "duplicate": {
+                    const colName = headers[index];
+                    addColumn(`${colName} (copy)`, index + 1);
+                    // Copy data from original column to new column
+                    const cellUpdates = data.map((row, rowIdx) => ({
+                        row: rowIdx,
+                        col: index + 1,
+                        value: row[index] || "",
+                    }));
+                    setTimeout(() => updateCells(cellUpdates), 0);
+                    break;
+                }
+                case "delete":
+                    deleteColumn(index);
+                    break;
+            }
+        }
+        triggerAutosave();
+    }, [rcContextMenu, addRow, deleteRows, addColumn, deleteColumn, filteredData, headers, data, updateCells, triggerAutosave]);
+
+    // Close row/column context menu on click outside
+    useEffect(() => {
+        if (!rcContextMenu) return;
+
+        const handleClickOutside = () => {
+            setRcContextMenu(null);
+        };
+
+        const timeoutId = setTimeout(() => {
+            document.addEventListener("click", handleClickOutside);
+            document.addEventListener("contextmenu", handleClickOutside);
+        }, 0);
+
+        return () => {
+            clearTimeout(timeoutId);
+            document.removeEventListener("click", handleClickOutside);
+            document.removeEventListener("contextmenu", handleClickOutside);
+        };
+    }, [rcContextMenu]);
+
+    // Close row coloring popover on click outside or Esc
+    useEffect(() => {
+        if (rowColorPopoverCol === null) return;
+
+        const handleClickOutside = (event: MouseEvent) => {
+            if (rowColorPopoverRef.current && !rowColorPopoverRef.current.contains(event.target as Node)) {
+                setRowColorPopoverCol(null);
+            }
+        };
+
+        const handleEsc = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                setRowColorPopoverCol(null);
+            }
+        };
+
+        const timeoutId = setTimeout(() => {
+            document.addEventListener("mousedown", handleClickOutside);
+        }, 0);
+        document.addEventListener("keydown", handleEsc);
+
+        return () => {
+            clearTimeout(timeoutId);
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("keydown", handleEsc);
+        };
+    }, [rowColorPopoverCol]);
+
+    // Row coloring filter handlers
+    const handleRowColorOperationChange = useCallback((operation: FilterOperation) => {
+        const filter = useSettingsStore.getState().rowColorFilter;
+        if (filter) {
+            setRowColorFilter({ ...filter, operation });
+        }
+    }, [setRowColorFilter]);
+
+    const handleRowColorValueChange = useCallback((value: string) => {
+        const filter = useSettingsStore.getState().rowColorFilter;
+        if (filter) {
+            setRowColorFilter({ ...filter, value });
+        }
+    }, [setRowColorFilter]);
+
+    const handleRowColorColorChange = useCallback((color: string) => {
+        const filter = useSettingsStore.getState().rowColorFilter;
+        if (filter) {
+            setRowColorFilter({ ...filter, color });
+        }
+    }, [setRowColorFilter]);
+
     // Column resize hook (see useColumnResize)
 
     // Row and column drag-and-drop hooks (see useRowDragAndDrop / useColumnDragAndDrop)
@@ -922,6 +1085,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                 }}
                                 onDragOver={(e) => handleColumnDragOver(e, colIndex)}
                                 onDrop={(e) => handleColumnDrop(e, colIndex)}
+                                onContextMenu={(e) => handleColumnContextMenu(e, colIndex)}
                             >
                                 {/* Header content with drag handle and filter */}
                                 <div className="flex items-center gap-2 justify-between">
@@ -931,7 +1095,6 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                         onMouseDown={(e) => {
                                             // Only allow left-click to initiate drag
                                             if (e.button !== 0) {
-                                                e.preventDefault();
                                                 return;
                                             }
                                             e.stopPropagation();
@@ -949,6 +1112,122 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
                                     {/* Header text */}
                                     <span className="flex-1 truncate">{header}</span>
+
+                                    {/* Row coloring paintbrush button (always visible) */}
+                                    {(() => {
+                                        const isHighlightActive = rowColoringMode === "by-field" && rowColorFilter?.field === header;
+                                        return (
+                                            <div className="relative flex-shrink-0" ref={isHighlightActive && rowColorPopoverCol === colIndex ? rowColorPopoverRef : undefined}>
+                                                <button
+                                                    className={`btn btn-ghost btn-xs ${isHighlightActive ? "text-success" : "text-base-content/30 hover:text-base-content/60"} transition-colors`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (isHighlightActive) {
+                                                            // Toggle popover on the active column
+                                                            setRowColorPopoverCol(rowColorPopoverCol === colIndex ? null : colIndex);
+                                                        } else {
+                                                            // Activate highlighting for this column and open popover
+                                                            setRowColoringMode("by-field");
+                                                            setRowColorFilter({
+                                                                field: header,
+                                                                operation: "contains",
+                                                                value: "",
+                                                                color: "rgba(59, 130, 246, 0.2)",
+                                                            });
+                                                            setRowColorPopoverCol(colIndex);
+                                                        }
+                                                    }}
+                                                    title={isHighlightActive ? `Row highlighting filter for ${header}` : `Highlight rows by ${header}`}
+                                                >
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        className="h-4 w-4"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth={2}
+                                                            d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42"
+                                                        />
+                                                    </svg>
+                                                </button>
+                                                {/* Row highlighting dropdown */}
+                                                {isHighlightActive && rowColorPopoverCol === colIndex && rowColorFilter && (
+                                                    <div
+                                                        className="absolute top-full mt-1 left-0 bg-base-100 border border-base-300 rounded-lg shadow-lg z-50 w-64 p-3"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        onMouseDown={(e) => e.stopPropagation()}
+                                                    >
+                                                        <div className="flex flex-col gap-3">
+                                                            {/* Operation */}
+                                                            <div>
+                                                                <label className="text-xs text-base-content/60 font-medium mb-1 block">Operation</label>
+                                                                <button
+                                                                    className="btn btn-sm btn-outline w-full justify-start gap-2 font-mono"
+                                                                    onClick={() => handleRowColorOperationChange(
+                                                                        (["contains", "not-contains", "equals", "not-equals"] as const)[
+                                                                            ((["contains", "not-contains", "equals", "not-equals"] as const).indexOf(rowColorFilter.operation) + 1) % 4
+                                                                        ]
+                                                                    )}
+                                                                    title="Click to cycle operation"
+                                                                >
+                                                                    <span className="text-lg min-w-[1.5rem]">
+                                                                        {{ "contains": "\u220B", "not-contains": "!\u220B", "equals": "=", "not-equals": "!=" }[rowColorFilter.operation]}
+                                                                    </span>
+                                                                    <span className="text-xs font-sans">
+                                                                        {{ "contains": "Contains", "not-contains": "Not Contains", "equals": "Equals", "not-equals": "Not Equals" }[rowColorFilter.operation]}
+                                                                    </span>
+                                                                </button>
+                                                            </div>
+
+                                                            {/* Highlight text */}
+                                                            <div>
+                                                                <label className="text-xs text-base-content/60 font-medium mb-1 block">Highlight text</label>
+                                                                <input
+                                                                    type="text"
+                                                                    className="input input-sm input-bordered w-full"
+                                                                    placeholder="Filter text..."
+                                                                    value={rowColorFilter.value}
+                                                                    onChange={(e) => handleRowColorValueChange(e.target.value)}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === "Escape") {
+                                                                            setRowColorPopoverCol(null);
+                                                                        }
+                                                                    }}
+                                                                    autoFocus
+                                                                />
+                                                            </div>
+
+                                                            {/* Highlight color */}
+                                                            <div>
+                                                                <label className="text-xs text-base-content/60 font-medium mb-1 block">Highlight color</label>
+                                                                <div className="grid grid-cols-6 gap-1.5">
+                                                                    {[
+                                                                        "rgba(239, 68, 68, 0.2)",
+                                                                        "rgba(249, 115, 22, 0.2)",
+                                                                        "rgba(234, 179, 8, 0.2)",
+                                                                        "rgba(34, 197, 94, 0.2)",
+                                                                        "rgba(59, 130, 246, 0.2)",
+                                                                        "rgba(168, 85, 247, 0.2)",
+                                                                    ].map((presetColor) => (
+                                                                        <button
+                                                                            key={presetColor}
+                                                                            className={`w-8 h-8 rounded border-2 transition-colors ${rowColorFilter.color === presetColor ? "border-primary" : "border-base-300 hover:border-base-content/40"}`}
+                                                                            style={{ backgroundColor: presetColor }}
+                                                                            onClick={() => handleRowColorColorChange(presetColor)}
+                                                                        />
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Filter dropdown */}
                                     <ColumnFilterDropdown
@@ -1048,7 +1327,6 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                 onMouseDown={(e) => {
                                     // Only allow left-click to initiate drag
                                     if (e.button !== 0) {
-                                        e.preventDefault();
                                         return;
                                     }
                                     e.stopPropagation();
@@ -1056,6 +1334,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                 }}
                                 onDragStart={(e) => handleRowDragStart(e, rowIndex)}
                                 onDragEnd={handleRowDragEnd}
+                                onContextMenu={(e) => handleRowContextMenu(e, rowIndex)}
                             >
                                 <div className="flex items-center justify-center gap-1" style={{ pointerEvents: "none" }}>
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-base-content/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1261,7 +1540,6 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                 onMouseDown={(e) => {
                                     // Only allow left-click to initiate drag
                                     if (e.button !== 0) {
-                                        e.preventDefault();
                                         return;
                                     }
                                     e.stopPropagation();
@@ -1269,6 +1547,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                 }}
                                 onDragStart={(e) => handleRowDragStart(e, rowIndex)}
                                 onDragEnd={handleRowDragEnd}
+                                onContextMenu={(e) => handleRowContextMenu(e, rowIndex)}
                             >
                                 <div className="flex items-center justify-center gap-1" style={{ pointerEvents: "none" }}>
                                     {rowIndex + 1}
@@ -1295,6 +1574,15 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                     position={{ x: contextMenu.x, y: contextMenu.y }}
                     isMultiCell={selectedRange !== null}
                     onAction={handleContextMenuAction}
+                />
+            )}
+
+            {/* Row/Column Context Menu */}
+            {rcContextMenu && (
+                <RowColumnContextMenu
+                    position={{ x: rcContextMenu.x, y: rcContextMenu.y }}
+                    type={rcContextMenu.type}
+                    onAction={handleRcContextMenuAction}
                 />
             )}
 
