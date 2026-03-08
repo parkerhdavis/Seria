@@ -8,7 +8,7 @@
 import { useState, useEffect } from "react";
 import { useWorkspaceStore } from "@stores/workspaceStore";
 import { useDrawerStore } from "@stores/drawerStore";
-import { useCellStore } from "@stores/cellStore";
+import { useCellColumnStore } from "@stores/cellColumnStore";
 
 interface WorkspaceManagerModalProps {
     isOpen: boolean;
@@ -49,7 +49,7 @@ export default function WorkspaceManagerModal({
     const drawerPosition = useDrawerStore((state) => state.position);
     const rightDrawerSize = useDrawerStore((state) => state.rightDrawerSize);
     const bottomDrawerSize = useDrawerStore((state) => state.bottomDrawerSize);
-    const columnWidths = useCellStore((state) => state.columnWidths);
+    const columnWidths = useCellColumnStore((state) => state.columnWidths);
 
     const [newLayoutName, setNewLayoutName] = useState("");
     const [editingId, setEditingId] = useState<string | null>(null);

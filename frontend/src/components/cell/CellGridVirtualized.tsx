@@ -68,6 +68,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCellStore } from "@stores/cellStore";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
 import { useCellEditStore } from "@stores/cellEditStore";
+import { useCellColumnStore } from "@stores/cellColumnStore";
+import { useCellFilterStore } from "@stores/cellFilterStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
 import { useDrawerStore } from "@stores/drawerStore";
@@ -78,6 +80,11 @@ import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 import { useAutosave } from "@utils/useAutosave";
 import { getSuggestions } from "@utils/autocomplete";
 import AutocompleteDropdown from "./AutocompleteDropdown";
+import { useFilteredData } from "@/hooks/useFilteredData";
+import { useColumnWidths } from "@/hooks/useColumnWidths";
+import { useColumnResize } from "@/hooks/useColumnResize";
+import { useRowDragAndDrop } from "@/hooks/useRowDragAndDrop";
+import { useColumnDragAndDrop } from "@/hooks/useColumnDragAndDrop";
 
 interface CellGridVirtualizedProps {
     onCellEdit?: (row: number, col: number, value: string) => void;
@@ -116,19 +123,21 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     // Actions that modify data stay in cellStore
     const copySelection = useCellStore((state) => state.copySelection);
     const clearCells = useCellStore((state) => state.clearCells);
-    const columnWidths = useCellStore((state) => state.columnWidths);
-    const setColumnWidths = useCellStore((state) => state.setColumnWidths);
-    const columnFilters = useCellStore((state) => state.columnFilters);
-    const setColumnFilter = useCellStore((state) => state.setColumnFilter);
-    const clearColumnFilter = useCellStore((state) => state.clearColumnFilter);
-    const columnSummaries = useCellStore((state) => state.columnSummaries);
-    const setColumnSummary = useCellStore((state) => state.setColumnSummary);
+    const setColumnWidths = useCellColumnStore((state) => state.setColumnWidths);
+    const setColumnFilter = useCellFilterStore((state) => state.setColumnFilter);
+    const clearColumnFilter = useCellFilterStore((state) => state.clearColumnFilter);
+    const setColumnSummary = useCellFilterStore((state) => state.setColumnSummary);
     const reorderRows = useCellStore((state) => state.reorderRows);
     const reorderColumns = useCellStore((state) => state.reorderColumns);
     const isLoading = useCellStore((state) => state.isLoading);
     const loadingProgress = useCellStore((state) => state.loadingProgress);
     const isFullyLoaded = useCellStore((state) => state.isFullyLoaded);
-    const columnCache = useCellStore((state) => state.columnCache);
+    // Column display state from cellColumnStore
+    const columnWidths = useCellColumnStore((state) => state.columnWidths);
+    const columnCache = useCellColumnStore((state) => state.columnCache);
+    // Filter/summary state from cellFilterStore
+    const columnFilters = useCellFilterStore((state) => state.columnFilters);
+    const columnSummaries = useCellFilterStore((state) => state.columnSummaries);
 
     const showColumnSeparators = useSettingsStore((state) => state.showColumnSeparators);
     const wrapText = useSettingsStore((state) => state.wrapText);
@@ -171,28 +180,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     // Multi-cell fill dialog state
     const [showFillDialog, setShowFillDialog] = useState(false);
 
-    // Column resizing state
-    const [resizingColumn, setResizingColumn] = useState<number | null>(null);
-    const [resizeStartX, setResizeStartX] = useState(0);
-    const [resizeStartWidth, setResizeStartWidth] = useState(0);
-    const [resizeNextStartWidth, setResizeNextStartWidth] = useState(0);
-    const [resizeAllStartWidths, setResizeAllStartWidths] = useState<Record<number, number>>({});
-    const [isShiftResize, setIsShiftResize] = useState(false);
-
-    // Drag and drop state
-    const [draggedRow, setDraggedRow] = useState<number | null>(null);
-    const [draggedColumn, setDraggedColumn] = useState<number | null>(null);
-    const [dropTargetRow, setDropTargetRow] = useState<number | null>(null);
-    const [dropTargetColumn, setDropTargetColumn] = useState<number | null>(null);
-    const [isDraggingRow, setIsDraggingRow] = useState(false);
-    const [isDraggingColumn, setIsDraggingColumn] = useState(false);
-
     // Performance: Batch selection updates using RAF
     const pendingSelectionRef = useRef<{ row: number; col: number } | null>(null);
     const rafIdRef = useRef<number | null>(null);
-
-    // Track container width changes to trigger re-renders for proportional column widths
-    const [containerWidth, setContainerWidth] = useState(0);
 
     // Summary row scroll sync
     const [summaryRowScrollLeft, setSummaryRowScrollLeft] = useState(0);
@@ -216,34 +206,40 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const editingInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
     const summaryRowContentRef = useRef<HTMLDivElement>(null);
 
-    // ===== FILTERED DATA =====
-    // Apply column filters
-    const filteredData = useMemo(() => {
-        if (columnFilters.length === 0) return data;
+    // ===== EXTRACTED HOOKS =====
+    // Filtered data
+    const filteredData = useFilteredData(data, headers, columnFilters);
 
-        return data.filter((row) => {
-            return columnFilters.every((filter) => {
-                const colIndex = headers.indexOf(filter.column);
-                if (colIndex === -1) return true;
+    // Column widths hook
+    const {
+        getPixelWidth,
+        pixelWidths: getAllPixelWidths,
+        convertPixelsToProportions,
+    } = useColumnWidths(parentRef, columnWidths, setColumnWidths, headers.length, autoFitColumns);
 
-                const cellValue = (row[colIndex] || "").toLowerCase();
-                const filterValue = filter.value.toLowerCase();
+    // Column resize hook
+    const {
+        resizingColumn,
+        handleColumnResizeStart,
+    } = useColumnResize(headers, columnWidths, setColumnWidths, getPixelWidth, convertPixelsToProportions, autoFitColumns);
 
-                switch (filter.operation) {
-                    case "contains":
-                        return cellValue.includes(filterValue);
-                    case "not-contains":
-                        return !cellValue.includes(filterValue);
-                    case "equals":
-                        return cellValue === filterValue;
-                    case "not-equals":
-                        return cellValue !== filterValue;
-                    default:
-                        return true;
-                }
-            });
-        });
-    }, [data, headers, columnFilters]);
+    // Row drag-and-drop hook
+    const {
+        dropTargetRow,
+        handleRowDragStart,
+        handleRowDragOver,
+        handleRowDrop,
+        handleRowDragEnd,
+    } = useRowDragAndDrop(reorderRows, triggerAutosave);
+
+    // Column drag-and-drop hook
+    const {
+        dropTargetColumn,
+        handleColumnDragStart,
+        handleColumnDragOver,
+        handleColumnDrop,
+        handleColumnDragEnd,
+    } = useColumnDragAndDrop(reorderColumns, triggerAutosave);
 
     // ===== VIRTUALIZER SETUP WITH DYNAMIC SIZING =====
     const rowVirtualizer = useVirtualizer({
@@ -258,51 +254,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         },
     });
 
-    // ===== COLUMN WIDTH HELPERS =====
-    // Memoized for performance - prevents recalculation during resize/render
-    const getAvailableWidth = useCallback((): number => {
-        if (!parentRef.current) return 800;
-        // Use the tracked containerWidth state to ensure re-renders on resize
-        const currentWidth = containerWidth || parentRef.current.clientWidth;
-        const rowNumberWidth = 64 * 2; // Row number columns (left and right side)
-        // In auto-fit mode, use overlay scrollbars so they don't take up layout space
-        // Note: Drawer width is handled by the container width, not here
-        const available = Math.max(currentWidth - rowNumberWidth, 200);
-        return available;
-    }, [containerWidth]);
-
-    const getPixelWidth = useCallback((colIndex: number): number => {
-        const availableWidth = getAvailableWidth();
-        const proportion = columnWidths[colIndex];
-
-        if (proportion === undefined || proportion === 0) {
-            const equalProportion = 1 / headers.length;
-            return Math.floor(equalProportion * availableWidth);
-        }
-
-        return Math.floor(proportion * availableWidth);
-    }, [getAvailableWidth, columnWidths, headers.length]);
-
-    // Get pixel widths for all columns, ensuring they sum exactly to available width
-    // Memoized to prevent recalculation on every render
-    const getAllPixelWidths = useMemo((): number[] => {
-        const availableWidth = getAvailableWidth();
-        const widths: number[] = [];
-        let totalAllocated = 0;
-
-        // Calculate widths for all columns except the last
-        for (let i = 0; i < headers.length - 1; i++) {
-            const width = getPixelWidth(i);
-            widths.push(width);
-            totalAllocated += width;
-        }
-
-        // Last column gets remaining space to fill exactly
-        const remainingWidth = Math.max(100, availableWidth - totalAllocated);
-        widths.push(remainingWidth);
-
-        return widths;
-    }, [getAvailableWidth, getPixelWidth, headers.length]);
+    // Column width helpers provided by useColumnWidths hook
 
     // ===== MEMOIZED SUMMARY CALCULATIONS =====
     // Prevents expensive recalculation on every render - only recalculates when data changes
@@ -315,16 +267,6 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         });
         return summaries;
     }, [headers, filteredData, columnSummaries]);
-
-    const convertPixelsToProportions = useCallback((pixelWidths: Record<number, number>): Record<number, number> => {
-        const totalWidth = Object.values(pixelWidths).reduce((sum: number, w: number) => sum + w, 0);
-        const proportions: Record<number, number> = {};
-        Object.keys(pixelWidths).forEach((key) => {
-            const idx = parseInt(key);
-            proportions[idx] = pixelWidths[idx] / totalWidth;
-        });
-        return proportions;
-    }, []);
 
     // ===== ROW COLORING =====
     const rowMatchesFilter = (row: string[]) => {
@@ -350,59 +292,8 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         }
     };
 
-    // ===== CONTAINER RESIZE OBSERVER =====
 
-    // Watch for container size changes (e.g., drawer opening/closing) and update state to trigger re-renders
-    useEffect(() => {
-        if (!parentRef.current) return;
-
-        const updateContainerWidth = () => {
-            if (parentRef.current) {
-                const newWidth = parentRef.current.clientWidth;
-                setContainerWidth(newWidth);
-            }
-        };
-
-        // Set initial width
-        updateContainerWidth();
-
-        // Watch for container resize (drawer open/close, window resize, etc.)
-        const resizeObserver = new ResizeObserver(() => {
-            updateContainerWidth();
-        });
-        resizeObserver.observe(parentRef.current);
-
-        // Also listen to window resize for good measure
-        window.addEventListener("resize", updateContainerWidth);
-
-        return () => {
-            resizeObserver.disconnect();
-            window.removeEventListener("resize", updateContainerWidth);
-        };
-    }, []); // Run only on mount - ResizeObserver and window resize handle updates
-
-    // ===== AUTO-FIT COLUMNS INITIALIZATION =====
-
-    // Auto-fit columns effect - set initial equal proportions if needed
-    useEffect(() => {
-        if (!autoFitColumns || headers.length === 0) return;
-
-        // Check if we already have column proportions set (e.g., from loaded config)
-        const hasExistingProportions = Object.keys(columnWidths).length === headers.length &&
-            Object.values(columnWidths).every(p => p > 0);
-
-        if (!hasExistingProportions) {
-            // Initialize with equal proportions
-            const newProportions: Record<number, number> = {};
-            const equalProportion = 1 / headers.length;
-            for (let i = 0; i < headers.length; i++) {
-                newProportions[i] = equalProportion;
-            }
-            setColumnWidths(newProportions);
-        }
-
-        // No resize listeners needed! Proportions stay constant, pixels recalculate on render
-    }, [autoFitColumns, headers.length, columnWidths, setColumnWidths]);
+    // Container resize observer and auto-fit initialization handled by useColumnWidths hook
 
     // ===== SUMMARY ROW SCROLL SYNC =====
 
@@ -639,7 +530,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             // Estimate if text is long enough to wrap to multiple lines
             // Average character width for text-sm (14px) is approximately 7-8px
             // Account for padding (3 on each side = 24px total)
-            const columnWidth = pixelWidths[editingCell.col] || 150;
+            const columnWidth = getAllPixelWidths[editingCell.col] || 150;
             const availableWidth = columnWidth - 24; // subtract padding
             const avgCharWidth = 7.5; // approximate average character width
             const charsPerLine = Math.floor(availableWidth / avgCharWidth);
@@ -1103,268 +994,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         };
     }, [contextMenu]);
 
-    // ===== COLUMN RESIZE HANDLERS =====
+    // Column resize hook (see useColumnResize)
 
-    const handleColumnResizeStart = (e: React.MouseEvent, colIndex: number) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        // Convert current proportion to pixel width for resize tracking
-        const currentWidth = getPixelWidth(colIndex);
-        setResizingColumn(colIndex);
-        setResizeStartX(e.clientX);
-        setResizeStartWidth(currentWidth);
-        setIsShiftResize(e.shiftKey);
-
-        // For zero-sum resizing, capture starting pixel widths (converted from proportions)
-        if (autoFitColumns) {
-            if (e.shiftKey) {
-                // Distributed resize: capture all column pixel widths
-                const allWidths: Record<number, number> = {};
-                for (let i = 0; i < headers.length; i++) {
-                    allWidths[i] = getPixelWidth(i);
-                }
-                setResizeAllStartWidths(allWidths);
-            } else if (colIndex + 1 < headers.length) {
-                // Normal zero-sum: capture next column's starting pixel width
-                const nextWidth = getPixelWidth(colIndex + 1);
-                setResizeNextStartWidth(nextWidth);
-            }
-        }
-    };
-
-    // Handle mouse move during resize
-    useEffect(() => {
-        if (resizingColumn === null) return;
-
-        // Prevent text selection while resizing
-        document.body.style.userSelect = "none";
-        document.body.style.cursor = "col-resize";
-
-        const handleMouseMove = (e: MouseEvent) => {
-            const deltaX = e.clientX - resizeStartX;
-
-            if (autoFitColumns) {
-                if (isShiftResize) {
-                    // Distributed resize: distribute delta across all other columns
-                    const otherColumnCount = headers.length - 1;
-
-                    if (otherColumnCount > 0) {
-                        const deltaPerColumn = -deltaX / otherColumnCount;
-                        const minWidth = 100;
-
-                        // Calculate new pixel widths for all columns
-                        const newPixelWidths: Record<number, number> = {};
-                        let totalAdjustment = 0;
-
-                        // First pass: calculate new widths and track violations
-                        for (let i = 0; i < headers.length; i++) {
-                            if (i === resizingColumn) {
-                                newPixelWidths[i] = resizeStartWidth + deltaX;
-                            } else {
-                                const startWidth = resizeAllStartWidths[i];
-                                newPixelWidths[i] = startWidth + deltaPerColumn;
-                            }
-
-                            // Enforce minimum width
-                            if (newPixelWidths[i] < minWidth) {
-                                totalAdjustment += minWidth - newPixelWidths[i];
-                                newPixelWidths[i] = minWidth;
-                            }
-                        }
-
-                        // Second pass: distribute the adjustment if needed
-                        if (totalAdjustment > 0) {
-                            newPixelWidths[resizingColumn] = Math.max(minWidth, newPixelWidths[resizingColumn] - totalAdjustment);
-                        }
-
-                        // Convert pixel widths to proportions
-                        const newProportions = convertPixelsToProportions(newPixelWidths);
-                        setColumnWidths(newProportions);
-                    } else {
-                        // Only one column - just resize normally
-                        const newWidth = Math.max(100, resizeStartWidth + deltaX);
-                        const currentPixelWidths: Record<number, number> = {};
-                        headers.forEach((_, i) => {
-                            currentPixelWidths[i] = i === resizingColumn ? newWidth : getPixelWidth(i);
-                        });
-                        setColumnWidths(convertPixelsToProportions(currentPixelWidths));
-                    }
-                } else {
-                    // Zero-sum resizing: making one column larger makes the next one smaller
-                    const nextColumnIndex = resizingColumn + 1;
-
-                    if (nextColumnIndex < headers.length) {
-                        // Calculate new pixel widths
-                        let newCurrentWidth = resizeStartWidth + deltaX;
-                        let newNextWidth = resizeNextStartWidth - deltaX;
-
-                        // Enforce minimum widths
-                        const minWidth = 100;
-                        if (newCurrentWidth < minWidth) {
-                            const diff = minWidth - newCurrentWidth;
-                            newCurrentWidth = minWidth;
-                            newNextWidth -= diff;
-                        }
-                        if (newNextWidth < minWidth) {
-                            const diff = minWidth - newNextWidth;
-                            newNextWidth = minWidth;
-                            newCurrentWidth -= diff;
-                        }
-
-                        // Build full pixel widths object
-                        const currentPixelWidths: Record<number, number> = {};
-                        headers.forEach((_, i) => {
-                            if (i === resizingColumn) {
-                                currentPixelWidths[i] = newCurrentWidth;
-                            } else if (i === nextColumnIndex) {
-                                currentPixelWidths[i] = newNextWidth;
-                            } else {
-                                currentPixelWidths[i] = getPixelWidth(i);
-                            }
-                        });
-                        setColumnWidths(convertPixelsToProportions(currentPixelWidths));
-                    } else {
-                        // Last column - just resize normally
-                        const newWidth = Math.max(100, resizeStartWidth + deltaX);
-                        const currentPixelWidths: Record<number, number> = {};
-                        headers.forEach((_, i) => {
-                            currentPixelWidths[i] = i === resizingColumn ? newWidth : getPixelWidth(i);
-                        });
-                        setColumnWidths(convertPixelsToProportions(currentPixelWidths));
-                    }
-                }
-            } else {
-                // Normal resizing (non-zero-sum)
-                const newWidth = Math.max(100, resizeStartWidth + deltaX);
-                const currentPixelWidths: Record<number, number> = {};
-                headers.forEach((_, i) => {
-                    currentPixelWidths[i] = i === resizingColumn ? newWidth : getPixelWidth(i);
-                });
-                setColumnWidths(convertPixelsToProportions(currentPixelWidths));
-            }
-        };
-
-        const handleMouseUp = () => {
-            setResizingColumn(null);
-            document.body.style.userSelect = "";
-            document.body.style.cursor = "";
-        };
-
-        document.addEventListener("mousemove", handleMouseMove);
-        document.addEventListener("mouseup", handleMouseUp);
-
-        return () => {
-            document.removeEventListener("mousemove", handleMouseMove);
-            document.removeEventListener("mouseup", handleMouseUp);
-            document.body.style.userSelect = "";
-            document.body.style.cursor = "";
-        };
-    }, [resizingColumn, resizeStartX, resizeStartWidth, resizeNextStartWidth, resizeAllStartWidths, isShiftResize, autoFitColumns, headers.length, headers, columnWidths, setColumnWidths, getPixelWidth, convertPixelsToProportions]);
-
-    // Disable text selection during drag operations
-    useEffect(() => {
-        if (!isDraggingRow && !isDraggingColumn) return;
-
-        // Prevent text selection while dragging
-        document.body.style.userSelect = "none";
-        document.body.style.cursor = "grabbing";
-
-        return () => {
-            document.body.style.userSelect = "";
-            document.body.style.cursor = "";
-        };
-    }, [isDraggingRow, isDraggingColumn]);
-
-    // ===== ROW DRAG-AND-DROP HANDLERS =====
-
-    const handleRowDragStart = (e: React.DragEvent, rowIndex: number) => {
-        // Only allow left-click drag (button 0)
-        if (e.button && e.button !== 0) {
-            e.preventDefault();
-            return;
-        }
-        e.stopPropagation();
-        setDraggedRow(rowIndex);
-        setIsDraggingRow(true);
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", rowIndex.toString());
-    };
-
-    const handleRowDragOver = (e: React.DragEvent, rowIndex: number) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-
-        // Show visual indicator at target position (including original position)
-        if (draggedRow !== null) {
-            setDropTargetRow(rowIndex);
-        }
-    };
-
-    const handleRowDrop = (e: React.DragEvent, targetIndex: number) => {
-        e.preventDefault();
-
-        // Perform the reorder on drop
-        if (draggedRow !== null && draggedRow !== targetIndex) {
-            reorderRows(draggedRow, targetIndex);
-            triggerAutosave();
-        }
-
-        setDraggedRow(null);
-        setDropTargetRow(null);
-        setIsDraggingRow(false);
-    };
-
-    const handleRowDragEnd = () => {
-        setDraggedRow(null);
-        setDropTargetRow(null);
-        setIsDraggingRow(false);
-    };
-
-    // ===== COLUMN DRAG-AND-DROP HANDLERS =====
-
-    const handleColumnDragStart = (e: React.DragEvent, colIndex: number) => {
-        // Only allow left-click drag (button 0)
-        if (e.button && e.button !== 0) {
-            e.preventDefault();
-            return;
-        }
-        e.stopPropagation();
-        setDraggedColumn(colIndex);
-        setIsDraggingColumn(true);
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", colIndex.toString());
-    };
-
-    const handleColumnDragOver = (e: React.DragEvent, colIndex: number) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-
-        // Show visual indicator at target position (including original position)
-        if (draggedColumn !== null) {
-            setDropTargetColumn(colIndex);
-        }
-    };
-
-    const handleColumnDrop = (e: React.DragEvent, targetIndex: number) => {
-        e.preventDefault();
-
-        // Perform the reorder on drop
-        if (draggedColumn !== null && draggedColumn !== targetIndex) {
-            reorderColumns(draggedColumn, targetIndex);
-            triggerAutosave();
-        }
-
-        setDraggedColumn(null);
-        setDropTargetColumn(null);
-        setIsDraggingColumn(false);
-    };
-
-    const handleColumnDragEnd = () => {
-        setDraggedColumn(null);
-        setDropTargetColumn(null);
-        setIsDraggingColumn(false);
-    };
+    // Row and column drag-and-drop hooks (see useRowDragAndDrop / useColumnDragAndDrop)
 
     // ===== CELL SELECTION HANDLERS =====
     // Wrapped in useCallback to prevent recreation on every render (critical for performance)

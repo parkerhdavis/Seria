@@ -6,6 +6,8 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { useCellStore } from "@stores/cellStore";
+import { useCellColumnStore } from "@stores/cellColumnStore";
+import { useCellFilterStore } from "@stores/cellFilterStore";
 import { useSettingsStore } from "@stores/settingsStore";
 import { useDrawerStore } from "@stores/drawerStore";
 import { useFileConfigStore, type FileIdentifiers, type FileConfig } from "@stores/fileConfigStore";
@@ -16,6 +18,8 @@ import { logger } from "@utils/logger";
  */
 export async function saveCurrentFileConfig(): Promise<void> {
     const cellStore = useCellStore.getState();
+    const columnStore = useCellColumnStore.getState();
+    const filterStore = useCellFilterStore.getState();
     const settingsStore = useSettingsStore.getState();
     const drawerStore = useDrawerStore.getState();
     const fileConfigStore = useFileConfigStore.getState();
@@ -33,15 +37,15 @@ export async function saveCurrentFileConfig(): Promise<void> {
 
         // Collect config from all stores
         const config: FileConfig["config"] = {
-            // Column display
-            columnWidths: cellStore.columnWidths,
-            columnOrder: cellStore.columnOrder,
+            // Column display (from cellColumnStore)
+            columnWidths: columnStore.columnWidths,
+            columnOrder: columnStore.columnOrder,
 
-            // Column summaries
-            columnSummaries: cellStore.columnSummaries as Record<string, string>,
+            // Column summaries (from cellFilterStore)
+            columnSummaries: filterStore.columnSummaries as Record<string, string>,
 
-            // Filtering and sorting (from cellStore)
-            filters: cellStore.columnFilters.map((filter) => ({
+            // Filtering and sorting (from cellFilterStore)
+            filters: filterStore.columnFilters.map((filter) => ({
                 field: filter.column,
                 operation: filter.operation,
                 value: filter.value,

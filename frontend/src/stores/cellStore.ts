@@ -16,20 +16,11 @@ import { useDrawerStore } from "./drawerStore";
 import { useGlobalConfigStore } from "./globalConfigStore";
 import { useCellHistoryStore, createSnapshot } from "./cellHistoryStore";
 import { useCellSelectionStore } from "./cellSelectionStore";
-import { useCellEditStore } from "./cellEditStore";
+
+import { useCellColumnStore } from "./cellColumnStore";
+import { useCellFilterStore, type ColumnFilter, type SummaryType } from "./cellFilterStore";
 import { logger } from "@/utils/logger";
 import { formatError } from "@/utils/tauriErrorHandler";
-import { buildColumnCache, updateColumnCache } from "@utils/autocomplete";
-
-// Column filter
-interface ColumnFilter {
-    column: string;
-    operation: "contains" | "not-contains" | "equals" | "not-equals";
-    value: string;
-}
-
-// Summary types
-type SummaryType = "count" | "unique" | "mode" | "average" | "min" | "max" | "sum";
 
 interface CellStore {
     // State
@@ -52,21 +43,11 @@ interface CellStore {
     // Note: Selection state (selectedCell, selectedRange, clipboard) is now in cellSelectionStore
     // Import from useCellSelectionStore for selection state
 
-    // Display settings
-    // Column widths stored as proportions (0-1 range) of available width
-    // e.g., {0: 0.3, 1: 0.5, 2: 0.2} means col 0 gets 30%, col 1 gets 50%, col 2 gets 20%
-    columnWidths: Record<number, number>;
-    // Column order - array of column indices indicating display order
-    // e.g., [2, 0, 1] means display column 2 first, then column 0, then column 1
-    columnOrder: number[];
+    // Note: Column display state (columnWidths, columnOrder, columnCache) is now in cellColumnStore
+    // Import from useCellColumnStore for column display state
 
-    // Filtering and summaries
-    columnFilters: ColumnFilter[];
-    columnSummaries: Record<string, SummaryType>;
-
-    // Autocomplete cache
-    columnCache: Map<number, Set<string>>;
-    rebuildColumnCache: () => void;
+    // Note: Filter/summary state (columnFilters, columnSummaries) is now in cellFilterStore
+    // Import from useCellFilterStore for filter/summary state
 
     // Actions
     loadCells: (path: string) => Promise<void>;
@@ -87,30 +68,15 @@ interface CellStore {
     renameColumn: (index: number, newName: string) => void;
     clearData: () => void;
     setError: (error: string | null) => void;
-    setColumnWidths: (widths: Record<number, number> | ((prev: Record<number, number>) => Record<number, number>)) => void;
     undo: () => void;
     redo: () => void;
     canUndo: () => boolean;
     canRedo: () => boolean;
 
-    // Cell editing actions (delegate to cellEditStore, kept for convenience)
-    setEditingCell: (row: number, col: number, initialValue: string, source?: "cell" | "print") => void;
-    updateEditingValue: (value: string) => void;
-    clearEditingCell: () => void;
-
-    // Selection actions (delegate to cellSelectionStore, kept for convenience)
-    setSelectedCell: (row: number, col: number) => void;
-    setSelectedRange: (startRow: number, startCol: number, endRow: number, endCol: number) => void;
-    clearSelection: () => void;
-    copySelection: () => void;
     // Data mutation actions that use selection state
+    copySelection: () => void;
     pasteClipboard: () => void;
     clearCells: () => void;
-
-    // Filtering and summary actions
-    setColumnFilter: (column: string, operation: "contains" | "not-contains" | "equals" | "not-equals", value: string) => void;
-    clearColumnFilter: (column: string) => void;
-    setColumnSummary: (column: string, summaryType: SummaryType) => void;
 
     // Row and column reordering
     reorderRows: (fromIndex: number, toIndex: number) => void;
@@ -146,18 +112,10 @@ export const useCellStore = create<CellStore>((set, get) => ({
     // Components should import from useCellEditStore for editing state
     // Note: Selection state (selectedCell, selectedRange, clipboard) is managed by cellSelectionStore
     // Components should import from useCellSelectionStore for selection state
-    columnWidths: {},
-    columnOrder: [],
-    columnFilters: [],
-    columnSummaries: {},
-    columnCache: new Map(),
-
-    // Rebuild column cache from current data
-    rebuildColumnCache: () => {
-        const { data, headers } = get();
-        const cache = buildColumnCache(data, headers);
-        set({ columnCache: cache });
-    },
+    // Note: Column display state (columnWidths, columnOrder, columnCache) is managed by cellColumnStore
+    // Components should import from useCellColumnStore for column display state
+    // Note: Filter/summary state (columnFilters, columnSummaries) is managed by cellFilterStore
+    // Components should import from useCellFilterStore for filter/summary state
 
     // Load Cell file from disk
     loadCells: async (path: string) => {
@@ -180,17 +138,8 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 return;
             }
 
-            // Initialize column summaries with "count" for all columns
-            const initialSummaries: Record<string, SummaryType> = {};
-            cellData.headers.forEach((header) => {
-                initialSummaries[header] = "count";
-            });
-
             // Initialize default column order [0, 1, 2, ...]
             const defaultColumnOrder = cellData.headers.map((_, index) => index);
-
-            // Build column cache for autocomplete
-            const cache = buildColumnCache(cellData.data, cellData.headers);
 
             // Update state (initial load before applying config)
             set({
@@ -206,14 +155,16 @@ export const useCellStore = create<CellStore>((set, get) => ({
                     rowCount: cellData.data.length,
                     columnCount: cellData.headers.length,
                 },
-                columnSummaries: initialSummaries,
-                columnOrder: defaultColumnOrder,
-                columnCache: cache,
                 isDirty: false,
                 isLoading: false,
                 error: null,
                 isTempFile: false,  // Reset temp file flag when loading a file from disk
             });
+
+            // Initialize sub-stores
+            useCellFilterStore.getState().initializeSummaries(cellData.headers);
+            useCellColumnStore.getState().setColumnOrder(defaultColumnOrder);
+            useCellColumnStore.getState().rebuildColumnCache(cellData.data, cellData.headers);
 
             // Load and apply file config
             try {
@@ -224,9 +175,9 @@ export const useCellStore = create<CellStore>((set, get) => ({
                 const fileConfig = useFileConfigStore.getState().findConfigForFile(identifiers);
 
                 if (fileConfig && fileConfig.config) {
-                    // Apply config to Cell Store
+                    // Apply config to column sub-store
                     if (fileConfig.config.columnWidths) {
-                        set({ columnWidths: fileConfig.config.columnWidths });
+                        useCellColumnStore.getState().setColumnWidths(fileConfig.config.columnWidths);
                     }
 
                     // Apply saved column order if it exists and is valid
@@ -234,10 +185,11 @@ export const useCellStore = create<CellStore>((set, get) => ({
                         const savedOrder = fileConfig.config.columnOrder;
                         // Validate that column order matches current Cell structure
                         if (savedOrder.length === cellData.headers.length) {
-                            set({ columnOrder: savedOrder });
+                            useCellColumnStore.getState().setColumnOrder(savedOrder);
                         }
                     }
 
+                    // Apply config to filter sub-store
                     if (fileConfig.config.filters) {
                         // Map 'field' to 'column' for ColumnFilter compatibility
                         const filters: ColumnFilter[] = fileConfig.config.filters.map(f => ({
@@ -245,13 +197,13 @@ export const useCellStore = create<CellStore>((set, get) => ({
                             operation: f.operation as "contains" | "not-contains" | "equals" | "not-equals",
                             value: f.value
                         }));
-                        set({ columnFilters: filters });
+                        useCellFilterStore.setState({ columnFilters: filters });
                     }
 
                     if (fileConfig.config.columnSummaries) {
                         // Cast string values to SummaryType (validation happens in store)
                         const summaries = fileConfig.config.columnSummaries as Record<string, SummaryType>;
-                        set({ columnSummaries: summaries });
+                        useCellFilterStore.setState({ columnSummaries: summaries });
                     }
 
                     // Apply config to settings store
@@ -374,12 +326,6 @@ export const useCellStore = create<CellStore>((set, get) => ({
                     headers = parsedHeaders;
                     delimiter = detectedDelimiter;
 
-                    // Initialize column summaries
-                    const initialSummaries: Record<string, SummaryType> = {};
-                    headers.forEach((header) => {
-                        initialSummaries[header] = "count";
-                    });
-
                     // Initialize default column order
                     const defaultColumnOrder = headers.map((_, index) => index);
 
@@ -397,13 +343,15 @@ export const useCellStore = create<CellStore>((set, get) => ({
                             rowCount: estimatedRowCount,
                             columnCount: headers.length,
                         },
-                        columnSummaries: initialSummaries,
-                        columnOrder: defaultColumnOrder,
                         isDirty: false,
                         loadingProgress: 5, // Small initial progress to show activity
                         isFullyLoaded: false,
                         isTempFile: false,
                     });
+
+                    // Initialize sub-stores
+                    useCellFilterStore.getState().initializeSummaries(headers);
+                    useCellColumnStore.getState().setColumnOrder(defaultColumnOrder);
                 },
 
                 // Phase 2: Chunks received - progressively update data
@@ -451,16 +399,15 @@ export const useCellStore = create<CellStore>((set, get) => ({
                         return;
                     }
 
-                    // Build column cache for autocomplete
-                    const cache = buildColumnCache(allData, headers);
-
                     // Mark as fully loaded
                     set({
                         isLoading: false,
                         isFullyLoaded: true,
                         loadingProgress: 100,
-                        columnCache: cache,
                     });
+
+                    // Build column cache for autocomplete in sub-store
+                    useCellColumnStore.getState().rebuildColumnCache(allData, headers);
 
                     // Load and apply file config (same as synchronous loading)
                     try {
@@ -468,30 +415,31 @@ export const useCellStore = create<CellStore>((set, get) => ({
                         const fileConfig = useFileConfigStore.getState().findConfigForFile(identifiers);
 
                         if (fileConfig && fileConfig.config) {
-                            // Apply config (same logic as loadCells)
+                            // Apply config to column sub-store
                             if (fileConfig.config.columnWidths) {
-                                set({ columnWidths: fileConfig.config.columnWidths });
+                                useCellColumnStore.getState().setColumnWidths(fileConfig.config.columnWidths);
                             }
 
                             if (fileConfig.config.columnOrder && Array.isArray(fileConfig.config.columnOrder)) {
                                 const savedOrder = fileConfig.config.columnOrder;
                                 if (savedOrder.length === headers.length) {
-                                    set({ columnOrder: savedOrder });
+                                    useCellColumnStore.getState().setColumnOrder(savedOrder);
                                 }
                             }
 
+                            // Apply config to filter sub-store
                             if (fileConfig.config.filters) {
                                 const filters: ColumnFilter[] = fileConfig.config.filters.map(f => ({
                                     column: f.field,
                                     operation: f.operation as "contains" | "not-contains" | "equals" | "not-equals",
                                     value: f.value
                                 }));
-                                set({ columnFilters: filters });
+                                useCellFilterStore.setState({ columnFilters: filters });
                             }
 
                             if (fileConfig.config.columnSummaries) {
                                 const summaries = fileConfig.config.columnSummaries as Record<string, SummaryType>;
-                                set({ columnSummaries: summaries });
+                                useCellFilterStore.setState({ columnSummaries: summaries });
                             }
 
                             // Apply settings store config
@@ -769,7 +717,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
     // Update a single cell
     updateCell: (row: number, col: number, value: string) => {
-        const { data, columnCache } = get();
+        const { data } = get();
 
         if (row < 0 || row >= data.length || col < 0 || col >= data[row].length) {
             return;
@@ -782,15 +730,15 @@ export const useCellStore = create<CellStore>((set, get) => ({
             i === row ? r.map((c, j) => (j === col ? value : c)) : r
         );
 
-        // Update column cache
-        updateColumnCache(columnCache, col, value);
+        // Update column cache in sub-store
+        useCellColumnStore.getState().updateColumnCacheEntry(col, value);
 
         set({ data: newData, isDirty: true });
     },
 
     // Update multiple cells at once (creates single undo snapshot)
     updateCells: (cells: Array<{ row: number; col: number; value: string }>) => {
-        const { data, columnCache } = get();
+        const { data } = get();
 
         if (cells.length === 0) return;
 
@@ -800,11 +748,12 @@ export const useCellStore = create<CellStore>((set, get) => ({
         const newData = data.map((row) => [...row]);
 
         // Apply all updates and update cache
+        const columnStore = useCellColumnStore.getState();
         cells.forEach(({ row, col, value }) => {
             if (row >= 0 && row < newData.length && col >= 0 && col < newData[row].length) {
                 newData[row][col] = value;
-                // Update column cache
-                updateColumnCache(columnCache, col, value);
+                // Update column cache in sub-store
+                columnStore.updateColumnCacheEntry(col, value);
             }
         });
 
@@ -954,17 +903,6 @@ export const useCellStore = create<CellStore>((set, get) => ({
         set({ error });
     },
 
-    // Set column widths
-    setColumnWidths: (widths: Record<number, number> | ((prev: Record<number, number>) => Record<number, number>)) => {
-        if (typeof widths === "function") {
-            const currentWidths = get().columnWidths;
-            const newWidths = widths(currentWidths);
-            set({ columnWidths: newWidths });
-        } else {
-            set({ columnWidths: widths });
-        }
-    },
-
     // Undo last action (uses cellHistoryStore)
     undo: () => {
         const { data, headers } = get();
@@ -1017,32 +955,6 @@ export const useCellStore = create<CellStore>((set, get) => ({
     // Check if redo is available (uses cellHistoryStore)
     canRedo: () => {
         return useCellHistoryStore.getState().canRedo();
-    },
-
-    // Cell editing actions (delegate to cellEditStore)
-    setEditingCell: (row: number, col: number, initialValue: string, source: "cell" | "print" = "cell") => {
-        useCellEditStore.getState().setEditingCell(row, col, initialValue, source);
-    },
-
-    updateEditingValue: (value: string) => {
-        useCellEditStore.getState().updateEditingValue(value);
-    },
-
-    clearEditingCell: () => {
-        useCellEditStore.getState().clearEditingCell();
-    },
-
-    // Selection actions (delegate to cellSelectionStore)
-    setSelectedCell: (row: number, col: number) => {
-        useCellSelectionStore.getState().setSelectedCell(row, col);
-    },
-
-    setSelectedRange: (startRow: number, startCol: number, endRow: number, endCol: number) => {
-        useCellSelectionStore.getState().setSelectedRange(startRow, startCol, endRow, endCol);
-    },
-
-    clearSelection: () => {
-        useCellSelectionStore.getState().clearSelection();
     },
 
     copySelection: () => {
@@ -1175,34 +1087,6 @@ export const useCellStore = create<CellStore>((set, get) => ({
         set({ data: newData, isDirty: true });
     },
 
-    // Filtering actions
-    setColumnFilter: (column: string, operation: "contains" | "not-contains" | "equals" | "not-equals", value: string) => {
-        const { columnFilters } = get();
-
-        // Remove existing filter for this column
-        const newFilters = columnFilters.filter((f) => f.column !== column);
-
-        // Add new filter
-        newFilters.push({ column, operation, value });
-
-        set({ columnFilters: newFilters });
-    },
-
-    clearColumnFilter: (column: string) => {
-        const { columnFilters } = get();
-        set({ columnFilters: columnFilters.filter((f) => f.column !== column) });
-    },
-
-    setColumnSummary: (column: string, summaryType: SummaryType) => {
-        const { columnSummaries } = get();
-        set({
-            columnSummaries: {
-                ...columnSummaries,
-                [column]: summaryType,
-            },
-        });
-    },
-
     // Row and column reordering
     reorderRows: (fromIndex: number, toIndex: number) => {
         const { data } = get();
@@ -1222,7 +1106,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
     },
 
     reorderColumns: (fromIndex: number, toIndex: number) => {
-        const { headers, data, columnOrder } = get();
+        const { headers, data } = get();
 
         if (fromIndex === toIndex) return;
         if (fromIndex < 0 || fromIndex >= headers.length) return;
@@ -1244,12 +1128,10 @@ export const useCellStore = create<CellStore>((set, get) => ({
             return newRow;
         });
 
-        // Reorder columnOrder array
-        const newColumnOrder = [...columnOrder];
-        const [movedOrderIndex] = newColumnOrder.splice(fromIndex, 1);
-        newColumnOrder.splice(toIndex, 0, movedOrderIndex);
+        set({ headers: newHeaders, data: newData, isDirty: true });
 
-        set({ headers: newHeaders, data: newData, columnOrder: newColumnOrder, isDirty: true });
+        // Update column order in sub-store
+        useCellColumnStore.getState().updateColumnOrder(fromIndex, toIndex);
 
         // Trigger debounced save of column order to file config
         // This is handled by configPersistence utility which watches for changes
