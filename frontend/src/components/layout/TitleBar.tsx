@@ -31,6 +31,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
         handleSaveAs,
         handleReload,
         handleNew: handleNewFromHook,
+        handleCloseFile: handleCloseFileFromHook,
         handleImportScreenplay: handleImportAsScreenplay,
         handleExportScreenplay: handleExportAsScreenplay,
     } = useFileOperations({ onFilePickerOpenChange });
@@ -38,6 +39,7 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
     const [isMaximized, setIsMaximized] = useState(false);
     const [showReloadConfirm, setShowReloadConfirm] = useState(false);
     const [showNewConfirm, setShowNewConfirm] = useState(false);
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
     // Get the display title based on whether a file is open
     const getTitle = () => {
@@ -105,6 +107,20 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
     const handleNewConfirm = async (saveFirst: boolean) => {
         setShowNewConfirm(false);
         await handleNewFromHook(saveFirst);
+    };
+
+    // Close file with unsaved changes check
+    const handleCloseFile = async () => {
+        if (fileInfo && isDirty) {
+            setShowCloseConfirm(true);
+        } else {
+            await handleCloseFileFromHook();
+        }
+    };
+
+    const handleCloseConfirm = async (saveFirst: boolean) => {
+        setShowCloseConfirm(false);
+        await handleCloseFileFromHook(saveFirst);
     };
 
     // Placeholder handlers for future import formats
@@ -179,6 +195,14 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                                     className={`text-sm ${!fileInfo || isLoading ? "disabled opacity-50" : ""}`}
                                 >
                                     Save As...
+                                </a>
+                            </li>
+                            <li>
+                                <a
+                                    onClick={handleCloseFile}
+                                    className={`text-sm ${!fileInfo || isLoading ? "disabled opacity-50" : ""}`}
+                                >
+                                    Close File
                                 </a>
                             </li>
                             <li className="menu-title">
@@ -364,6 +388,38 @@ export function TitleBar({ onFilePickerOpenChange }: TitleBarProps) {
                             onClick={() => handleNewConfirm(true)}
                         >
                             Save &amp; New
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Close File Confirmation Modal */}
+        {showCloseConfirm && (
+            <div className="modal modal-open">
+                <div className="modal-box">
+                    <h3 className="font-bold text-lg">Save Changes Before Closing?</h3>
+                    <p className="py-4">
+                        You have unsaved changes in the current file. Would you like to save them before closing?
+                    </p>
+                    <div className="modal-action">
+                        <button
+                            className="btn btn-ghost"
+                            onClick={() => setShowCloseConfirm(false)}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            className="btn btn-warning"
+                            onClick={() => handleCloseConfirm(false)}
+                        >
+                            Discard Changes
+                        </button>
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => handleCloseConfirm(true)}
+                        >
+                            Save &amp; Close
                         </button>
                     </div>
                 </div>

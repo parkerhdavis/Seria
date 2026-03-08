@@ -1,7 +1,7 @@
 /**
  * useFileOperations Hook
  *
- * Centralized hook for file operations (open, save, save as, reload, new, import).
+ * Centralized hook for file operations (open, save, save as, reload, new, close, import).
  * Eliminates duplication between TitleBar and Header components.
  */
 
@@ -27,6 +27,8 @@ interface UseFileOperationsReturn {
     handleReload: () => Promise<void>;
     /** Create a new file (optionally saving current first) */
     handleNew: (saveFirst?: boolean) => Promise<void>;
+    /** Close the current file (optionally saving first) */
+    handleCloseFile: (saveFirst?: boolean) => Promise<void>;
     /** Import a screenplay file */
     handleImportScreenplay: () => Promise<void>;
     /** Export to screenplay format */
@@ -55,6 +57,7 @@ export function useFileOperations(
     const saveCellAs = useCellStore((state) => state.saveCellAs);
     const reloadCells = useCellStore((state) => state.reloadCells);
     const createNew = useCellStore((state) => state.createNew);
+    const clearData = useCellStore((state) => state.clearData);
     const importFromScreenplay = useCellStore((state) => state.importFromScreenplay);
     const exportToScreenplay = useCellStore((state) => state.exportToScreenplay);
     const fileInfo = useCellStore((state) => state.fileInfo);
@@ -171,6 +174,24 @@ export function useFileOperations(
     };
 
     /**
+     * Close the current file and return to the starting screen
+     * @param saveFirst - If true, saves current file before closing
+     */
+    const handleCloseFile = async (saveFirst?: boolean): Promise<void> => {
+        if (saveFirst) {
+            try {
+                await saveCells();
+            } catch (error: unknown) {
+                const message = formatError(error);
+                logger.error("Failed to save file before closing:", message);
+                toast.error(`Failed to save file: ${message}`);
+                return;
+            }
+        }
+        clearData();
+    };
+
+    /**
      * Import a screenplay file to CSV format
      */
     const handleImportScreenplay = async (): Promise<void> => {
@@ -252,6 +273,7 @@ export function useFileOperations(
         handleSaveAs,
         handleReload,
         handleNew,
+        handleCloseFile,
         handleImportScreenplay,
         handleExportScreenplay,
     };

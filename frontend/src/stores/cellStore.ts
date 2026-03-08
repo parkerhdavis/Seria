@@ -19,6 +19,8 @@ import { useCellSelectionStore } from "./cellSelectionStore";
 
 import { useCellColumnStore } from "./cellColumnStore";
 import { useCellFilterStore, type ColumnFilter, type SummaryType } from "./cellFilterStore";
+import { useCellEditStore } from "./cellEditStore";
+import { useFindReplaceStore } from "./findReplaceStore";
 import { logger } from "@/utils/logger";
 import { formatError } from "@/utils/tauriErrorHandler";
 
@@ -877,7 +879,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
         set({ headers: newHeaders, isDirty: true });
     },
 
-    // Clear all data
+    // Clear all data and reset all sub-stores to initial state
     clearData: () => {
         set({
             data: [],
@@ -888,6 +890,14 @@ export const useCellStore = create<CellStore>((set, get) => ({
             error: null,
             isTempFile: false,
         });
+
+        // Reset all sub-stores to clean state
+        useCellHistoryStore.getState().clearHistory();
+        useCellColumnStore.getState().resetColumns();
+        useCellFilterStore.getState().resetFilters();
+        useCellSelectionStore.getState().clearSelection();
+        useCellEditStore.getState().clearEditingCell();
+        useFindReplaceStore.getState().close();
 
         // Clear last opened file from global config
         try {
