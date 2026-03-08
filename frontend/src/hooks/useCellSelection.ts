@@ -44,6 +44,8 @@ interface UseCellSelectionReturn {
     handleCellMouseEnter: (row: number, col: number) => void;
     /** Mouse leave handler for cells (clear hover) */
     handleCellMouseLeave: () => void;
+    /** Stop any in-progress drag selection */
+    stopSelecting: () => void;
 }
 
 export function useCellSelection({
@@ -185,11 +187,17 @@ export function useCellSelection({
         setHoveredColumn(null);
     }, []);
 
+    const stopSelecting = useCallback(() => {
+        setIsSelecting(false);
+        setSelectionStart(null);
+    }, []);
+
     return {
         isSelecting,
         hoveredColumn,
         handleCellMouseDown,
         handleCellMouseEnter,
         handleCellMouseLeave,
+        stopSelecting,
     };
 }

@@ -254,6 +254,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         handleCellMouseDown,
         handleCellMouseEnter,
         handleCellMouseLeave,
+        stopSelecting,
     } = useCellSelection({
         selectedCell,
         setSelectedCell,
@@ -579,10 +580,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     // Wrapped in useCallback to prevent recreation on every render
 
     const handleStartEdit = useCallback((row: number, col: number, value: string) => {
-        setIsSelecting(false);
-        setSelectionStart(null);
+        stopSelecting();
         setEditingCell(row, col, value);
-    }, [setEditingCell]);
+    }, [setEditingCell, stopSelecting]);
 
     const handleSaveEdit = useCallback((row: number, col: number) => {
         if (editingCell) {
