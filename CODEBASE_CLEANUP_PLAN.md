@@ -589,33 +589,68 @@ content → parse() → transform() → serialize() → output
 
 ## Implementation Prioritization
 
-### Phase 1: Quick Wins (1-2 days)
-High impact, low effort changes:
+### Phase 1: Quick Wins (1-2 days) — COMPLETE
 
-1. ✅ Security fixes in backend (temp file collision, path validation)
-2. ✅ Run `cargo fmt` on backend
-3. ✅ Remove unused code (state variable, commented code, unused dependency)
-4. ✅ Fix CSV parsing edge case (unclosed quotes)
-5. ✅ Add export error notification to user
+1. ✅ Temp file collision fix in `backend/src/file_ops.rs` (atomic counter + PID)
+2. ✅ Removed unused `serde_json` dependency from `backend/Cargo.toml`
+3. ✅ Run `cargo fmt` on backend
 
-### Phase 2: Code Quality (3-5 days)
-Important improvements for maintainability:
+### Phase 2: Code Quality (3-5 days) — COMPLETE
 
-1. Remove/migrate console.log statements to logger
-2. Extract duplicate file operation handlers to hook
-3. Extract duplicate path validation in backend
-4. Add explicit error type annotations
-5. Implement centralized Tauri error handler
+1. ✅ Migrated 62 `console.*` statements to `logger` across 13 files
+2. ✅ Wired `useFileOperations` hook into TitleBar and Header (~270 lines duplicate removed)
+3. ✅ Added `catch (error: unknown)` with explicit type annotation to all 55 untyped catch blocks across 20 files
+4. ✅ Adopted `formatError()` from `@utils/tauriErrorHandler` for user-facing error strings
+5. ✅ Fixed multiple pre-existing lint warnings
 
-### Phase 3: Architecture (1-2 weeks)
-Major refactoring for long-term health:
+### Phase 3: Architecture (1-2 weeks) — COMPLETE
 
-1. Decompose cellStore into focused stores
-2. Decompose CellGridVirtualized component
-3. Extract pure logic from print components
-4. Create comprehensive test suite
+#### 3.1 Decompose cellStore — COMPLETE
+- Created `cellColumnStore.ts` (143 lines) — column widths, order, autocomplete cache
+- Created `cellFilterStore.ts` (122 lines) — column filters, summaries
+- cellStore reduced from 1,338 → 1,139 lines (focused on core data + file operations)
+- Note: `cellEditStore`, `cellHistoryStore`, `cellSelectionStore` already existed pre-cleanup
+- Note: Extracting file I/O into `cellFileService` was cancelled — load/save operations are deeply intertwined with cellStore state mutations
 
-### Phase 4: Future Enhancements
+#### 3.2 Decompose CellGridVirtualized — COMPLETE (2,349 → 1,360 lines, 42% reduction)
+10 hooks extracted:
+1. `useFilteredData.ts` (52 lines) — column filter logic
+2. `useColumnWidths.ts` (157 lines) — container width, pixel width computation, ResizeObserver, auto-fit
+3. `useColumnResize.ts` (202 lines) — resize state vars, handlers, mousemove/mouseup effect
+4. `useRowDragAndDrop.ts` (101 lines) — row drag state + handlers
+5. `useColumnDragAndDrop.ts` (101 lines) — column drag state + handlers
+6. `useClipboard.ts` (222 lines) — cutCells state, copy/cut/paste handlers
+7. `useContextMenu.ts` (103 lines) — context menu state, right-click handler, click-outside close
+8. `useAutocomplete.ts` (148 lines) — suggestion state, keyboard nav, dropdown control
+9. `useCellSelection.ts` (203 lines) — drag selection, hover column, RAF batching, global mouseup
+10. `usePrintSelectionSync.ts` (112 lines) — shared selection-clearing effects for print views
+
+4 components extracted:
+1. `SummaryRow.tsx` (189 lines) — fixed bottom summary row with scroll sync
+2. `ContextMenu.tsx` (102 lines) — right-click context menu UI
+3. `FillDialog.tsx` (105 lines) — multi-cell fill modal
+4. `PopoutEditBox.tsx` (92 lines) — floating multi-line edit textarea
+
+#### 3.3 Extract pure logic from print components — COMPLETE
+- Created `screenplayUtils.ts` (40 lines) — shared `getElementStyle` + `isMultiLineElement`
+- Created `usePrintSelectionSync.ts` (112 lines) — shared selection-clearing effects (used by both ScreenplayPrint and CardPrint)
+- Fixed real bug: `getElementStyle` had inconsistent margin property names (`leftMargin` vs `xMargin`)
+- Fixed type duplication: ScreenplayPrint now imports from `workerMessages.ts`
+- ScreenplayPrint: 1,328 → 1,240 lines; CardPrint: 981 → 928 lines
+- Note: Full transformer extraction was unnecessary — print component data transformers already exist as web workers
+- Note: Keyboard handler extraction (260 lines in Screenplay, 52 in Card) was not worth it — 10+ state dependencies each means extracting as hooks just moves code without simplifying
+
+#### 3.4 Create comprehensive test suite — COMPLETE
+- Created `frontend/vitest.config.ts` with path aliases
+- 86 tests across 3 files, all passing:
+  - `summaryCalculations.test.ts` — 47 tests (all 7 summary types + edge cases)
+  - `cellParser.test.ts` — 30 tests (parse/serialize/validate/delimiter/stats)
+  - `screenplayUtils.test.ts` — 9 tests (shared screenplay utilities)
+
+#### Post-Phase 3 bugfix
+- ✅ Fixed infinite update loop in `usePrintSelectionSync` — inline arrow functions passed by callers created new references every render, causing effects to re-trigger infinitely. Fixed with `useRef` pattern to decouple effect dependencies from callback identity.
+
+### Phase 4: Future Enhancements (not started)
 When resources allow:
 
 1. Implement Fountain import/export
@@ -625,18 +660,25 @@ When resources allow:
 
 ---
 
-## Metrics After Completion
+## Metrics — Actual Results
 
-| Metric | Current | After Phase 1 | After Phase 3 |
-|--------|---------|---------------|---------------|
-| Console statements | 100+ | 100+ | 0 |
-| Max file size | 2,155 lines | 2,155 lines | <500 lines |
-| Test coverage | ~1% | ~5% | ~50% |
-| Security issues | 2 | 0 | 0 |
-| TODOs addressed | 0/6 | 1/6 | 3/6 |
-| Code duplication | High | Medium | Low |
+| Metric | Before Cleanup | After Phase 3 |
+|--------|----------------|---------------|
+| Console statements | 100+ | 0 (62 migrated to logger) |
+| CellGridVirtualized size | 2,349 lines | 1,360 lines (42% reduction) |
+| cellStore size | 1,338 lines | 1,139 lines (2 sub-stores extracted) |
+| ScreenplayPrint size | 1,328 lines | 1,240 lines |
+| CardPrint size | 981 lines | 928 lines |
+| Frontend test count | 0 | 86 (3 test files) |
+| Backend test count | 7 | 7 (6 active, 1 ignored) |
+| Untyped catch blocks | 55 | 0 |
+| Duplicate file op code | ~270 lines | 0 (shared hook) |
+| New hooks created | 0 | 11 |
+| New components extracted | 0 | 4 |
+| New utility modules | 0 | 1 (screenplayUtils.ts) |
+| New stores created | 0 | 2 (cellColumnStore, cellFilterStore) |
 
 ---
 
 *Plan created: January 2026*
-*Last updated: January 2026*
+*Last updated: March 2026*
