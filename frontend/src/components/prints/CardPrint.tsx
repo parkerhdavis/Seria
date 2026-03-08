@@ -14,6 +14,7 @@ import { useCellStore } from "@stores/cellStore";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
 import { useCellEditStore } from "@stores/cellEditStore";
 import { logger } from "@utils/logger";
+import { usePrintSelectionSync } from "@/hooks/usePrintSelectionSync";
 
 interface CardPrintProps {
     data: string[][];
@@ -433,6 +434,16 @@ function CardPrint({
         columnName: string;
     } | null>(null);
 
+    // Shared print-selection sync effects (clear on grid edit/select, context menu close, click-outside-to-save)
+    usePrintSelectionSync({
+        hasPrintSelection: selectedField !== null,
+        clearPrintSelection: () => setSelectedField(null),
+        isEditingFromPrint,
+        setIsEditingFromPrint,
+        contextMenu,
+        closeContextMenu: () => setContextMenu(null),
+    });
+
     // Worker state for background calculations
     const [isCalculating, setIsCalculating] = useState(false);
     const [cards, setCards] = useState<CardData[]>([]);
@@ -468,70 +479,6 @@ function CardPrint({
             }
         }
     }, [editingCell, containerRef, followCell]);
-
-    // Clear Print selection when editing cell from Cell Grid changes
-    useEffect(() => {
-        if (editingCell && !isEditingFromPrint) {
-            // Clear Print selection since user is editing from Cell Grid
-            setSelectedField(null);
-        }
-    }, [editingCell, isEditingFromPrint]);
-
-    // Clear Print selection when Cell cell is selected
-    const { selectedCell, selectedRange } = useCellSelectionStore();
-    useEffect(() => {
-        if ((selectedCell || selectedRange) && selectedField && !isEditingFromPrint) {
-            // User clicked in Cell Grid, clear Print selection
-            setSelectedField(null);
-        }
-    // Disabled: Missing isEditingFromPrint, selectedField dependencies
-    // Reason: Adding these would create an infinite loop - the effect clears selectedField, which would trigger the effect again, clearing it again, etc.
-    // Alternative: Restructure logic to use a ref for tracking state or separate the concerns
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedCell, selectedRange]);
-
-    // Clear Print selection when clicking anywhere in Cell Grid area (including background)
-    useEffect(() => {
-        const handleDocumentClick = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            // Check if click is within Cell Grid container
-            const cellGrid = document.querySelector(".cell-grid-container");
-            if (cellGrid && cellGrid.contains(target) && selectedField && !isEditingFromPrint) {
-                setSelectedField(null);
-            }
-        };
-
-        document.addEventListener("click", handleDocumentClick);
-        return () => document.removeEventListener("click", handleDocumentClick);
-    }, [selectedField, isEditingFromPrint]);
-
-    // Handle global click to close context menu
-    useEffect(() => {
-        const handleClick = () => setContextMenu(null);
-        if (contextMenu) {
-            document.addEventListener("click", handleClick);
-            return () => document.removeEventListener("click", handleClick);
-        }
-    }, [contextMenu]);
-
-    // Handle clicking outside editing element to save changes
-    useEffect(() => {
-        if (!isEditingFromPrint || !editingCell) return;
-
-        const handleMouseDown = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            // Check if click is outside the editing input/textarea
-            if (!target.closest("input[type='text']") && !target.closest("textarea")) {
-                // Save the edit
-                updateCell(editingCell.row, editingCell.col, editingValue);
-                clearEditingCell();
-                setIsEditingFromPrint(false);
-            }
-        };
-
-        document.addEventListener("mousedown", handleMouseDown);
-        return () => document.removeEventListener("mousedown", handleMouseDown);
-    }, [isEditingFromPrint, editingCell, editingValue, updateCell, clearEditingCell]);
 
     // Keyboard handlers for Print view
     useEffect(() => {

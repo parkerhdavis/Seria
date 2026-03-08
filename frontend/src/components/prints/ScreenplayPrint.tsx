@@ -8,12 +8,15 @@
 
 import { useState, useEffect, useRef, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
+import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
+import type { ScreenplayElement } from "@/types/workerMessages";
 import { useCellStore } from "@stores/cellStore";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
 import { useCellEditStore } from "@stores/cellEditStore";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 import { logger } from "@utils/logger";
+import { getElementStyle, isMultiLineElement } from "@utils/screenplayUtils";
+import { usePrintSelectionSync } from "@/hooks/usePrintSelectionSync";
 
 interface ScreenplayPrintProps {
     data: string[][];
@@ -26,27 +29,6 @@ interface ScreenplayPrintProps {
     continuous?: boolean;                  // If true, renders as single continuous page; if false, renders with page breaks (default: true)
     followCell?: boolean;                  // If false, won't scroll when Cell is edited (default: true)
     onLoadingChange?: (isLoading: boolean) => void;  // Callback for loading state changes
-}
-
-/**
- * Element type for screenplay formatting
- */
-type ElementType = "scene_heading" | "action" | "character" | "dialogue" | "parenthetical" | "transition";
-
-interface ScreenplayElement {
-    type: ElementType;
-    content: string;
-    rowIndex: number;
-    columnName: string;  // Which Cell column this element came from
-    sceneNumber?: number; // Scene number (only for scene_heading elements)
-    splitIndex?: number; // For dialogue split across pages: 0 = first part, 1 = continued part
-}
-
-/**
- * Determines if an element type should support multi-line editing
- */
-function isMultiLineElement(type: ElementType): boolean {
-    return type === "action" || type === "dialogue";
 }
 
 /**
@@ -67,22 +49,6 @@ interface PrintSelection {
     primary: SelectedPrintElement | null;
     // Additional selected elements (for multi-select with Ctrl+click)
     additional: SelectedPrintElement[];
-}
-
-/**
- * Gets the style configuration for a screenplay element type from the recipe
- */
-function getElementStyle(recipe: PrintRecipe, elementType: ElementType): RecipeIngredient["style"] {
-    // Get ingredient from recipe, or return default style if not found
-    const ingredient = recipe.ingredients?.[elementType];
-    return ingredient?.style || {
-        fontFamily: "Courier",
-        fontSize: 12,
-        textAlign: "left",
-        leftMargin: 0,
-        spaceBeforeElement: 0,
-        spaceAfterElement: 0,
-    };
 }
 
 /**
@@ -359,6 +325,16 @@ function ScreenplayPrint({
         elementIndex: number;
     } | null>(null);
 
+    // Shared print-selection sync effects (clear on grid edit/select, context menu close, click-outside-to-save)
+    usePrintSelectionSync({
+        hasPrintSelection: printSelection.primary !== null,
+        clearPrintSelection: () => setPrintSelection({ primary: null, additional: [] }),
+        isEditingFromPrint,
+        setIsEditingFromPrint,
+        contextMenu,
+        closeContextMenu: () => setContextMenu(null),
+    });
+
     // Get render settings
     // Note: pageWidth and pageHeight are used as intended aspect ratio for drawer scaling
     // (absolute values will be used for PDF export in the future)
@@ -415,70 +391,6 @@ function ScreenplayPrint({
             }
         }
     }, [editingCell, headers, containerRef, followCell]);
-
-    // Clear Print selection when editing cell from Cell Grid changes
-    useEffect(() => {
-        if (editingCell && !isEditingFromPrint) {
-            // Clear Print selection since user is editing from Cell Grid
-            setPrintSelection({ primary: null, additional: [] });
-        }
-    }, [editingCell, isEditingFromPrint]);
-
-    // Clear Print selection when Cell cell is selected
-    const { selectedCell, selectedRange } = useCellSelectionStore();
-    useEffect(() => {
-        if ((selectedCell || selectedRange) && printSelection.primary && !isEditingFromPrint) {
-            // User clicked in Cell Grid, clear Print selection
-            setPrintSelection({ primary: null, additional: [] });
-        }
-    // Disabled: Missing isEditingFromPrint, printSelection dependencies
-    // Reason: Adding these would create an infinite loop - the effect clears printSelection, which would trigger the effect again, clearing it again, etc.
-    // Alternative: Restructure logic to use a ref for tracking state or separate the concerns
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedCell, selectedRange]);
-
-    // Clear Print selection when clicking anywhere in Cell Grid area (including background)
-    useEffect(() => {
-        const handleDocumentClick = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            // Check if click is within Cell Grid container
-            const cellGrid = document.querySelector(".cell-grid-container");
-            if (cellGrid && cellGrid.contains(target) && printSelection.primary && !isEditingFromPrint) {
-                setPrintSelection({ primary: null, additional: [] });
-            }
-        };
-
-        document.addEventListener("click", handleDocumentClick);
-        return () => document.removeEventListener("click", handleDocumentClick);
-    }, [printSelection, isEditingFromPrint]);
-
-    // Handle global click to close context menu
-    useEffect(() => {
-        const handleClick = () => setContextMenu(null);
-        if (contextMenu) {
-            document.addEventListener("click", handleClick);
-            return () => document.removeEventListener("click", handleClick);
-        }
-    }, [contextMenu]);
-
-    // Handle clicking outside editing element to save changes
-    useEffect(() => {
-        if (!isEditingFromPrint || !editingCell) return;
-
-        const handleMouseDown = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            // Check if click is outside the editing input/textarea
-            if (!target.closest("input[type='text']") && !target.closest("textarea")) {
-                // Save the edit
-                updateCell(editingCell.row, editingCell.col, editingValue);
-                clearEditingCell();
-                setIsEditingFromPrint(false);
-            }
-        };
-
-        document.addEventListener("mousedown", handleMouseDown);
-        return () => document.removeEventListener("mousedown", handleMouseDown);
-    }, [isEditingFromPrint, editingCell, editingValue, updateCell, clearEditingCell]);
 
     // Keyboard handlers for Print view
     useEffect(() => {

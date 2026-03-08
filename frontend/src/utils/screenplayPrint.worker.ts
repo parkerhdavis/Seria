@@ -15,6 +15,7 @@ import type {
     WorkerErrorResponse,
 } from "@/types/workerMessages";
 import { getMappedColumn } from "./mappingUtils";
+import { getElementStyle as getElementStyleBase, isMultiLineElement } from "./screenplayUtils";
 
 // Use shared types from workerMessages.ts
 type ElementType = ScreenplayElementType;
@@ -24,30 +25,15 @@ type ErrorResponse = WorkerErrorResponse;
 
 // Extended style type for screenplay-specific properties
 type ScreenplayIngredientStyle = RecipeIngredient["style"] & {
-    lineHeight?: number;
     maxWidth?: string;
 };
 
 /**
- * Gets the style configuration for a screenplay element type from the recipe
+ * Gets the style configuration with screenplay-specific extensions.
+ * Wraps the shared getElementStyle to cast to ScreenplayIngredientStyle.
  */
 function getElementStyle(recipe: PrintRecipe, elementType: ElementType): ScreenplayIngredientStyle {
-    const ingredient = recipe.ingredients?.[elementType];
-    return (ingredient?.style || {
-        fontFamily: "Courier",
-        fontSize: 12,
-        textAlign: "left",
-        xMargin: 0,
-        spaceBeforeElement: 0,
-        spaceAfterElement: 0,
-    }) as ScreenplayIngredientStyle;
-}
-
-/**
- * Determines if an element type should support multi-line editing
- */
-function isMultiLineElement(type: ElementType): boolean {
-    return type === "action" || type === "dialogue";
+    return getElementStyleBase(recipe, elementType) as ScreenplayIngredientStyle;
 }
 
 /**
