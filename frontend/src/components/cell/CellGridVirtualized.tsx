@@ -550,9 +550,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                             setSelectedRange(selectedCell.row, selectedCell.col, newRow, newCol);
                         }
                     } else {
-                        // Normal arrow: move selection and scroll to cell
+                        // Normal arrow: move selection, scroll only if not already visible
                         setSelectedCell(newRow, newCol);
-                        rowVirtualizer.scrollToIndex(newRow, { align: "center" });
+                        rowVirtualizer.scrollToIndex(newRow, { align: "auto" });
                     }
                 }
             }
@@ -702,16 +702,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingCell, wrapText, editingSource, filteredData]);
 
-    // Position cursor at end when editing input is ready AND auto-size textarea to fit content
+    // Position cursor at end when editing input is ready
     useEffect(() => {
         if (editingCell && editingInputRef.current) {
-            // Auto-size textarea to fit existing multi-line content
-            if (editingInputRef.current instanceof HTMLTextAreaElement) {
-                const textarea = editingInputRef.current;
-                textarea.style.height = "auto";
-                textarea.style.height = `${textarea.scrollHeight}px`;
-            }
-
             // Position cursor at end
             const length = editingInputRef.current.value.length;
             editingInputRef.current.setSelectionRange(length, length);
@@ -804,15 +797,15 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
             // Move selection to next row if not Shift
             if (!e.shiftKey && row < filteredData.length - 1) {
-                setTimeout(() => {
-                    setSelectedCell(row + 1, col);
-                    rowVirtualizer.scrollToIndex(row + 1, { align: "center" });
-                }, 0);
-            } else if (e.shiftKey && row > 0) {
-                setTimeout(() => {
-                    setSelectedCell(row - 1, col);
-                    rowVirtualizer.scrollToIndex(row - 1, { align: "center" });
-                }, 0);
+                    setTimeout(() => {
+                        setSelectedCell(row + 1, col);
+                        rowVirtualizer.scrollToIndex(row + 1, { align: "auto" });
+                    }, 0);
+                } else if (e.shiftKey && row > 0) {
+                    setTimeout(() => {
+                        setSelectedCell(row - 1, col);
+                        rowVirtualizer.scrollToIndex(row - 1, { align: "auto" });
+                    }, 0);
             }
         } else if (e.key === "Tab") {
             e.preventDefault();
@@ -825,7 +818,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                 } else if (row < filteredData.length - 1) {
                     setTimeout(() => {
                         setSelectedCell(row + 1, 0);
-                        rowVirtualizer.scrollToIndex(row + 1, { align: "center" });
+                        rowVirtualizer.scrollToIndex(row + 1, { align: "auto" });
                     }, 0);
                 }
             } else {
@@ -834,7 +827,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                 } else if (row > 0) {
                     setTimeout(() => {
                         setSelectedCell(row - 1, headers.length - 1);
-                        rowVirtualizer.scrollToIndex(row - 1, { align: "center" });
+                        rowVirtualizer.scrollToIndex(row - 1, { align: "auto" });
                     }, 0);
                 }
             }
@@ -1655,59 +1648,64 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                         )}
 
                                         {isEditing && editingSource === "cell" && !popoutEditPosition ? (
-                                            shouldUseTextarea ? (
-                                                <textarea
-                                                    ref={(el) => {
-                                                        editingInputRef.current = el;
-                                                    }}
-                                                    className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight resize-none overflow-hidden"
-                                                    style={{ userSelect: "text", WebkitUserSelect: "text" }}
-                                                    value={editingValue}
-                                                    onChange={(e) => {
-                                                        updateEditingValue(e.target.value);
-                                                        if (editingCell) {
-                                                            updateAutocompleteSuggestions(editingCell.col, e.target.value);
-                                                        }
-                                                        e.target.style.height = "auto";
-                                                        e.target.style.height = `${e.target.scrollHeight}px`;
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    onMouseDown={(e) => {
-                                                        e.stopPropagation();
-                                                        e.nativeEvent.stopImmediatePropagation();
-                                                    }}
-                                                    onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
-                                                    onInput={(e) => {
-                                                        const target = e.target as HTMLTextAreaElement;
-                                                        target.style.height = "auto";
-                                                        target.style.height = `${target.scrollHeight}px`;
-                                                    }}
-                                                    autoFocus
-                                                />
-                                            ) : (
-                                                <input
-                                                    ref={(el) => {
-                                                        editingInputRef.current = el;
-                                                    }}
-                                                    type="text"
-                                                    className="w-full focus:outline-none border-none bg-transparent px-3 py-2 min-h-[40px] text-sm leading-tight"
-                                                    style={{ userSelect: "text", WebkitUserSelect: "text" }}
-                                                    value={editingValue}
-                                                    onChange={(e) => {
-                                                        updateEditingValue(e.target.value);
-                                                        if (editingCell) {
-                                                            updateAutocompleteSuggestions(editingCell.col, e.target.value);
-                                                        }
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    onMouseDown={(e) => {
-                                                        e.stopPropagation();
-                                                        e.nativeEvent.stopImmediatePropagation();
-                                                    }}
-                                                    onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
-                                                    autoFocus
-                                                />
-                                            )
+                                            <>
+                                                {/* Invisible spacer div: keeps the cell at the exact same height
+                                                    as before editing started, preventing any visual resizing. */}
+                                                <div
+                                                    className={`px-3 py-2 min-h-[40px] text-sm leading-tight flex items-center ${wrapText ? "whitespace-normal" : "whitespace-nowrap overflow-hidden text-ellipsis"}`}
+                                                    style={{ visibility: "hidden" }}
+                                                    aria-hidden="true"
+                                                >
+                                                    {editingValue || value}
+                                                </div>
+                                                {shouldUseTextarea ? (
+                                                    <textarea
+                                                        ref={(el) => {
+                                                            editingInputRef.current = el;
+                                                        }}
+                                                        rows={1}
+                                                        className="absolute inset-0 w-full h-full focus:outline-none border-none bg-transparent px-3 py-2 text-sm leading-tight resize-none overflow-hidden"
+                                                        style={{ userSelect: "text", WebkitUserSelect: "text" }}
+                                                        value={editingValue}
+                                                        onChange={(e) => {
+                                                            updateEditingValue(e.target.value);
+                                                            if (editingCell) {
+                                                                updateAutocompleteSuggestions(editingCell.col, e.target.value);
+                                                            }
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        onMouseDown={(e) => {
+                                                            e.stopPropagation();
+                                                            e.nativeEvent.stopImmediatePropagation();
+                                                        }}
+                                                        onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
+                                                        autoFocus
+                                                    />
+                                                ) : (
+                                                    <input
+                                                        ref={(el) => {
+                                                            editingInputRef.current = el;
+                                                        }}
+                                                        type="text"
+                                                        className="absolute inset-0 w-full h-full focus:outline-none border-none bg-transparent px-3 py-2 text-sm leading-tight"
+                                                        style={{ userSelect: "text", WebkitUserSelect: "text" }}
+                                                        value={editingValue}
+                                                        onChange={(e) => {
+                                                            updateEditingValue(e.target.value);
+                                                            if (editingCell) {
+                                                                updateAutocompleteSuggestions(editingCell.col, e.target.value);
+                                                            }
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        onMouseDown={(e) => {
+                                                            e.stopPropagation();
+                                                            e.nativeEvent.stopImmediatePropagation();
+                                                        }}
+                                                        onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
+                                                        autoFocus
+                                                    />
+                                                )}
+                                            </>
                                         ) : (
                                             <div
                                                 className={`px-3 py-2 min-h-[40px] text-sm leading-tight flex items-center ${wrapText ? "whitespace-normal" : "whitespace-nowrap overflow-hidden text-ellipsis"} ${isEditing && editingSource === "print" ? "bg-primary/10" : ""} ${isEditing && editingSource === "cell" && popoutEditPosition ? "bg-primary/10 ring-2 ring-primary/30 ring-inset" : ""}`}
