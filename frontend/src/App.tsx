@@ -88,6 +88,9 @@ function App() {
   const loadConfigs = useFileConfigStore((state) => state.loadConfigs);
   const loadConfig = useGlobalConfigStore((state) => state.loadConfig);
   const config = useGlobalConfigStore((state) => state.config);
+  const updateGlobalConfig = useGlobalConfigStore(
+    (state) => state.updateConfig,
+  );
 
   const theme = useSettingsStore((state) => state.theme);
   const rowColoringMode = useSettingsStore((state) => state.rowColoringMode);
@@ -129,6 +132,24 @@ function App() {
     initializeApp();
   }, [loadConfigs, loadConfig]);
 
+  // Restore drawer state from global config on startup (once)
+  const hasRestoredDrawerRef = useRef(false);
+  useEffect(() => {
+    if (!config || hasRestoredDrawerRef.current) return;
+    hasRestoredDrawerRef.current = true;
+
+    const drawerStore = useDrawerStore.getState();
+    if (config.drawerPosition !== undefined) {
+      drawerStore.setPosition(config.drawerPosition ?? null);
+    }
+    if (config.rightDrawerSize !== undefined) {
+      drawerStore.setRightDrawerSize(config.rightDrawerSize);
+    }
+    if (config.bottomDrawerSize !== undefined) {
+      drawerStore.setBottomDrawerSize(config.bottomDrawerSize);
+    }
+  }, [config]);
+
   // Auto-reopen last file if enabled
   useEffect(() => {
     // Only run once config is loaded
@@ -163,6 +184,16 @@ function App() {
     bottomDrawerSize,
     currentFile,
   ]);
+
+  // Persist drawer state to global config so it survives cold restarts
+  useEffect(() => {
+    if (!hasRestoredDrawerRef.current) return;
+    updateGlobalConfig({
+      drawerPosition: printPreviewPosition,
+      rightDrawerSize,
+      bottomDrawerSize,
+    });
+  }, [printPreviewPosition, rightDrawerSize, bottomDrawerSize, updateGlobalConfig]);
 
   // Apply zoom level to document
   useEffect(() => {

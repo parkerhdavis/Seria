@@ -242,6 +242,10 @@ export const useCellStore = create<CellStore>((set, get) => ({
                         settingsStore.setHoverHighlightMode(fileConfig.config.hoverHighlightMode as "none" | "row" | "column" | "row-and-column");
                     }
 
+                    if (fileConfig.config.groupBy !== undefined) {
+                        settingsStore.setGroupByColumn(fileConfig.config.groupBy);
+                    }
+
                     // Apply config to drawer store
                     const drawerStore = useDrawerStore.getState();
 
@@ -463,6 +467,37 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
                             if (fileConfig.config.wrapText !== undefined) {
                                 settingsStore.setWrapText(fileConfig.config.wrapText);
+                            }
+
+                            if (fileConfig.config.showColumnSeparators !== undefined) {
+                                settingsStore.setShowColumnSeparators(fileConfig.config.showColumnSeparators);
+                            }
+
+                            if (fileConfig.config.autoFitColumns !== undefined) {
+                                settingsStore.setAutoFitColumns(fileConfig.config.autoFitColumns);
+                            }
+
+                            if (fileConfig.config.hoverHighlightMode !== undefined) {
+                                settingsStore.setHoverHighlightMode(fileConfig.config.hoverHighlightMode as "none" | "row" | "column" | "row-and-column");
+                            }
+
+                            if (fileConfig.config.groupBy !== undefined) {
+                                settingsStore.setGroupByColumn(fileConfig.config.groupBy);
+                            }
+
+                            // Apply config to drawer store
+                            const drawerStore = useDrawerStore.getState();
+
+                            if (fileConfig.config.drawerPosition !== undefined) {
+                                drawerStore.setPosition(fileConfig.config.drawerPosition);
+                            }
+
+                            if (fileConfig.config.rightDrawerSize !== undefined) {
+                                drawerStore.setRightDrawerSize(fileConfig.config.rightDrawerSize);
+                            }
+
+                            if (fileConfig.config.bottomDrawerSize !== undefined) {
+                                drawerStore.setBottomDrawerSize(fileConfig.config.bottomDrawerSize);
                             }
 
                             // Update last seen timestamp

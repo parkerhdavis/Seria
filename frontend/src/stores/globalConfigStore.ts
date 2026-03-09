@@ -28,6 +28,11 @@ export interface GlobalConfig {
     lastWindowY?: number;
     wasMaximized?: boolean;
 
+    // Drawer state (persisted globally so it survives cold restarts)
+    drawerPosition?: "right" | "bottom" | null;
+    rightDrawerSize?: number;
+    bottomDrawerSize?: number;
+
     // App behavior preferences
     autoReopenLastFile: boolean;  // Whether to automatically reopen the last file on startup
     confirmBeforeExit: boolean;  // Show confirmation dialog before closing if file is dirty
@@ -117,6 +122,17 @@ function validateConfig(data: unknown): GlobalConfig | null {
     }
     if (typeof config.wasMaximized === "boolean") {
         result.wasMaximized = config.wasMaximized;
+    }
+
+    // Validate optional drawer state fields
+    if (config.drawerPosition === "right" || config.drawerPosition === "bottom" || config.drawerPosition === null) {
+        result.drawerPosition = config.drawerPosition;
+    }
+    if (typeof config.rightDrawerSize === "number" && Number.isFinite(config.rightDrawerSize) && config.rightDrawerSize > 0) {
+        result.rightDrawerSize = config.rightDrawerSize;
+    }
+    if (typeof config.bottomDrawerSize === "number" && Number.isFinite(config.bottomDrawerSize) && config.bottomDrawerSize > 0) {
+        result.bottomDrawerSize = config.bottomDrawerSize;
     }
 
     return result;
