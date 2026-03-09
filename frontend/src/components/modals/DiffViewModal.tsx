@@ -139,7 +139,7 @@ export default function DiffViewModal({ isOpen, onClose }: DiffViewModalProps) {
 
     try {
       // Get current file content
-      const currentContent = serializeCell(headers, data, ",");
+      const currentContent = serializeCell({ headers, data }, ",");
 
       // Load comparison file content
       const compareContent = await invoke<string>("open_cell_file", {
@@ -225,12 +225,6 @@ export default function DiffViewModal({ isOpen, onClose }: DiffViewModalProps) {
   for (const cell of diffResult?.modifiedCells ?? []) {
     modifiedCellMap.set(`${cell.row}:${cell.col}`, cell);
   }
-
-  // Determine max rows to display
-  const maxRows = Math.max(
-    diffResult?.oldRowCount ?? 0,
-    diffResult?.newRowCount ?? 0,
-  );
 
   return (
     <div className="modal modal-open" onKeyDown={handleKeyDown}>

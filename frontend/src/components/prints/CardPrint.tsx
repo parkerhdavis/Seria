@@ -127,7 +127,7 @@ function Card({
     setRef,
     searchTerm,
     searchMatchCase,
-    searchMatchRows,
+    searchMatchRows: _searchMatchRows, // eslint-disable-line @typescript-eslint/no-unused-vars
     currentMatchRow,
     currentMatchCol,
 }: {

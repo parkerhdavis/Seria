@@ -9,7 +9,10 @@
 import { useState, useEffect, useRef, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
-import type { ScreenplayElement } from "@/types/workerMessages";
+import type {
+  ScreenplayElement,
+  ScreenplayElementType,
+} from "@/types/workerMessages";
 import { useCellStore } from "@stores/cellStore";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
 import { useCellEditStore } from "@stores/cellEditStore";
@@ -112,6 +115,14 @@ function highlightSearchText(
   return <>{parts}</>;
 }
 
+/**
+ * Cursor placement strategy when editing begins.
+ * - "end": place cursor at end of text
+ * - "start": place cursor at start of text (for new elements)
+ * - { charOffset: number }: place cursor at a specific character position
+ */
+type CursorPlacement = "start" | "end" | { charOffset: number };
+
 function ScreenplayElementView({
   element,
   recipe,
@@ -124,8 +135,10 @@ function ScreenplayElementView({
   editingValue,
   onEditingValueChange,
   onClick,
-  onDoubleClick,
   onContextMenu,
+  cursorPlacement = "end",
+  onNavigateUp,
+  onNavigateDown,
   setRef,
   searchTerm,
   searchMatchCase,
@@ -142,8 +155,14 @@ function ScreenplayElementView({
   editingValue: string;
   onEditingValueChange: (value: string) => void;
   onClick: (e: React.MouseEvent) => void;
-  onDoubleClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
+  cursorPlacement?: CursorPlacement;
+  /** Called when cursor is at the top edge and user presses ArrowUp.
+   *  Passes the column offset (chars from start of current visual line). */
+  onNavigateUp?: (columnOffset: number) => void;
+  /** Called when cursor is at the bottom edge and user presses ArrowDown.
+   *  Passes the column offset (chars from start of current visual line). */
+  onNavigateDown?: (columnOffset: number) => void;
   setRef?: (el: HTMLDivElement | null) => void;
   searchTerm?: string;
   searchMatchCase?: boolean;
@@ -194,30 +213,150 @@ function ScreenplayElementView({
   // Auto-focus input/textarea when editing starts from Print view
   useEffect(() => {
     if (isEditingFromPrint) {
+      const setPosition = (
+        el: HTMLInputElement | HTMLTextAreaElement,
+      ) => {
+        el.focus();
+        if (cursorPlacement === "start") {
+          el.setSelectionRange(0, 0);
+        } else if (cursorPlacement === "end") {
+          el.setSelectionRange(el.value.length, el.value.length);
+        } else if (typeof cursorPlacement === "object") {
+          // Place cursor at a specific character offset, clamped to valid range
+          const pos = Math.min(cursorPlacement.charOffset, el.value.length);
+          el.setSelectionRange(pos, pos);
+        }
+      };
+
       if (isMultiLine && textareaRef.current) {
-        textareaRef.current.focus();
-        // Place cursor at end of text
-        textareaRef.current.setSelectionRange(
-          editingValue.length,
-          editingValue.length,
-        );
-        // Auto-resize textarea to fit initial content
-        textareaRef.current.style.height = "auto";
-        textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+        setPosition(textareaRef.current);
       } else if (!isMultiLine && inputRef.current) {
-        inputRef.current.focus();
-        // Place cursor at end of text
-        inputRef.current.setSelectionRange(
-          editingValue.length,
-          editingValue.length,
-        );
+        setPosition(inputRef.current);
       }
     }
-    // Disabled: editingValue.length dependency removed
+    // Disabled: editingValue.length and cursorPlacement dependencies removed
     // Reason: Including editingValue.length causes cursor to reset on every keystroke
-    // Alternative: Only run when editing starts (isEditingFromPrint changes) or field type changes (isMultiLine)
+    // cursorPlacement only matters at the moment editing starts
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditingFromPrint, isMultiLine]);
+
+  /**
+   * Get the column offset of the cursor within its current visual line.
+   * For monospace fonts, this is the number of characters from the start
+   * of the current line to the cursor position.
+   */
+  const getColumnOffset = (
+    el: HTMLInputElement | HTMLTextAreaElement,
+    pos: number,
+  ): number => {
+    const text = el.value;
+    // Find the start of the current line by searching backwards for \n
+    let lineStart = text.lastIndexOf("\n", pos - 1);
+    lineStart = lineStart === -1 ? 0 : lineStart + 1;
+    return pos - lineStart;
+  };
+
+  /**
+   * Handle arrow key navigation at element boundaries, and left/right
+   * navigation between adjacent elements.
+   *
+   * For Up/Down: We let the browser handle the keypress first, then check
+   * in a microtask whether the cursor actually moved. If it didn't, the
+   * cursor was on the first/last visual line (including soft-wrapped lines),
+   * so we navigate to the adjacent element. Passes the column offset so
+   * the target element can place the cursor at a similar horizontal position.
+   *
+   * For Left/Right: We check immediately if at position 0 (left) or at the
+   * end (right) and navigate to the adjacent element.
+   */
+  const handleInputKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    if (e.shiftKey) return; // Don't intercept text selection
+
+    const inputEl = e.currentTarget;
+    const cursorPos = inputEl.selectionStart ?? 0;
+    const selEnd = inputEl.selectionEnd ?? 0;
+    const hasSelection = cursorPos !== selEnd;
+
+    // ArrowLeft at position 0: navigate to end of previous element
+    if (e.key === "ArrowLeft" && !hasSelection && cursorPos === 0) {
+      if (onNavigateUp) {
+        e.preventDefault();
+        // Pass a large column offset so cursor goes to end of previous element's last line
+        onNavigateUp(Infinity);
+      }
+      return;
+    }
+
+    // ArrowRight at end of text: navigate to start of next element
+    if (
+      e.key === "ArrowRight" &&
+      !hasSelection &&
+      cursorPos === inputEl.value.length
+    ) {
+      if (onNavigateDown) {
+        e.preventDefault();
+        onNavigateDown(0);
+      }
+      return;
+    }
+
+    if (hasSelection) return; // Don't navigate up/down if text is selected
+
+    // For single-line inputs, ArrowUp/Down always navigate between elements
+    if (inputEl instanceof HTMLInputElement) {
+      if (e.key === "ArrowUp" && onNavigateUp) {
+        e.preventDefault();
+        onNavigateUp(getColumnOffset(inputEl, cursorPos));
+      }
+      if (e.key === "ArrowDown" && onNavigateDown) {
+        e.preventDefault();
+        onNavigateDown(getColumnOffset(inputEl, cursorPos));
+      }
+      return;
+    }
+
+    // For textareas: let the browser handle the arrow key, then check if
+    // the cursor hit a boundary. Two cases indicate a boundary:
+    // 1. Cursor didn't move at all (already at very start/end)
+    // 2. Cursor moved to start (pos 0) on ArrowUp, or to end (text length)
+    //    on ArrowDown -- this happens on soft-wrapped lines when the cursor
+    //    is on the first/last visual line but not at position 0/end; the
+    //    browser "moves" it to the boundary instead of up/down a line.
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      const posBeforeKey = cursorPos;
+      const colOffset = getColumnOffset(inputEl, cursorPos);
+      const direction = e.key;
+      const textLength = inputEl.value.length;
+
+      // Let the browser process the arrow key first
+      requestAnimationFrame(() => {
+        const posAfterKey = inputEl.selectionStart ?? 0;
+        const selEndAfter = inputEl.selectionEnd ?? 0;
+        if (posAfterKey !== selEndAfter) return; // Selection created, skip
+
+        const didntMove = posAfterKey === posBeforeKey;
+        // Browser moved cursor to absolute start/end -- means it couldn't
+        // go up/down a visual line and snapped to the boundary instead.
+        const snappedToStart =
+          direction === "ArrowUp" && posAfterKey === 0 && posBeforeKey !== 0;
+        const snappedToEnd =
+          direction === "ArrowDown" &&
+          posAfterKey === textLength &&
+          posBeforeKey !== textLength;
+
+        if (didntMove || snappedToStart || snappedToEnd) {
+          if (direction === "ArrowUp" && onNavigateUp) {
+            onNavigateUp(colOffset);
+          } else if (direction === "ArrowDown" && onNavigateDown) {
+            onNavigateDown(colOffset);
+          }
+        }
+      });
+      // Don't preventDefault -- let the textarea handle the arrow key naturally
+    }
+  };
 
   // Format content based on element type
   const formatContent = (content: string) => {
@@ -233,17 +372,23 @@ function ScreenplayElementView({
   return (
     <div
       ref={setRef}
-      className={`screenplay-element relative cursor-pointer ${isBeingEdited ? "editing-indicator" : ""} ${isSelected ? "selected-indicator" : ""} ${isCut ? "cut-indicator" : ""}`}
+      className="screenplay-element relative cursor-text"
       onClick={onClick}
-      onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Full-width hover background */}
-      {isHovered && !isBeingEdited && !isSelected && !isCut && (
+      {/* Full-width background bar for hover, cut, and editing-from-cell states.
+          Suppress hover highlight when element is selected or being edited from print. */}
+      {(isCut || (isBeingEdited && !isEditingFromPrint) || (isHovered && !isSelected && !isEditingFromPrint)) && (
         <div
-          className="absolute inset-y-0 bg-base-200/70 rounded pointer-events-none transition-colors"
+          className={`absolute rounded pointer-events-none transition-colors ${
+            isCut
+              ? "bg-warning/15"
+              : isBeingEdited
+                ? "bg-primary/10"
+                : "bg-base-200/70"
+          }`}
           style={{
             left: "calc(-1 * var(--page-padding-left, 1.5in) + 0.25in)",
             right: "calc(-1 * var(--page-padding-right, 1in) + 0.25in)",
@@ -253,6 +398,34 @@ function ScreenplayElementView({
         />
       )}
 
+      {/* Left and right edge lines for selected/editing-from-print elements */}
+      {(isSelected || isEditingFromPrint) && (
+        <>
+          <div
+            className="absolute pointer-events-none z-30"
+            style={{
+              left: 0,
+              width: "4px",
+              top: 0,
+              bottom: 0,
+              backgroundColor: "#8b5cf6",
+              borderRadius: "2px",
+            }}
+          />
+          <div
+            className="absolute pointer-events-none z-30"
+            style={{
+              right: 0,
+              width: "4px",
+              top: 0,
+              bottom: 0,
+              backgroundColor: "#8b5cf6",
+              borderRadius: "2px",
+            }}
+          />
+        </>
+      )}
+
       {/* Optional row number indicator */}
       {showRowNumbers && (
         <span className="absolute -left-12 text-xs text-base-content/30 font-mono z-10">
@@ -260,50 +433,10 @@ function ScreenplayElementView({
         </span>
       )}
 
-      {/* Editing cursor indicator */}
-      {isBeingEdited && (
-        <div className="absolute -left-6 top-0 text-primary animate-pulse z-10">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-            />
-          </svg>
-        </div>
-      )}
-
       {/* "Editing from Cell" overlay indicator */}
       {isBeingEdited && !isEditingFromPrint && (
         <div className="absolute -top-5 left-0 text-xs text-primary/70 italic bg-base-100/90 px-2 py-0.5 rounded shadow-sm border border-primary/20 z-10">
           (editing from Cell)
-        </div>
-      )}
-
-      {/* Selection indicator */}
-      {isSelected && !isEditingFromPrint && (
-        <div className="absolute -left-6 top-0 text-secondary z-10">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5l7 7-7 7"
-            />
-          </svg>
         </div>
       )}
 
@@ -329,50 +462,17 @@ function ScreenplayElementView({
           </>
         )}
 
-      {isEditingFromPrint ? (
-        isMultiLine ? (
-          <textarea
-            ref={textareaRef}
-            className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary rounded resize-none overflow-hidden relative z-10 px-2 py-1 -mx-2 -my-1"
-            style={{
-              ...(style as React.CSSProperties),
-              minHeight: "1.5rem",
-              height: "auto",
-            }}
-            value={editingValue}
-            onChange={(e) => {
-              onEditingValueChange(e.target.value);
-              // Auto-resize textarea to fit content
-              e.target.style.height = "auto";
-              e.target.style.height = `${e.target.scrollHeight}px`;
-            }}
-            onClick={(e) => e.stopPropagation()}
-            onInput={(e) => {
-              // Auto-resize on input as well
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = "auto";
-              target.style.height = `${target.scrollHeight}px`;
-            }}
-            onMouseEnter={() => setIsHovered(false)}
-          />
-        ) : (
-          <input
-            ref={inputRef}
-            type="text"
-            className="font-mono text-base leading-tight w-full bg-transparent border-none outline-none ring-2 ring-primary rounded relative z-10 px-2 py-1 -mx-2 -my-1"
-            style={style as React.CSSProperties}
-            value={editingValue}
-            onChange={(e) => onEditingValueChange(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            onMouseEnter={() => setIsHovered(false)}
-          />
-        )
-      ) : (
-        <p
-          className={`font-mono text-base leading-tight rounded transition-colors relative z-10 px-2 py-1 -mx-2 -my-1 ${isBeingEdited ? "ring-2 ring-primary bg-primary/10" : ""} ${isSelected ? "bg-primary/20" : ""} ${isCut ? "ring-2 ring-dashed ring-primary opacity-60" : ""}`}
-          style={style as React.CSSProperties}
-        >
-          {searchTerm
+      {/* Always render the <p> for stable layout (prevents text shift) */}
+      <p
+        className={`font-mono text-base rounded transition-colors relative z-10 ${isCut ? "opacity-60" : ""}`}
+        style={{
+          ...(style as React.CSSProperties),
+          visibility: isEditingFromPrint ? "hidden" : undefined,
+        }}
+      >
+        {isEditingFromPrint
+          ? (editingValue || "\u00A0") /* Keep height stable with non-breaking space when empty */
+          : searchTerm
             ? highlightSearchText(
                 formatContent(element.content),
                 searchTerm,
@@ -380,8 +480,54 @@ function ScreenplayElementView({
                 !!isCurrentSearchMatch,
               )
             : formatContent(element.content)}
-        </p>
-      )}
+      </p>
+
+      {/* Overlay the form element on top when editing.
+          Strip vertical margins — the <p> handles vertical spacing between
+          elements; the overlay must not duplicate it. Keep horizontal margins
+          since those are the screenplay indentation. */}
+      {isEditingFromPrint && (() => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { marginTop: _mt, marginBottom: _mb, ...overlayStyle } = style;
+        return isMultiLine ? (
+          <textarea
+            ref={textareaRef}
+            className="font-mono text-base w-full bg-transparent border-0 outline-none resize-none overflow-hidden absolute z-20 p-0 m-0"
+            style={{
+              ...(overlayStyle as React.CSSProperties),
+              top: 0,
+              left: 0,
+              height: "100%",
+              caretColor: "white",
+            }}
+            value={editingValue}
+            onChange={(e) => {
+              onEditingValueChange(e.target.value);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={handleInputKeyDown}
+            onMouseEnter={() => setIsHovered(false)}
+          />
+        ) : (
+          <input
+            ref={inputRef}
+            type="text"
+            className="font-mono text-base w-full bg-transparent border-0 outline-none absolute z-20 p-0 m-0"
+            style={{
+              ...(overlayStyle as React.CSSProperties),
+              top: 0,
+              left: 0,
+              height: "100%",
+              caretColor: "white",
+            }}
+            value={editingValue}
+            onChange={(e) => onEditingValueChange(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={handleInputKeyDown}
+            onMouseEnter={() => setIsHovered(false)}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -411,9 +557,13 @@ function ScreenplayPrint({
   const updateEditingValue = useCellEditStore(
     (state) => state.updateEditingValue,
   );
+  const editingSource = useCellEditStore((state) => state.editingSource);
   const clearEditingCell = useCellEditStore((state) => state.clearEditingCell);
   // Data mutation from cellStore
   const updateCell = useCellStore((state) => state.updateCell);
+  const updateCells = useCellStore((state) => state.updateCells);
+  const addRow = useCellStore((state) => state.addRow);
+  const deleteRows = useCellStore((state) => state.deleteRows);
   // Selection from cellSelectionStore
   const clearSelection = useCellSelectionStore((state) => state.clearSelection);
   // Find/Replace for print view search highlighting
@@ -434,6 +584,16 @@ function ScreenplayPrint({
   const [isEditingFromPrint, setIsEditingFromPrint] = useState(false);
   const [cutElements, setCutElements] = useState<SelectedPrintElement[]>([]);
   const printContainerRef = useRef<HTMLDivElement>(null);
+
+  // Cursor placement strategy for the active editing element
+  const [cursorPlacement, setCursorPlacement] = useState<CursorPlacement>("end");
+
+  // Pending edit: when Enter creates a new row, the worker must recalculate
+  // before the new element exists. This stores the target to edit once elements update.
+  const pendingEditRef = useRef<{
+    rowIndex: number;
+    columnName: string;
+  } | null>(null);
 
   // Worker state for background calculations
   const [isCalculating, setIsCalculating] = useState(false);
@@ -508,9 +668,11 @@ function ScreenplayPrint({
       ? maxScaleWidth // Always fill width when on the right
       : Math.min(maxScaleWidth, maxScaleHeight); // Fit both dimensions when on bottom
 
-  // Scroll to element when editing cell changes
+  // Scroll to element when a cell is edited from the cellular editor
+  // (only when Follow Cell is active). Edits originating from within the
+  // screenplay editor itself should never auto-scroll.
   useEffect(() => {
-    if (editingCell && containerRef && followCell) {
+    if (editingCell && containerRef && followCell && editingSource === "cell") {
       // Create a unique key for the editing cell
       const editingKey = `${editingCell.row}-${headers[editingCell.col]}`;
       const element = elementRefs.current.get(editingKey);
@@ -524,7 +686,242 @@ function ScreenplayPrint({
         });
       }
     }
-  }, [editingCell, headers, containerRef, followCell]);
+  }, [editingCell, headers, containerRef, followCell, editingSource]);
+
+  // Resolve pending edits after worker recalculates elements
+  // When Enter creates a new row, the element doesn't exist yet until the worker finishes.
+  // This effect picks up the pending target and starts editing once the element appears.
+  useEffect(() => {
+    const pending = pendingEditRef.current;
+    if (!pending) return;
+
+    // Find the element matching the pending edit target
+    const targetIndex = elements.findIndex(
+      (el) =>
+        el.rowIndex === pending.rowIndex &&
+        el.columnName === pending.columnName,
+    );
+
+    if (targetIndex !== -1) {
+      const targetElement = elements[targetIndex];
+      pendingEditRef.current = null;
+
+      const colIndex = headers.indexOf(targetElement.columnName);
+      if (colIndex === -1) return;
+
+      setPrintSelection({
+        primary: {
+          rowIndex: targetElement.rowIndex,
+          columnName: targetElement.columnName,
+          elementIndex: targetIndex,
+        },
+        additional: [],
+      });
+
+      setEditingCell(targetElement.rowIndex, colIndex, "", "print");
+      setIsEditingFromPrint(true);
+      setCursorPlacement("start");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elements]);
+
+  // ===== SCREENPLAY FORMAT FLOW HELPERS =====
+
+  /**
+   * Determines the next element type when Enter is pressed,
+   * following screenplay writing conventions.
+   */
+  const getNextElementType = (
+    currentType: ScreenplayElementType,
+  ): ScreenplayElementType => {
+    switch (currentType) {
+      case "scene_heading":
+        return "action";
+      case "action":
+        return "action";
+      case "character":
+        return "dialogue";
+      case "dialogue":
+        return "action";
+      case "parenthetical":
+        return "dialogue";
+      case "transition":
+        return "scene_heading";
+      default:
+        return "action";
+    }
+  };
+
+  /**
+   * Tab cycling order for changing element type on empty/new elements.
+   */
+  const cycleElementType = (
+    currentType: ScreenplayElementType,
+    reverse: boolean = false,
+  ): ScreenplayElementType => {
+    const cycle: ScreenplayElementType[] = [
+      "action",
+      "character",
+      "scene_heading",
+      "transition",
+      "parenthetical",
+      "dialogue",
+    ];
+    const currentIndex = cycle.indexOf(currentType);
+    if (currentIndex === -1) return "action";
+    const nextIndex = reverse
+      ? (currentIndex - 1 + cycle.length) % cycle.length
+      : (currentIndex + 1) % cycle.length;
+    return cycle[nextIndex];
+  };
+
+  /**
+   * Get the column name for a given element type from the current configuration.
+   */
+  const getColumnForType = (
+    type: ScreenplayElementType,
+  ): string | null => {
+    const mappings = configuration.fieldMappings;
+    const mapping = mappings.find((m) => m.ingredientId === type);
+    return mapping?.cellColumn ?? null;
+  };
+
+  /**
+   * Start editing a specific element, setting up all the required state.
+    * @param placement - Where to place the cursor: "start", "end", or { charOffset }
+   */
+  const startEditingElement = (
+    element: ScreenplayElement,
+    elementIndex: number,
+    initialValue?: string,
+    placement: CursorPlacement = "end",
+  ) => {
+    const colIndex = headers.indexOf(element.columnName);
+    if (colIndex === -1) return;
+
+    setCursorPlacement(placement);
+
+    setPrintSelection({
+      primary: {
+        rowIndex: element.rowIndex,
+        columnName: element.columnName,
+        elementIndex,
+      },
+      additional: [],
+    });
+
+    const value =
+      initialValue !== undefined
+        ? initialValue
+        : (data[element.rowIndex]?.[colIndex] || "");
+    setEditingCell(element.rowIndex, colIndex, value, "print");
+    setIsEditingFromPrint(true);
+  };
+
+  /**
+   * Save the current editing state and commit changes to the cell store.
+   */
+  const commitCurrentEdit = () => {
+    if (isEditingFromPrint && editingCell) {
+      updateCell(editingCell.row, editingCell.col, editingValue);
+      clearEditingCell();
+      setIsEditingFromPrint(false);
+    }
+  };
+
+  /**
+   * Given a text value, find the character position at the given column offset
+   * on the last line (for ArrowUp navigation into previous element).
+   */
+  const getPositionOnLastLine = (
+    text: string,
+    columnOffset: number,
+  ): number => {
+    const lastNewline = text.lastIndexOf("\n");
+    const lastLineStart = lastNewline === -1 ? 0 : lastNewline + 1;
+    const lastLineLength = text.length - lastLineStart;
+    return lastLineStart + Math.min(columnOffset, lastLineLength);
+  };
+
+  /**
+   * Given a text value, find the character position at the given column offset
+   * on the first line (for ArrowDown navigation into next element).
+   */
+  const getPositionOnFirstLine = (
+    text: string,
+    columnOffset: number,
+  ): number => {
+    const firstNewline = text.indexOf("\n");
+    const firstLineLength =
+      firstNewline === -1 ? text.length : firstNewline;
+    return Math.min(columnOffset, firstLineLength);
+  };
+
+  /**
+   * Navigate to the previous element (called from ScreenplayElementView when
+   * ArrowUp or ArrowLeft is pressed at the top boundary of the current element).
+   * @param columnOffset - horizontal cursor position to preserve
+   */
+  const handleNavigateUp = (
+    elementIndex: number,
+    columnOffset: number,
+  ) => {
+    if (elementIndex <= 0) return;
+    if (!editingCell) return;
+
+    // Save current edit
+    updateCell(editingCell.row, editingCell.col, editingValue);
+    clearEditingCell();
+    setIsEditingFromPrint(false);
+
+    const prevElement = elements[elementIndex - 1];
+    if (prevElement) {
+      const prevColIndex = headers.indexOf(prevElement.columnName);
+      if (prevColIndex === -1) return;
+      const prevValue = data[prevElement.rowIndex]?.[prevColIndex] || "";
+      const charPos = getPositionOnLastLine(prevValue, columnOffset);
+
+      startEditingElement(
+        prevElement,
+        elementIndex - 1,
+        undefined,
+        { charOffset: charPos },
+      );
+    }
+  };
+
+  /**
+   * Navigate to the next element (called from ScreenplayElementView when
+   * ArrowDown or ArrowRight is pressed at the bottom boundary of the current element).
+   * @param columnOffset - horizontal cursor position to preserve
+   */
+  const handleNavigateDown = (
+    elementIndex: number,
+    columnOffset: number,
+  ) => {
+    if (elementIndex >= elements.length - 1) return;
+    if (!editingCell) return;
+
+    // Save current edit
+    updateCell(editingCell.row, editingCell.col, editingValue);
+    clearEditingCell();
+    setIsEditingFromPrint(false);
+
+    const nextElement = elements[elementIndex + 1];
+    if (nextElement) {
+      const nextColIndex = headers.indexOf(nextElement.columnName);
+      if (nextColIndex === -1) return;
+      const nextValue = data[nextElement.rowIndex]?.[nextColIndex] || "";
+      const charPos = getPositionOnFirstLine(nextValue, columnOffset);
+
+      startEditingElement(
+        nextElement,
+        elementIndex + 1,
+        undefined,
+        { charOffset: charPos },
+      );
+    }
+  };
 
   // Keyboard handlers for Print view
   useEffect(() => {
@@ -535,13 +932,20 @@ function ScreenplayPrint({
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement;
 
+      // Only handle input events that are within the screenplay print container
+      if (isInInput) {
+        const isInPrintContainer =
+          printContainerRef.current?.contains(target) ?? false;
+        if (!isInPrintContainer) return;
+      }
+
       // Get all selected elements (primary + additional)
       const allSelectedElements = printSelection.primary
         ? [printSelection.primary, ...printSelection.additional]
         : [];
       const hasSelection = allSelectedElements.length > 0;
 
-      // Handle Copy (Ctrl+C)
+      // Handle Copy (Ctrl+C) -- works in both editing and selection modes
       if (
         e.key === "c" &&
         e.ctrlKey &&
@@ -551,10 +955,8 @@ function ScreenplayPrint({
         !isInInput
       ) {
         e.preventDefault();
-        // Cancel any pending cut operation
         setCutElements([]);
 
-        // Copy selected elements to clipboard
         const copiedValues = allSelectedElements.map((sel) => {
           const colIndex = headers.indexOf(sel.columnName);
           if (colIndex === -1) return "";
@@ -581,7 +983,6 @@ function ScreenplayPrint({
       ) {
         e.preventDefault();
 
-        // First copy to clipboard
         const copiedValues = allSelectedElements.map((sel) => {
           const colIndex = headers.indexOf(sel.columnName);
           if (colIndex === -1) return "";
@@ -590,7 +991,6 @@ function ScreenplayPrint({
 
         try {
           await writeText(copiedValues.join("\n"));
-          // Mark elements as cut (they'll be cleared on paste)
           setCutElements([...allSelectedElements]);
         } catch (err: unknown) {
           logger.error("Failed to cut to system clipboard:", err);
@@ -599,7 +999,7 @@ function ScreenplayPrint({
         return;
       }
 
-      // Handle Paste (Ctrl+V)
+      // Handle Paste (Ctrl+V) -- only when not editing (editing input handles its own paste)
       if (
         e.key === "v" &&
         e.ctrlKey &&
@@ -614,13 +1014,9 @@ function ScreenplayPrint({
           const text = await readText();
           if (!text) return;
 
-          // Parse clipboard text - split by newlines
           const values = text.split("\n").filter((v) => v !== "");
-
-          // Paste starting at primary selection
           const startElementIndex = printSelection.primary.elementIndex;
 
-          // Build array of cell updates
           const cellUpdates: Array<{
             row: number;
             col: number;
@@ -641,12 +1037,10 @@ function ScreenplayPrint({
             });
           }
 
-          // Update all cells at once
           if (cellUpdates.length > 0) {
             useCellStore.getState().updateCells(cellUpdates);
           }
 
-          // Clear cut elements if there were any
           if (cutElements.length > 0) {
             const clearUpdates = cutElements.map((sel) => {
               const colIndex = headers.indexOf(sel.columnName);
@@ -666,7 +1060,186 @@ function ScreenplayPrint({
         return;
       }
 
-      // Handle Delete/Backspace to clear selected elements
+      // ===== EDITING MODE KEYS =====
+      if (isEditingFromPrint && editingCell) {
+        const primary = printSelection.primary;
+        if (!primary) return;
+
+        const currentElement = elements.find(
+          (el) =>
+            el.rowIndex === primary.rowIndex &&
+            el.columnName === primary.columnName,
+        );
+        const currentType = currentElement?.type || "action";
+        const currentIsMultiLine = isMultiLineElement(currentType);
+
+        // Ctrl+Enter: newline in multi-line elements
+        if (e.key === "Enter" && currentIsMultiLine && e.ctrlKey) {
+          return; // Let the textarea handle it naturally
+        }
+
+        // Enter: save current element and create new element below
+        if (e.key === "Enter" && !e.ctrlKey) {
+          e.preventDefault();
+
+          // Save current edit
+          updateCell(editingCell.row, editingCell.col, editingValue);
+          clearEditingCell();
+          setIsEditingFromPrint(false);
+
+          // Determine next element type per screenplay conventions
+          const nextType = getNextElementType(currentType);
+          const nextColumnName = getColumnForType(nextType);
+          if (!nextColumnName) return;
+
+          // Insert new row after the current element's row
+          const newRowIndex = primary.rowIndex + 1;
+          addRow(newRowIndex);
+
+          // Store the pending edit target -- the new element doesn't exist yet
+          // because the worker hasn't recalculated. The pendingEditRef effect
+          // will pick this up once elements are updated.
+          pendingEditRef.current = {
+            rowIndex: newRowIndex,
+            columnName: nextColumnName,
+          };
+
+          return;
+        }
+
+        // Tab: cycle element type (only on empty/new elements)
+        if (e.key === "Tab") {
+          e.preventDefault();
+
+          const nextType = cycleElementType(currentType, e.shiftKey);
+          const nextColumnName = getColumnForType(nextType);
+          if (!nextColumnName) return;
+
+          const currentContent = editingValue;
+
+          // Clear the current cell
+          updateCell(editingCell.row, editingCell.col, "");
+
+          // Move content to the new column
+          const nextColIndex = headers.indexOf(nextColumnName);
+          if (nextColIndex === -1) return;
+
+          // Set the content in the new column
+          updateCell(editingCell.row, nextColIndex, currentContent);
+
+          // Start editing the new column
+          setCursorPlacement("end");
+          setEditingCell(editingCell.row, nextColIndex, currentContent, "print");
+          setIsEditingFromPrint(true);
+
+          // Update selection to match new column
+          setPrintSelection({
+            primary: {
+              rowIndex: editingCell.row,
+              columnName: nextColumnName,
+              elementIndex: primary.elementIndex,
+            },
+            additional: [],
+          });
+
+          return;
+        }
+
+        // Escape: cancel editing (discard changes)
+        if (e.key === "Escape") {
+          e.preventDefault();
+          clearEditingCell();
+          setIsEditingFromPrint(false);
+          // Keep the element selected but not editing
+          return;
+        }
+
+        // Arrow keys while editing are handled by ScreenplayElementView's onKeyDown
+        // via onNavigateUp/onNavigateDown callbacks. No document-level handling needed.
+
+        // Backspace on empty element: delete the element and its row if empty
+        if (e.key === "Backspace" && editingValue === "" && isInInput) {
+          e.preventDefault();
+
+          const rowIndex = editingCell.row;
+          const row = data[rowIndex];
+
+          // Check if the entire row is empty (all cells blank)
+          const isRowEmpty = row?.every((cell) => cell === "");
+
+          // Clear editing state first
+          clearEditingCell();
+          setIsEditingFromPrint(false);
+
+          if (isRowEmpty && data.length > 1) {
+            // Delete the entire row
+            deleteRows([rowIndex]);
+
+            // Move to the end of the previous element
+            if (primary.elementIndex > 0) {
+              // We need to find the element that will be at the previous position
+              // after the row is deleted. Elements will be recalculated,
+              // so we find the previous element by looking at elements before deletion
+              const prevElement = elements[primary.elementIndex - 1];
+              if (prevElement) {
+                // Adjust row index if the previous element was below the deleted row
+                const adjustedRowIndex =
+                  prevElement.rowIndex >= rowIndex
+                    ? prevElement.rowIndex - 1
+                    : prevElement.rowIndex;
+                const prevColIndex = headers.indexOf(prevElement.columnName);
+                if (prevColIndex === -1) return;
+                const prevValue =
+                  data[adjustedRowIndex]?.[prevColIndex] || "";
+
+                setEditingCell(adjustedRowIndex, prevColIndex, prevValue, "print");
+                setIsEditingFromPrint(true);
+                setPrintSelection({
+                  primary: {
+                    rowIndex: adjustedRowIndex,
+                    columnName: prevElement.columnName,
+                    elementIndex: primary.elementIndex - 1,
+                  },
+                  additional: [],
+                });
+              }
+            } else {
+              // No previous element, just clear selection
+              setPrintSelection({ primary: null, additional: [] });
+            }
+          } else if (!isRowEmpty) {
+            // Just clear the current cell (not the whole row)
+            updateCell(rowIndex, editingCell.col, "");
+
+            // Move to end of previous element
+            if (primary.elementIndex > 0) {
+              const prevElement = elements[primary.elementIndex - 1];
+              if (prevElement) {
+                const prevColIndex = headers.indexOf(prevElement.columnName);
+                if (prevColIndex === -1) return;
+                const prevValue =
+                  data[prevElement.rowIndex]?.[prevColIndex] || "";
+
+                startEditingElement(
+                  prevElement,
+                  primary.elementIndex - 1,
+                  prevValue,
+                );
+              }
+            } else {
+              setPrintSelection({ primary: null, additional: [] });
+            }
+          }
+          return;
+        }
+
+        // All other keys while editing: let the input/textarea handle them
+        return;
+      }
+
+      // ===== NON-EDITING MODE KEYS =====
+
+      // Delete/Backspace to clear selected elements (non-editing mode)
       if (
         (e.key === "Delete" || e.key === "Backspace") &&
         hasSelection &&
@@ -687,17 +1260,17 @@ function ScreenplayPrint({
         return;
       }
 
-      // Handle type-to-overwrite: if a printable character is typed, clear element and start editing
+      // Type-to-overwrite: if a printable character is typed, start editing with that character
       if (printSelection.primary && !isEditingFromPrint && !isInInput) {
         const isPrintableChar =
           e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey;
 
         if (isPrintableChar) {
           e.preventDefault();
-          // Start editing with the typed character as the initial value
           const colIndex = headers.indexOf(printSelection.primary.columnName);
           if (colIndex === -1) return;
 
+          setCursorPlacement("end");
           setEditingCell(
             printSelection.primary.rowIndex,
             colIndex,
@@ -709,7 +1282,7 @@ function ScreenplayPrint({
         }
       }
 
-      // Handle arrow key navigation
+      // Arrow key navigation (non-editing mode)
       if (printSelection.primary && !isEditingFromPrint && !isInInput) {
         if (e.key === "ArrowUp" || e.key === "ArrowDown") {
           e.preventDefault();
@@ -725,9 +1298,7 @@ function ScreenplayPrint({
               elementIndex: newIndex,
             };
 
-            // If Shift is held, extend selection
             if (e.shiftKey) {
-              // Add to selection range
               const minIndex = Math.min(currentIndex, newIndex);
               const maxIndex = Math.max(currentIndex, newIndex);
               const rangeElements: SelectedPrintElement[] = [];
@@ -748,29 +1319,18 @@ function ScreenplayPrint({
                 additional: rangeElements,
               });
             } else {
-              // Normal navigation - clear selection and move
               setPrintSelection({
                 primary: newSelection,
                 additional: [],
               });
             }
 
-            // Scroll to the new element
-            const elementKey = `${newElement.rowIndex}-${newElement.columnName}`;
-            const element = elementRefs.current.get(elementKey);
-            if (element) {
-              element.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-                inline: "nearest",
-              });
-            }
           }
           return;
         }
       }
 
-      // Handle F2 or Enter to start editing from Print view
+      // F2 or Enter to start editing from selection (non-editing mode)
       if (
         (e.key === "F2" || e.key === "Enter") &&
         printSelection.primary &&
@@ -778,11 +1338,11 @@ function ScreenplayPrint({
         !isInInput
       ) {
         e.preventDefault();
-        // Start editing from Print view
         const colIndex = headers.indexOf(printSelection.primary.columnName);
         if (colIndex === -1) return;
 
         const value = data[printSelection.primary.rowIndex]?.[colIndex] || "";
+        setCursorPlacement("end");
         setEditingCell(
           printSelection.primary.rowIndex,
           colIndex,
@@ -790,55 +1350,19 @@ function ScreenplayPrint({
           "print",
         );
         setIsEditingFromPrint(true);
+        return;
       }
 
-      // Handle Enter or F2 to save editing from Print view
-      // For multi-line elements, Ctrl+Enter creates newlines; Enter or F2 saves
-      if (isEditingFromPrint && editingCell) {
-        const primary = printSelection.primary;
-        const isMultiLine =
-          primary &&
-          isMultiLineElement(
-            elements.find(
-              (el) =>
-                el.rowIndex === primary.rowIndex &&
-                el.columnName === primary.columnName,
-            )?.type || "action",
-          );
-
-        // Allow Ctrl+Enter to create newlines in multi-line elements
-        if (e.key === "Enter" && isMultiLine && e.ctrlKey) {
-          return;
-        }
-
-        if (e.key === "F2" || e.key === "Enter") {
-          e.preventDefault();
-          // Save editing from Print view
-          updateCell(editingCell.row, editingCell.col, editingValue);
-          clearEditingCell();
-          setIsEditingFromPrint(false);
-        }
-      }
-
-      // Handle Escape to cancel editing or clear selection
-      if (e.key === "Escape") {
-        if (isEditingFromPrint) {
-          e.preventDefault();
-          clearEditingCell();
-          setIsEditingFromPrint(false);
-        } else if (hasSelection) {
-          e.preventDefault();
-          setPrintSelection({ primary: null, additional: [] });
-          setCutElements([]);
-        }
+      // Escape: clear selection (non-editing mode)
+      if (e.key === "Escape" && hasSelection && !isInInput) {
+        e.preventDefault();
+        setPrintSelection({ primary: null, additional: [] });
+        setCutElements([]);
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-    // Disabled: Missing elements dependency
-    // Reason: elements is derived from data and is recalculated on every render. Adding it would cause the keyboard handler to constantly detach/reattach, causing performance issues. The effect already depends on data, which is sufficient
-    // Alternative: Memoize elements array with useMemo, then add to dependencies
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     printSelection,
@@ -849,25 +1373,31 @@ function ScreenplayPrint({
     editingValue,
     setEditingCell,
     updateCell,
+    updateCells,
+    addRow,
+    deleteRows,
     clearEditingCell,
     cutElements,
+    configuration,
   ]);
 
-  // Handle clicking on a Print element
+  // Handle clicking on a Print element -- single click starts editing
   const handleElementClick = (
     e: React.MouseEvent,
     element: ScreenplayElement,
     elementIndex: number,
   ) => {
-    const newSelection: SelectedPrintElement = {
-      rowIndex: element.rowIndex,
-      columnName: element.columnName,
-      elementIndex,
-    };
-
-    // Ctrl+click for multi-select (add to selection)
+    // Ctrl+click for multi-select (non-editing selection mode)
     if (e.ctrlKey || e.metaKey) {
-      // Check if this element is already selected
+      // If currently editing, save first
+      commitCurrentEdit();
+
+      const newSelection: SelectedPrintElement = {
+        rowIndex: element.rowIndex,
+        columnName: element.columnName,
+        elementIndex,
+      };
+
       const isAlreadySelected =
         printSelection.primary?.elementIndex === elementIndex ||
         printSelection.additional.some(
@@ -875,9 +1405,7 @@ function ScreenplayPrint({
         );
 
       if (isAlreadySelected) {
-        // Remove from selection
         if (printSelection.primary?.elementIndex === elementIndex) {
-          // Removing primary - promote first additional to primary
           if (printSelection.additional.length > 0) {
             setPrintSelection({
               primary: printSelection.additional[0],
@@ -887,7 +1415,6 @@ function ScreenplayPrint({
             setPrintSelection({ primary: null, additional: [] });
           }
         } else {
-          // Remove from additional
           setPrintSelection({
             primary: printSelection.primary,
             additional: printSelection.additional.filter(
@@ -896,7 +1423,6 @@ function ScreenplayPrint({
           });
         }
       } else {
-        // Add to selection
         if (!printSelection.primary) {
           setPrintSelection({ primary: newSelection, additional: [] });
         } else {
@@ -906,45 +1432,49 @@ function ScreenplayPrint({
           });
         }
       }
-    } else {
-      // Normal click - replace selection
-      setPrintSelection({
-        primary: newSelection,
-        additional: [],
-      });
+
+      clearSelection();
+      if (printContainerRef.current) {
+        printContainerRef.current.focus();
+      }
+      return;
     }
+
+    // If clicking the element we're already editing, let the input handle cursor positioning
+    if (
+      isEditingFromPrint &&
+      editingCell &&
+      editingCell.row === element.rowIndex &&
+      headers[editingCell.col] === element.columnName
+    ) {
+      return;
+    }
+
+    // Save any current edit before switching elements
+    commitCurrentEdit();
+
+    // Determine cursor position from click coordinates.
+    // Use caretRangeFromPoint on the <p> element to find which character was clicked.
+    let clickCharOffset: number | undefined;
+    if (document.caretRangeFromPoint) {
+      const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+      if (range) {
+        clickCharOffset = range.startOffset;
+      }
+    }
+
+    // Single click: select and immediately start editing at the clicked position
+    startEditingElement(
+      element,
+      elementIndex,
+      undefined,
+      clickCharOffset !== undefined
+        ? { charOffset: clickCharOffset }
+        : "start",
+    );
 
     // Clear Cell selection so Cell Grid doesn't compete for keyboard input
     clearSelection();
-
-    // Focus the Print container so keyboard events work
-    if (printContainerRef.current) {
-      printContainerRef.current.focus();
-    }
-  };
-
-  // Handle double-clicking on a Print element to start editing
-  const handleElementDoubleClick = (
-    element: ScreenplayElement,
-    elementIndex: number,
-  ) => {
-    // Set selected element
-    setPrintSelection({
-      primary: {
-        rowIndex: element.rowIndex,
-        columnName: element.columnName,
-        elementIndex,
-      },
-      additional: [],
-    });
-
-    // Start editing immediately
-    const colIndex = headers.indexOf(element.columnName);
-    if (colIndex === -1) return;
-
-    const value = data[element.rowIndex]?.[colIndex] || "";
-    setEditingCell(element.rowIndex, colIndex, value, "print");
-    setIsEditingFromPrint(true);
   };
 
   // Handle right-clicking on a Print element to show context menu
@@ -1121,14 +1651,14 @@ function ScreenplayPrint({
       className="screenplay-print-container w-full h-full overflow-auto outline-none"
       tabIndex={0}
       onClick={(e) => {
-        // Clear Cell selection when clicking anywhere in Print view
-        // Only if we didn't click on an element (which handles its own selection)
-        if (
-          e.target === e.currentTarget ||
-          (e.target as HTMLElement).closest(".screenplay-page")
-        ) {
+        // Clicking empty space on the page: save any active edit and deselect
+        const clickedElement = (e.target as HTMLElement).closest(
+          ".screenplay-element",
+        );
+        if (!clickedElement) {
+          commitCurrentEdit();
+          setPrintSelection({ primary: null, additional: [] });
           clearSelection();
-          // Focus the Print container
           if (printContainerRef.current) {
             printContainerRef.current.focus();
           }
@@ -1238,10 +1768,14 @@ function ScreenplayPrint({
                   editingValue={editingValue}
                   onEditingValueChange={updateEditingValue}
                   onClick={(e) => handleElementClick(e, element, index)}
-                  onDoubleClick={() => handleElementDoubleClick(element, index)}
                   onContextMenu={(e) =>
                     handleElementContextMenu(e, element, index)
                   }
+                  cursorPlacement={
+                    isEditingThisFromPrint ? cursorPlacement : undefined
+                  }
+                  onNavigateUp={(col) => handleNavigateUp(index, col)}
+                  onNavigateDown={(col) => handleNavigateDown(index, col)}
                   setRef={setRef}
                   searchTerm={isPrintSearch ? searchTerm : undefined}
                   searchMatchCase={searchOptions.matchCase}
@@ -1380,12 +1914,14 @@ function ScreenplayPrint({
                         onClick={(e) =>
                           handleElementClick(e, element, globalIndex)
                         }
-                        onDoubleClick={() =>
-                          handleElementDoubleClick(element, globalIndex)
-                        }
                         onContextMenu={(e) =>
                           handleElementContextMenu(e, element, globalIndex)
                         }
+                        cursorPlacement={
+                          isEditingThisFromPrint ? cursorPlacement : undefined
+                        }
+                        onNavigateUp={(col) => handleNavigateUp(globalIndex, col)}
+                        onNavigateDown={(col) => handleNavigateDown(globalIndex, col)}
                         setRef={setRef}
                         searchTerm={isPrintSearch ? searchTerm : undefined}
                         searchMatchCase={searchOptions.matchCase}

@@ -16,7 +16,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { logger } from "@utils/logger";
 import { formatError } from "@utils/tauriErrorHandler";
 import { toast } from "@stores/toastStore";
-import type { ExportTemplate } from "@/types/exportTemplate";
 import { TEMPLATE_CATEGORIES } from "@/data/exportTemplates";
 
 interface ExportModalProps {

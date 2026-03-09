@@ -31,7 +31,7 @@ interface SummaryRowProps {
     /** Whether columns auto-fit to container width */
     autoFitColumns: boolean;
     /** Position of the drawer panel */
-    drawerPosition: "right" | "bottom" | "left";
+    drawerPosition: "right" | "bottom" | null;
     /** Size of the right drawer in pixels */
     rightDrawerSize: number;
 }
