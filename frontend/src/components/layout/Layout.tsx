@@ -50,10 +50,42 @@ function Layout({ children, isSidebarOpen, onTogglePrintPreview, onToggleSidebar
         };
     }, [isResizing, endDrag]);
 
+    // Measure toolbar height for drawer positioning
+    const headerRef = useRef<HTMLDivElement>(null);
+    const [toolbarHeight, setToolbarHeight] = useState(0);
+
+    useEffect(() => {
+        if (!headerRef.current) return;
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                setToolbarHeight(entry.contentRect.height);
+            }
+        });
+        observer.observe(headerRef.current);
+        return () => observer.disconnect();
+    }, []);
+
+    // Expose toolbar offset (title bar + toolbar) as CSS variable for drawer positioning
+    const toolbarOffset = 40 + toolbarHeight; // TitleBar h-10 = 40px
+
+    useEffect(() => {
+        document.documentElement.style.setProperty("--toolbar-offset", `${toolbarOffset}px`);
+    }, [toolbarOffset]);
+
     return (
         <div className="flex flex-col h-screen">
             {/* Custom title bar */}
             <TitleBar onFilePickerOpenChange={onFilePickerOpenChange} />
+
+            {/* Header toolbar - spans full width above sidebar + content */}
+            <div ref={headerRef}>
+                <Header
+                    onTogglePrintPreview={() => onTogglePrintPreview("right")}
+                    onToggleSidebar={onToggleSidebar}
+                    isSidebarOpen={isSidebarOpen}
+                    onFilePickerOpenChange={onFilePickerOpenChange}
+                />
+            </div>
 
             {/* Main application area */}
             <div className="flex flex-1 min-h-0">
@@ -105,14 +137,6 @@ function Layout({ children, isSidebarOpen, onTogglePrintPreview, onToggleSidebar
 
             {/* Main content area */}
             <div className="flex-1 flex flex-col min-w-0">
-                {/* Header */}
-                <Header
-                    onTogglePrintPreview={() => onTogglePrintPreview("right")}
-                    onToggleSidebar={onToggleSidebar}
-                    isSidebarOpen={isSidebarOpen}
-                    onFilePickerOpenChange={onFilePickerOpenChange}
-                />
-
                 {/* Page content */}
                 <main className="flex-1 overflow-auto bg-base-100 min-w-0">
                     {children}

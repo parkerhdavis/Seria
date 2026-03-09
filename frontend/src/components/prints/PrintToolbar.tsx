@@ -30,6 +30,7 @@ function PrintToolbar({
     const continuous = settings.continuous ?? true;
     const followCell = settings.followCell ?? true;
     const theme = settings.theme ?? "default";
+    const gridSize = settings.gridSize ?? 1;
 
     // Render recipe-specific options
     const renderRecipeOptions = () => {
@@ -88,6 +89,27 @@ function PrintToolbar({
             case "corkboard":
                 return (
                     <>
+                        {/* Grid Size control */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm">Grid:</span>
+                            <input
+                                type="range"
+                                className="range range-sm range-primary w-20"
+                                min={1}
+                                max={6}
+                                step={1}
+                                value={gridSize}
+                                onChange={(e) => {
+                                    onSettingsChange({
+                                        ...settings,
+                                        gridSize: parseInt(e.target.value, 10),
+                                    });
+                                }}
+                                title={`Grid size: ${gridSize}`}
+                            />
+                            <span className="text-sm font-mono w-4 text-center">{gridSize}</span>
+                        </div>
+
                         {/* Follow Cell toggle */}
                         <div className="flex items-center gap-2">
                             <input

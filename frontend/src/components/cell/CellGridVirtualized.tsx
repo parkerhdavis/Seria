@@ -62,7 +62,7 @@
  *   Worker sends chunks, main thread batches state updates
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCellStore } from "@stores/cellStore";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
@@ -158,6 +158,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const hoverHighlightMode = useSettingsStore((state) => state.hoverHighlightMode);
     const autocompleteEnabled = useSettingsStore((state) => state.autocompleteEnabled);
     const autocompleteMinChars = useSettingsStore((state) => state.autocompleteMinChars);
+    const groupByColumn = useSettingsStore((state) => state.groupByColumn);
 
     const matches = useFindReplaceStore((state) => state.matches);
     const currentMatchIndex = useFindReplaceStore((state) => state.currentMatchIndex);
@@ -201,10 +202,87 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     const editingCellRef = useRef<HTMLDivElement | null>(null);
     const editingInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
+    // Sticky group header: tracks which group label is currently at the top of the viewport
+    const [stickyGroupLabel, setStickyGroupLabel] = useState<string | null>(null);
 
     // ===== EXTRACTED HOOKS =====
     // Filtered data
     const filteredData = useFilteredData(data, headers, columnFilters);
+
+    // ===== GROUP BY =====
+    const collapsedGroups = useSettingsStore((state) => state.collapsedGroups);
+    const toggleGroupCollapsed = useSettingsStore((state) => state.toggleGroupCollapsed);
+
+    // Height of the group-by divider element in pixels
+    const GROUP_DIVIDER_HEIGHT = 32;
+
+    /**
+     * Compute group information from filteredData:
+     *   - groupForRow: maps each filteredData index to its group value
+     *   - allGroupValues: ordered list of unique non-empty group values
+     *   - dividerRows: set of filteredData indices that start a new group
+     *   - dividerLabels: map of filteredData index -> group label text
+     */
+    const { groupForRow, dividerRows, dividerLabels } = useMemo(() => {
+        const groupForRow = new Map<number, string>();
+        const dividerRows = new Set<number>();
+        const dividerLabels = new Map<number, string>();
+
+        if (!groupByColumn) {
+            return { groupForRow, dividerRows, dividerLabels };
+        }
+
+        const colIndex = headers.indexOf(groupByColumn);
+        if (colIndex === -1) {
+            return { groupForRow, dividerRows, dividerLabels };
+        }
+
+        let currentGroupValue = ""; // the running non-empty group value
+        for (let i = 0; i < filteredData.length; i++) {
+            const cellValue = filteredData[i][colIndex] || "";
+            if (cellValue !== "") {
+                if (cellValue !== currentGroupValue) {
+                    // New group begins
+                    if (currentGroupValue !== "") {
+                        // Not the very first group — add a divider
+                        dividerRows.add(i);
+                    }
+                    currentGroupValue = cellValue;
+                    dividerLabels.set(i, cellValue);
+                }
+            }
+            // Assign every row to its current group (empty rows inherit)
+            groupForRow.set(i, currentGroupValue);
+        }
+
+        return { groupForRow, dividerRows, dividerLabels };
+    }, [filteredData, headers, groupByColumn]);
+
+    /**
+     * Build visible row indices — filters out rows belonging to collapsed groups.
+     * Each entry is a filteredData index. The virtualizer iterates over these.
+     * Divider rows are always included (so collapsed group headers remain visible).
+     */
+    const visibleRowIndices = useMemo(() => {
+        if (!groupByColumn || collapsedGroups.size === 0) {
+            // No collapsing — return identity mapping
+            return filteredData.map((_, i) => i);
+        }
+        const indices: number[] = [];
+        for (let i = 0; i < filteredData.length; i++) {
+            const group = groupForRow.get(i) || "";
+            if (collapsedGroups.has(group)) {
+                // Only include the divider row itself (if this row starts the group)
+                if (dividerRows.has(i)) {
+                    indices.push(i);
+                }
+                // skip all other rows in the collapsed group
+            } else {
+                indices.push(i);
+            }
+        }
+        return indices;
+    }, [filteredData, groupByColumn, collapsedGroups, groupForRow, dividerRows]);
 
     // Column widths hook
     const {
@@ -306,9 +384,19 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
     // ===== VIRTUALIZER SETUP WITH DYNAMIC SIZING =====
     const rowVirtualizer = useVirtualizer({
-        count: filteredData.length,
+        count: visibleRowIndices.length,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => 40, // Initial estimate, will be measured dynamically
+        estimateSize: (displayIndex) => {
+            const dataIndex = visibleRowIndices[displayIndex];
+            const base = 40;
+            const hasDivider = dividerRows.has(dataIndex);
+            // Collapsed groups show only the divider, no row content
+            const isCollapsed = groupByColumn !== null && collapsedGroups.has(groupForRow.get(dataIndex) || "");
+            if (isCollapsed && hasDivider) {
+                return GROUP_DIVIDER_HEIGHT;
+            }
+            return hasDivider ? base + GROUP_DIVIDER_HEIGHT : base;
+        },
         overscan: 10, // Pre-render 10 rows above/below for smoother scrolling
         // Enable dynamic sizing for wrapText support
         measureElement: (element) => {
@@ -318,6 +406,36 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     });
 
     // Column width helpers provided by useColumnWidths hook
+
+    // ===== STICKY GROUP HEADER =====
+    // Track the current group label that should be shown in the sticky header.
+    // Updated on scroll by checking which group the topmost visible row belongs to.
+    useEffect(() => {
+        if (!groupByColumn || !parentRef.current) {
+            setStickyGroupLabel(null);
+            return;
+        }
+
+        const scrollEl = parentRef.current;
+        const handleScroll = () => {
+            const virtualItems = rowVirtualizer.getVirtualItems();
+            if (virtualItems.length === 0) {
+                setStickyGroupLabel(null);
+                return;
+            }
+            // Find the first visible virtual item
+            const firstVisible = virtualItems[0];
+            const dataIndex = visibleRowIndices[firstVisible.index];
+            const group = groupForRow.get(dataIndex) || "";
+            setStickyGroupLabel(group || null);
+        };
+
+        // Set initial value
+        handleScroll();
+
+        scrollEl.addEventListener("scroll", handleScroll, { passive: true });
+        return () => scrollEl.removeEventListener("scroll", handleScroll);
+    }, [groupByColumn, groupForRow, visibleRowIndices, rowVirtualizer]);
 
     // ===== MEMOIZED SUMMARY CALCULATIONS =====
     // Prevents expensive recalculation on every render - only recalculates when data changes
@@ -529,6 +647,20 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             rowVirtualizer.scrollToIndex(editingCell.row, { align: "center" });
         }
     }, [editingCell, editingSource, cellFollowsPrintEdit, rowVirtualizer]);
+
+    // Scroll to row when requested by external components (e.g. Print view scroll-to-group)
+    const scrollToRow = useCellSelectionStore(state => state.scrollToRow);
+    const clearScrollToRow = useCellSelectionStore(state => state.clearScrollToRow);
+    useEffect(() => {
+        if (scrollToRow !== null) {
+            // Find the virtual index for this data row
+            const virtualIndex = visibleRowIndices.indexOf(scrollToRow);
+            if (virtualIndex >= 0) {
+                rowVirtualizer.scrollToIndex(virtualIndex, { align: "center" });
+            }
+            clearScrollToRow();
+        }
+    }, [scrollToRow, clearScrollToRow, rowVirtualizer, visibleRowIndices]);
 
     // Calculate popout position when editing starts (BEFORE rendering input)
     useEffect(() => {
@@ -1057,12 +1189,12 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                 </div>
             )}
 
-            {/* Header (sticky) */}
+            {/* Header (sticky) — includes column headers and optional group label */}
             <div className="sticky top-0 z-10 bg-base-300 border-b-2 border-base-300">
                 <div className="flex">
                     {/* Row number column header (left) */}
                     <div
-                        className={`p-2 text-center font-bold border-r bg-base-300 ${showColumnSeparators ? "border-base-300" : "border-base-content/10"}`}
+                        className={`px-2 py-1 text-center text-xs font-bold border-r bg-base-300 ${showColumnSeparators ? "border-base-300" : "border-base-content/10"}`}
                         style={{ width: "64px", minWidth: "64px", maxWidth: "64px" }}
                     >
                         #
@@ -1071,7 +1203,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                     {/* Data column headers */}
                     {headers.map((header, colIndex) => {
                         const columnWidth = pixelWidths[colIndex];
-                        const headerClass = `bg-base-300 font-bold p-2 border-r relative ${showColumnSeparators ? "border-base-300" : "border-base-content/10"} ${
+                        const headerClass = `bg-base-300 font-bold px-1.5 py-1 border-r relative ${showColumnSeparators ? "border-base-300" : "border-base-content/10"} ${
                             hoveredColumn === colIndex ? "bg-base-200/70" : ""
                         } ${dropTargetColumn === colIndex ? "border-l-4 border-primary" : ""}`;
                         return (
@@ -1088,7 +1220,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                 onContextMenu={(e) => handleColumnContextMenu(e, colIndex)}
                             >
                                 {/* Header content with drag handle and filter */}
-                                <div className="flex items-center gap-2 justify-between">
+                                <div className="flex items-center gap-1 justify-between">
                                     {/* Drag handle */}
                                     <div
                                         draggable={true}
@@ -1105,13 +1237,13 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                         className="cursor-move text-base-content/30 hover:text-base-content relative z-10"
                                         style={{ userSelect: "none", WebkitUserSelect: "none" }}
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ pointerEvents: "none" }}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ pointerEvents: "none" }}>
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                                         </svg>
                                     </div>
 
                                     {/* Header text */}
-                                    <span className="flex-1 truncate">{header}</span>
+                                    <span className="flex-1 truncate text-xs">{header}</span>
 
                                     {/* Row coloring paintbrush button (always visible) */}
                                     {(() => {
@@ -1119,7 +1251,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                         return (
                                             <div className="relative flex-shrink-0" ref={isHighlightActive && rowColorPopoverCol === colIndex ? rowColorPopoverRef : undefined}>
                                                 <button
-                                                    className={`btn btn-ghost btn-xs ${isHighlightActive ? "text-success" : "text-base-content/30 hover:text-base-content/60"} transition-colors`}
+                                                    className={`btn btn-ghost btn-xs px-1 min-h-0 h-6 ${isHighlightActive ? "text-success" : "text-base-content/30 hover:text-base-content/60"} transition-colors`}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         if (isHighlightActive) {
@@ -1141,7 +1273,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                                 >
                                                     <svg
                                                         xmlns="http://www.w3.org/2000/svg"
-                                                        className="h-4 w-4"
+                                                        className="h-3.5 w-3.5"
                                                         fill="none"
                                                         viewBox="0 0 24 24"
                                                         stroke="currentColor"
@@ -1261,12 +1393,36 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
                     {/* Row number column header (right) */}
                     <div
-                        className={`p-2 text-center font-bold border-l bg-base-300 ${showColumnSeparators ? "border-base-300" : "border-base-content/10"}`}
+                        className={`px-2 py-1 text-center text-xs font-bold border-l bg-base-300 ${showColumnSeparators ? "border-base-300" : "border-base-content/10"}`}
                         style={{ width: "64px", minWidth: "64px", maxWidth: "64px" }}
                     >
                         #
                     </div>
                 </div>
+
+                {/* Sticky group header - shows current group when scrolling */}
+                {groupByColumn && stickyGroupLabel && (
+                    <div
+                        className="toolbar-bg border-t border-base-content/10 flex items-center gap-2 px-3 cursor-pointer select-none hover:bg-base-200/30 transition-colors"
+                        style={{ height: `${GROUP_DIVIDER_HEIGHT}px` }}
+                        onClick={() => stickyGroupLabel && toggleGroupCollapsed(stickyGroupLabel)}
+                        title={collapsedGroups.has(stickyGroupLabel) ? `Expand "${stickyGroupLabel}"` : `Collapse "${stickyGroupLabel}"`}
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className={`h-3.5 w-3.5 text-base-content/50 transition-transform flex-shrink-0 ${collapsedGroups.has(stickyGroupLabel) ? "" : "rotate-90"}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span className="text-xs font-semibold text-base-content/70 truncate">
+                            {stickyGroupLabel}
+                        </span>
+                        <div className="flex-1 border-b border-base-content/10" />
+                    </div>
+                )}
             </div>
 
             {/* Virtualized rows */}
@@ -1278,8 +1434,15 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                 }}
             >
                 {virtualRows.map((virtualRow) => {
-                    const rowIndex = virtualRow.index;
+                    const rowIndex = visibleRowIndices[virtualRow.index];
                     const row = filteredData[rowIndex];
+                    const hasDivider = dividerRows.has(rowIndex);
+                    const dividerLabel = dividerLabels.get(rowIndex);
+                    // Show inline divider for group transitions (but NOT for the first group,
+                    // since the sticky header already shows the current group label)
+                    const showDivider = hasDivider;
+                    const groupValue = groupForRow.get(rowIndex) || "";
+                    const isGroupCollapsed = groupByColumn !== null && collapsedGroups.has(groupValue);
 
                     // Determine row background color
                     const rowStyle: React.CSSProperties = {};
@@ -1307,8 +1470,38 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                 left: 0,
                                 width: "100%",
                                 transform: `translateY(${virtualRow.start}px)`,
-                                ...rowStyle,
                             }}
+                        >
+                            {/* Group-by divider with label and collapse toggle */}
+                            {showDivider && dividerLabel && (
+                                <div
+                                    className={`flex items-center gap-2 px-3 cursor-pointer select-none toolbar-bg border-base-content/10 hover:bg-base-200/30 transition-colors ${hasDivider ? "border-t" : ""}`}
+                                    style={{ height: `${GROUP_DIVIDER_HEIGHT}px` }}
+                                    onClick={() => toggleGroupCollapsed(dividerLabel)}
+                                    title={isGroupCollapsed ? `Expand "${dividerLabel}"` : `Collapse "${dividerLabel}"`}
+                                >
+                                    {/* Collapse/expand chevron */}
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className={`h-3.5 w-3.5 text-base-content/50 transition-transform flex-shrink-0 ${isGroupCollapsed ? "" : "rotate-90"}`}
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                    {/* Group label */}
+                                    <span className="text-xs font-semibold text-base-content/70 truncate">
+                                        {dividerLabel}
+                                    </span>
+                                    {/* Horizontal line fill */}
+                                    <div className="flex-1 border-b border-base-content/10" />
+                                </div>
+                            )}
+                            {/* Only render the data row if the group is not collapsed */}
+                            {!isGroupCollapsed && (
+                            <div
+                            style={rowStyle}
                             className={`flex ${rowHoverClass} ${rowBgClass} ${dropTargetRow === rowIndex ? "border-t-4 border-primary" : ""}`}
                             onDragOver={(e) => handleRowDragOver(e, rowIndex)}
                             onDrop={(e) => handleRowDrop(e, rowIndex)}
@@ -1556,6 +1749,8 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                     </svg>
                                 </div>
                             </div>
+                        </div>
+                        )}
                         </div>
                     );
                 })}

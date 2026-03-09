@@ -92,6 +92,7 @@ function App() {
   const theme = useSettingsStore((state) => state.theme);
   const rowColoringMode = useSettingsStore((state) => state.rowColoringMode);
   const rowColorFilter = useSettingsStore((state) => state.rowColorFilter);
+  const groupByColumn = useSettingsStore((state) => state.groupByColumn);
   const wrapText = useSettingsStore((state) => state.wrapText);
   const showColumnSeparators = useSettingsStore(
     (state) => state.showColumnSeparators,
@@ -150,6 +151,7 @@ function App() {
   }, [
     rowColoringMode,
     rowColorFilter,
+    groupByColumn,
     wrapText,
     showColumnSeparators,
     autoFitColumns,

@@ -24,8 +24,8 @@ import { logger } from "@/utils/logger";
 import { formatError } from "@/utils/tauriErrorHandler";
 import { toast } from "@stores/toastStore";
 
-// Title bar height constant (matches TitleBar.tsx h-10 = 40px)
-const TITLE_BAR_HEIGHT = 40;
+// Toolbar offset (title bar + header toolbar) is set via CSS variable --toolbar-offset
+// This allows the drawer to position below both the title bar and the full-width toolbar
 
 interface PrintPreviewDrawerProps {
     isOpen: boolean;
@@ -267,7 +267,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
     }
 
     const positionStyles = position === "right"
-        ? { top: `${TITLE_BAR_HEIGHT}px`, right: 0, height: `calc(100vh - ${TITLE_BAR_HEIGHT}px)`, width: `${size}px` }
+        ? { top: `var(--toolbar-offset, 88px)`, right: 0, height: `calc(100vh - var(--toolbar-offset, 88px))`, width: `${size}px` }
         : { bottom: 0, left: 0, right: 0, height: `${size}px` };
 
     const resizeHandleClasses = position === "right"
@@ -334,6 +334,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                                 containerHeight={containerHeight}
                                                 followCell={recipeSettings.followCell}
                                                 onLoadingChange={setIsPrintLoading}
+                                                gridSize={recipeSettings.gridSize ?? 1}
                                             />
                                         );
                                     case "screenplay":
@@ -494,7 +495,8 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
 
                                 if (position === "right") {
                                     containerWidth = size - contentPadding;
-                                    containerHeight = window.innerHeight - TITLE_BAR_HEIGHT - headerSize - contentPadding;
+                                    const toolbarOffset = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--toolbar-offset") || "88", 10);
+                                    containerHeight = window.innerHeight - toolbarOffset - headerSize - contentPadding;
                                 } else {
                                     containerWidth = window.innerWidth - contentPadding;
                                     containerHeight = size - headerSize - contentPadding;
@@ -514,6 +516,7 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
                                                 containerHeight={containerHeight}
                                                 followCell={recipeSettings.followCell}
                                                 onLoadingChange={setIsPrintLoading}
+                                                gridSize={recipeSettings.gridSize ?? 1}
                                             />
                                         );
                                     case "screenplay":

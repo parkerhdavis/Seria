@@ -30,6 +30,7 @@ export interface RecipeDisplaySettings {
     continuous?: boolean;      // If false, shows gaps between pages
     followCell?: boolean;      // If false, won't scroll to element when Cell is edited
     theme?: string;            // Theme name (coming soon)
+    gridSize?: number;         // Grid size for card layouts (columns for right drawer, rows for bottom)
 }
 
 // Per-file configuration data

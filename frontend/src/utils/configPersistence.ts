@@ -54,6 +54,7 @@ export async function saveCurrentFileConfig(): Promise<void> {
             // Display settings (from settingsStore)
             rowColoringMode: settingsStore.rowColoringMode,
             rowColorFilter: settingsStore.rowColorFilter,
+            groupBy: settingsStore.groupByColumn,
             wrapText: settingsStore.wrapText,
             showColumnSeparators: settingsStore.showColumnSeparators,
             autoFitColumns: settingsStore.autoFitColumns,

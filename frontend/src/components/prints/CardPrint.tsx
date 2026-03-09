@@ -6,7 +6,7 @@
  * Cards can be dragged to reorder them.
  */
 
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, useRef, memo, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PrintRecipe, RecipeConfiguration } from "@/types/printRecipe";
 import { getMappedColumn, getMappedColumns } from "@/utils/printRecipeMapper";
@@ -14,6 +14,7 @@ import { useCellStore } from "@stores/cellStore";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
 import { useCellEditStore } from "@stores/cellEditStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
+import { useSettingsStore } from "@stores/settingsStore";
 import { logger } from "@utils/logger";
 import { usePrintSelectionSync } from "@/hooks/usePrintSelectionSync";
 
@@ -84,6 +85,7 @@ interface CardPrintProps {
     containerHeight?: number;              // Available height in pixels
     followCell?: boolean;                  // If false, won't scroll when Cell is edited (default: true)
     onLoadingChange?: (isLoading: boolean) => void;  // Callback for loading state changes
+    gridSize?: number;                     // Number of columns (right) or rows (bottom), default 1
 }
 
 interface CardData {
@@ -94,6 +96,12 @@ interface CardData {
     titleColumnName?: string;
     subtitleColumnName?: string;
     contentColumnNames: string[];
+    /** Present only on group cards — total number of rows in this group */
+    groupRowCount?: number;
+    /** Present only on group cards — the first data row index of this group (for scroll-to) */
+    groupStartRow?: number;
+    /** True if this card represents a group (not a single data row) */
+    isGroupCard?: boolean;
 }
 
 /**
@@ -277,7 +285,7 @@ function Card({
             onDrop={onDrop}
             onDragEnd={onDrop}
             className={`
-                bg-base-100 border-2 rounded-lg p-4 shadow-md
+                bg-base-100 border-2 rounded-lg p-4 shadow-md h-full overflow-hidden
                 ${!isEditingFromPrint ? "cursor-move" : ""}
                 transition-all duration-200
                 ${isDragging ? "opacity-50 scale-95" : ""}
@@ -464,6 +472,111 @@ function Card({
 }
 
 /**
+ * Truncate a string to a max character count, adding ellipsis if needed.
+ */
+function truncateExcerpt(text: string, maxChars: number): string {
+    if (text.length <= maxChars) return text;
+    return text.slice(0, maxChars).trimEnd() + "...";
+}
+
+/**
+ * Group card component — a draggable summary card for a group of rows.
+ * Shows: group title, divider, excerpt lines, line count,
+ * and a vertical join with group number badge + scroll-to-editor button.
+ * The entire card is draggable for reordering.
+ */
+function GroupCard({
+    card,
+    onScrollToGroup,
+    onDragStart,
+    onDragOver,
+    onDrop,
+    isDragging,
+    setRef,
+}: {
+    card: CardData;
+    onScrollToGroup: (startRow: number) => void;
+    onDragStart: (index: number) => void;
+    onDragOver: (index: number) => void;
+    onDrop: () => void;
+    isDragging: boolean;
+    setRef?: (el: HTMLDivElement | null) => void;
+}) {
+    return (
+        <div
+            ref={setRef}
+            draggable
+            onDragStart={() => onDragStart(card.index)}
+            onDragOver={(e) => { e.preventDefault(); onDragOver(card.index); }}
+            onDrop={onDrop}
+            onDragEnd={onDrop}
+            className={`bg-base-100 border-2 border-base-300 rounded-lg shadow-md flex overflow-hidden h-full cursor-grab active:cursor-grabbing select-none transition-all duration-200 ${isDragging ? "opacity-50 scale-95" : "hover:shadow-lg hover:border-base-content/20"}`}
+        >
+            {/* Main content area */}
+            <div className="flex-1 flex flex-col min-w-0 p-4 overflow-hidden">
+                {/* Title */}
+                <h3 className="text-base font-bold text-base-content break-words pr-2">
+                    {card.title}
+                </h3>
+
+                {/* Divider between title and content */}
+                <div className="border-b border-base-300 my-2" />
+
+                {/* Excerpt lines — text wraps, each line capped at 120 chars */}
+                {card.content.length > 0 ? (
+                    <div className="text-sm text-base-content/70 space-y-0.5 flex-1 overflow-hidden">
+                        {card.content.map((line, idx) => (
+                            <p key={idx} className="break-words">{truncateExcerpt(line, 120)}</p>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-sm text-base-content/30 italic flex-1">
+                        No content
+                    </div>
+                )}
+
+                {/* Line count — bottom-right */}
+                <div className="flex justify-end mt-2">
+                    <span className="text-xs text-base-content/50">
+                        {card.groupRowCount} line{card.groupRowCount !== 1 ? "s" : ""}
+                    </span>
+                </div>
+            </div>
+
+            {/* Right action column — vertical daisyUI join */}
+            <div className="join join-vertical border-l border-base-300 w-10 flex-shrink-0">
+                {/* Group number badge */}
+                <div
+                    className="join-item flex-1 flex items-center justify-center bg-primary/15 text-primary font-mono text-xs font-bold"
+                    title={`Group ${card.index + 1}`}
+                >
+                    {card.index + 1}
+                </div>
+
+                {/* Scroll to group in editor */}
+                <button
+                    className="join-item flex-1 flex items-center justify-center bg-info/15 text-info hover:bg-info/30 transition-colors"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (card.groupStartRow !== undefined) {
+                            onScrollToGroup(card.groupStartRow);
+                        }
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    draggable={false}
+                    title="Scroll editor to this group"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    );
+}
+
+/**
  * Card Print Renderer
  */
 function CardPrint({
@@ -473,10 +586,10 @@ function CardPrint({
     configuration,
     onReorder,
     drawerPosition = "right",
-    containerWidth,
     containerHeight,
     followCell = true,
     onLoadingChange,
+    gridSize = 1,
 }: CardPrintProps) {
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -493,11 +606,14 @@ function CardPrint({
     const updateCell = useCellStore(state => state.updateCell);
     // Selection from cellSelectionStore
     const clearSelection = useCellSelectionStore(state => state.clearSelection);
+    const requestScrollToRow = useCellSelectionStore(state => state.requestScrollToRow);
     // Find/Replace for print view search highlighting
     const searchTerm = useFindReplaceStore(state => state.searchTerm);
     const searchOptions = useFindReplaceStore(state => state.searchOptions);
     const matches = useFindReplaceStore(state => state.matches);
     const currentMatchIndex = useFindReplaceStore(state => state.currentMatchIndex);
+    // Group By setting
+    const groupByColumn = useSettingsStore(state => state.groupByColumn);
 
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
@@ -537,13 +653,18 @@ function CardPrint({
     const contentColumns = getMappedColumns(configuration.fieldMappings, "content");
 
     // Get render settings
-    const cardWidth = configuration.renderSettings.cardWidth ?? recipe.documentSettings.cardWidth ?? 280;
-    const cardHeight = configuration.renderSettings.cardHeight ?? recipe.documentSettings.cardHeight ?? 200;
     const cardSpacing = configuration.renderSettings.cardSpacing ?? recipe.documentSettings.cardSpacing ?? 16;
 
-    // Calculate available space
-    const availableWidth = containerWidth ?? containerRef?.clientWidth ?? 800;
+    // Calculate available space (height needed for bottom drawer card sizing)
     const availableHeight = containerHeight ?? containerRef?.clientHeight ?? 600;
+
+    // Card dimensions
+    // Right drawer: cards fill width via CSS 1fr columns (no fixed cardWidth needed)
+    // Bottom drawer: cards use fixed width, height fills based on gridSize
+    const cardWidthFixed = configuration.renderSettings.cardWidth ?? recipe.documentSettings.cardWidth ?? 280;
+    const cardHeight = drawerPosition === "bottom"
+        ? Math.max(80, (availableHeight - cardSpacing * 2 - cardSpacing * (gridSize - 1)) / gridSize)
+        : configuration.renderSettings.cardHeight ?? recipe.documentSettings.cardHeight ?? 200;
 
     // Scroll to card when editing cell changes
     useEffect(() => {
@@ -762,20 +883,16 @@ function CardPrint({
         };
     }, [data, headers, configuration, editingCell, editingValue]);
 
-    // Calculate how many cards fit based on drawer orientation
+    // Calculate grid layout based on gridSize and drawer orientation
     let columns: number;
-    let rows: number;
 
     if (drawerPosition === "right") {
-        // Vertical drawer: maximize columns, let rows grow
-        columns = Math.floor((availableWidth - cardSpacing) / (cardWidth + cardSpacing));
-        columns = Math.max(1, columns); // At least 1 column
-        rows = Math.ceil(cards.length / columns);
+        // Right drawer: gridSize controls columns, cards fill width
+        columns = Math.max(1, gridSize);
     } else {
-        // Horizontal drawer: maximize rows, let columns grow
-        rows = Math.floor((availableHeight - cardSpacing) / (cardHeight + cardSpacing));
-        rows = Math.max(1, rows); // At least 1 row
-        columns = Math.ceil(cards.length / rows);
+        // Bottom drawer: gridSize controls rows, columns grow to fit cards
+        const rowCount = Math.max(1, gridSize);
+        columns = Math.ceil(cards.length / rowCount);
     }
 
     // Handle drag and drop
@@ -795,13 +912,98 @@ function CardPrint({
         setHoverIndex(null);
     };
 
+    /**
+     * Scroll the cell editor to the start of a group by selecting
+     * the first cell in the group's starting row.
+     */
+    const handleScrollToGroup = (startRow: number) => {
+        requestScrollToRow(startRow);
+    };
+
+    // ===== GROUP BY =====
+    const collapsedGroups = useSettingsStore((state) => state.collapsedGroups);
+
+    /**
+     * When Group By is active, build one card per group instead of one card per row.
+     * Each group card has:
+     *   - title: the group value
+     *   - content: excerpt lines from the group's rows (using the title column values)
+     * When Group By is off, use the worker-computed per-row cards as-is.
+     * Collapsed groups are filtered out.
+     */
+    const displayCards = useMemo(() => {
+        if (!groupByColumn || cards.length === 0) {
+            return cards;
+        }
+
+        const colIndex = headers.indexOf(groupByColumn);
+        if (colIndex === -1) {
+            return cards;
+        }
+
+        // Group rows by group-by column value (empty rows inherit previous group)
+        const groups: { groupValue: string; rows: CardData[] }[] = [];
+        let currentGroupValue = "";
+        let currentRows: CardData[] = [];
+
+        for (const card of cards) {
+            const cellValue = data[card.index]?.[colIndex] || "";
+            if (cellValue !== "" && cellValue !== currentGroupValue) {
+                // New group begins — push previous if it had rows
+                if (currentGroupValue !== "" && currentRows.length > 0) {
+                    groups.push({ groupValue: currentGroupValue, rows: currentRows });
+                }
+                currentGroupValue = cellValue;
+                currentRows = [];
+            }
+            if (currentGroupValue !== "") {
+                currentRows.push(card);
+            }
+        }
+        // Push the last group
+        if (currentGroupValue !== "" && currentRows.length > 0) {
+            groups.push({ groupValue: currentGroupValue, rows: currentRows });
+        }
+
+        // Build one card per group, filtering out collapsed groups
+        const MAX_EXCERPT_LINES = 5;
+        return groups
+            .filter(g => !collapsedGroups.has(g.groupValue))
+            .map((group, idx) => {
+                // Build excerpt from the group's rows, skipping the row whose
+                // title matches the group value (it's already the card title)
+                const excerptLines: string[] = [];
+                for (const row of group.rows) {
+                    if (excerptLines.length >= MAX_EXCERPT_LINES) break;
+                    const line = row.title || row.content[0] || "";
+                    // Skip lines that match the group title to avoid duplication
+                    if (line.trim() && line.trim() !== group.groupValue.trim()) {
+                        excerptLines.push(line);
+                    }
+                }
+
+                return {
+                    index: idx,
+                    title: group.groupValue,
+                    subtitle: "", // Line count shown via groupRowCount in the card UI
+                    content: excerptLines,
+                    titleColumnName: undefined,
+                    subtitleColumnName: undefined,
+                    contentColumnNames: [],
+                    groupRowCount: group.rows.length,
+                    groupStartRow: group.rows[0]?.index ?? 0,
+                    isGroupCard: true,
+                } as CardData;
+            });
+    }, [cards, headers, groupByColumn, data, collapsedGroups]);
+
     // ===== CARD VIRTUALIZATION =====
     /**
      * Performance optimization: Virtualize cards in grid layout
      * For large files (50k+ rows = 50k+ cards), rendering all at once blocks UI
      * We virtualize by rows (each row contains `columns` cards)
      */
-    const rowCount = Math.ceil(cards.length / columns);
+    const rowCount = Math.ceil(displayCards.length / columns);
     const rowHeight = cardHeight + cardSpacing;
 
     const cardVirtualizer = useVirtualizer({
@@ -815,8 +1017,7 @@ function CardPrint({
     const totalSize = cardVirtualizer.getTotalSize();
 
     const cardStyle = {
-        width: `${cardWidth}px`,
-        minHeight: `${cardHeight}px`,
+        height: `${cardHeight}px`,
         position: "relative" as const,
     };
 
@@ -867,8 +1068,8 @@ function CardPrint({
                     {/* Render only visible rows */}
                     {virtualRows.map((virtualRow) => {
                     const startCardIndex = virtualRow.index * columns;
-                    const endCardIndex = Math.min(startCardIndex + columns, cards.length);
-                    const rowCards = cards.slice(startCardIndex, endCardIndex);
+                    const endCardIndex = Math.min(startCardIndex + columns, displayCards.length);
+                    const rowCards = displayCards.slice(startCardIndex, endCardIndex);
 
                     return (
                         <div
@@ -879,22 +1080,47 @@ function CardPrint({
                                 top: 0,
                                 left: 0,
                                 width: "100%",
-                                transform: `translateY(${virtualRow.start}px)`,
-                                display: "grid",
-                                gridTemplateColumns: `repeat(${columns}, ${cardWidth}px)`,
-                                gap: `${cardSpacing}px`,
-                                justifyContent: drawerPosition === "right" ? "start" : "center",
+                                height: `${cardHeight}px`,
+                                transform: `translateY(${virtualRow.start + cardSpacing}px)`,
                             }}
                         >
+                            <div
+                                style={{
+                                    display: "grid",
+                                    gridTemplateColumns: drawerPosition === "right"
+                                        ? `repeat(${columns}, 1fr)`
+                                        : `repeat(${columns}, ${cardWidthFixed}px)`,
+                                    gap: `${cardSpacing}px`,
+                                    padding: `0 ${cardSpacing}px`,
+                                    justifyContent: drawerPosition === "right" ? "start" : "center",
+                                }}
+                            >
                             {rowCards.map((card) => {
                                 // Create ref callback to store card ref
-                                const setRef = (el: HTMLDivElement | null) => {
+                                const cardRef = (el: HTMLDivElement | null) => {
                                     if (el) {
                                         cardRefs.current.set(card.index, el);
                                     } else {
                                         cardRefs.current.delete(card.index);
                                     }
                                 };
+
+                                // Group cards use the simplified GroupCard component
+                                if (card.isGroupCard) {
+                                    return (
+                                        <div key={`group-${card.index}`} style={cardStyle}>
+                                            <GroupCard
+                                                card={card}
+                                                onScrollToGroup={handleScrollToGroup}
+                                                onDragStart={handleDragStart}
+                                                onDragOver={handleDragOver}
+                                                onDrop={handleDrop}
+                                                isDragging={draggedIndex === card.index}
+                                                setRef={cardRef}
+                                            />
+                                        </div>
+                                    );
+                                }
 
                                 return (
                                     <div key={card.index} style={cardStyle}>
@@ -913,7 +1139,7 @@ function CardPrint({
                                             onFieldClick={(fieldType, contentIndex) => handleFieldClick(card.index, fieldType, contentIndex)}
                                             onFieldDoubleClick={(fieldType, contentIndex) => handleFieldDoubleClick(card.index, fieldType, contentIndex)}
                                             onFieldContextMenu={(e, fieldType, contentIndex) => handleFieldContextMenu(e, card.index, fieldType, contentIndex)}
-                                            setRef={setRef}
+                                            setRef={cardRef}
                                             searchTerm={(searchOptions.searchContext === "print" || searchOptions.searchContext === "all") ? searchTerm : undefined}
                                             searchMatchCase={searchOptions.matchCase}
                                             searchMatchRows={new Set(matches.map(m => m.row))}
@@ -923,6 +1149,7 @@ function CardPrint({
                                     </div>
                                 );
                             })}
+                        </div>
                         </div>
                     );
                 })}

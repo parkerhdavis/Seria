@@ -42,6 +42,11 @@ interface CellSelectionStore {
     selectedRange: RangeSelection | null;
     clipboard: ClipboardData | null;
     multiCursors: CellSelection[];
+    /**
+     * When set, the cell grid should scroll to this row and then clear it.
+     * Used by external components (e.g. Print view) to request a scroll.
+     */
+    scrollToRow: number | null;
 
     // Selection actions
     /**
@@ -58,6 +63,17 @@ interface CellSelectionStore {
      * Clear all selection state
      */
     clearSelection: () => void;
+
+    /**
+     * Request the cell grid to scroll to a specific row and select it.
+     * The grid watches this value and clears it after scrolling.
+     */
+    requestScrollToRow: (row: number) => void;
+
+    /**
+     * Clear the scroll-to-row request (called by the grid after scrolling).
+     */
+    clearScrollToRow: () => void;
 
     // Clipboard actions
     /**
@@ -145,6 +161,7 @@ export const useCellSelectionStore = create<CellSelectionStore>((set, get) => ({
     selectedRange: null,
     clipboard: null,
     multiCursors: [],
+    scrollToRow: null,
 
     // Select a single cell
     setSelectedCell: (row: number, col: number) => {
@@ -168,6 +185,18 @@ export const useCellSelectionStore = create<CellSelectionStore>((set, get) => ({
             selectedCell: null,
             selectedRange: null,
         });
+    },
+
+    requestScrollToRow: (row: number) => {
+        set({
+            scrollToRow: row,
+            selectedCell: { row, col: 0 },
+            selectedRange: null,
+        });
+    },
+
+    clearScrollToRow: () => {
+        set({ scrollToRow: null });
     },
 
     // Copy current selection to clipboard

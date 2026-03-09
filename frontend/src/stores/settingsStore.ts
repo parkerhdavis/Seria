@@ -27,6 +27,8 @@ interface SettingsStore {
     autoFitColumns: boolean;
     rowColoringMode: RowColoringMode;
     rowColorFilter: RowColorFilter | null;
+    groupByColumn: string | null;
+    collapsedGroups: Set<string>;
     printFollowsCellEdit: boolean;
     cellFollowsPrintEdit: boolean;
     hoverHighlightMode: HoverHighlightMode;
@@ -45,6 +47,10 @@ interface SettingsStore {
     setAutoFitColumns: (autoFit: boolean) => void;
     setRowColoringMode: (mode: RowColoringMode) => void;
     setRowColorFilter: (filter: RowColorFilter | null) => void;
+    setGroupByColumn: (column: string | null) => void;
+    toggleGroupCollapsed: (groupValue: string) => void;
+    collapseAllGroups: (groupValues: string[]) => void;
+    expandAllGroups: () => void;
     setPrintFollowsCellEdit: (follow: boolean) => void;
     setCellFollowsPrintEdit: (follow: boolean) => void;
     setHoverHighlightMode: (mode: HoverHighlightMode) => void;
@@ -65,6 +71,8 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     autoFitColumns: true,
     rowColoringMode: "off",
     rowColorFilter: null,
+    groupByColumn: null,
+    collapsedGroups: new Set<string>(),
     printFollowsCellEdit: true,
     cellFollowsPrintEdit: true,
     hoverHighlightMode: "row-and-column",
@@ -112,6 +120,34 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     // Set row color filter
     setRowColorFilter: (filter: RowColorFilter | null) => {
         set({ rowColorFilter: filter });
+    },
+
+    // Set group by column (also clears collapsed groups when changing column)
+    setGroupByColumn: (column: string | null) => {
+        set({ groupByColumn: column, collapsedGroups: new Set<string>() });
+    },
+
+    // Toggle a single group collapsed/expanded
+    toggleGroupCollapsed: (groupValue: string) => {
+        set((state) => {
+            const next = new Set(state.collapsedGroups);
+            if (next.has(groupValue)) {
+                next.delete(groupValue);
+            } else {
+                next.add(groupValue);
+            }
+            return { collapsedGroups: next };
+        });
+    },
+
+    // Collapse all groups
+    collapseAllGroups: (groupValues: string[]) => {
+        set({ collapsedGroups: new Set(groupValues) });
+    },
+
+    // Expand all groups
+    expandAllGroups: () => {
+        set({ collapsedGroups: new Set<string>() });
     },
 
     // Toggle Print follows Cell edit
