@@ -3,10 +3,6 @@
 
 **Multimodal serialized-data editor for game writers and narrative designers.** Seria lets you work directly with primitive data files (**CSV and TSV**, with **JSON coming soon**) while viewing and editing your content in writer-friendly formats like Screenplay and Corkboard views, as well as data-friendly views like Graph and Record editors. Changes made in any view sync instantly across all views - no import/export step, no duplication, just your raw data in whatever format feels best for what you're doing.
 
-- **GitHub:** [https://github.com/parkerhdavis/Seria](https://github.com/parkerhdavis/Seria)
-- **Issues:** [GitLab Issues](https://gitlab.com/parkerhdavis/Seria/-/issues)
-- **Releases:** [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/releases)
-
 ---
 
 ![Screenshot from dev build 2026-03-11](./wiki/00_Metafiles/00.01_Attachments/general_screenshot_2026-03-11.png)
