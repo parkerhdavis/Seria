@@ -6,7 +6,7 @@
  * horizontal scroll position with the main grid container.
  */
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { calculateSummary } from "@utils/summaryCalculations";
 
 type SummaryType = "count" | "unique" | "mode" | "average" | "min" | "max" | "sum";
@@ -54,9 +54,8 @@ function SummaryRow({
     drawerPosition,
     rightDrawerSize,
 }: SummaryRowProps) {
-    // Summary row scroll sync
+    // Summary row scroll sync — direct DOM update via RAF, bypasses React state
     const summaryRowContentRef = useRef<HTMLDivElement>(null);
-    const [summaryRowScrollLeft, setSummaryRowScrollLeft] = useState(0);
 
     // Memoize summary values to avoid recalculating on every render
     const memoizedSummaryValues = useMemo(() => {
@@ -69,27 +68,28 @@ function SummaryRow({
         return summaries;
     }, [headers, filteredData, columnSummaries]);
 
-    // Sync summary row horizontal scroll with main grid scroll
+    // Sync summary row horizontal scroll with main grid scroll via direct DOM manipulation
     useEffect(() => {
+        let frame: number | null = null;
         const handleScroll = () => {
-            if (parentRef.current) {
-                setSummaryRowScrollLeft(parentRef.current.scrollLeft);
-            }
+            if (frame) return;
+            frame = requestAnimationFrame(() => {
+                if (parentRef.current && summaryRowContentRef.current) {
+                    summaryRowContentRef.current.scrollLeft = parentRef.current.scrollLeft;
+                }
+                frame = null;
+            });
         };
 
         const container = parentRef.current;
         if (container) {
-            container.addEventListener("scroll", handleScroll);
-            return () => container.removeEventListener("scroll", handleScroll);
+            container.addEventListener("scroll", handleScroll, { passive: true });
+            return () => {
+                container.removeEventListener("scroll", handleScroll);
+                if (frame) cancelAnimationFrame(frame);
+            };
         }
     }, [parentRef]);
-
-    // Apply scroll position to summary row content
-    useEffect(() => {
-        if (summaryRowContentRef.current) {
-            summaryRowContentRef.current.scrollLeft = summaryRowScrollLeft;
-        }
-    }, [summaryRowScrollLeft]);
 
     return (
         <>

@@ -1021,6 +1021,32 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
     // Row and column drag-and-drop hooks (see useRowDragAndDrop / useColumnDragAndDrop)
 
+    // ===== PRE-COMPUTED LOOKUP SETS =====
+    // Convert O(n) .some() scans to O(1) Set lookups for per-cell checks in the render loop
+    const isCellSearch = searchContext === "cell" || searchContext === "all";
+
+    const matchSet = useMemo(() => {
+        const set = new Set<string>();
+        if (isCellSearch) {
+            for (const m of matches) set.add(`${m.row},${m.col}`);
+        }
+        return set;
+    }, [matches, isCellSearch]);
+
+    const cutCellSet = useMemo(() => {
+        const set = new Set<string>();
+        if (cutCells) {
+            for (const c of cutCells) set.add(`${c.row},${c.col}`);
+        }
+        return set;
+    }, [cutCells]);
+
+    const multiCursorSet = useMemo(() => {
+        const set = new Set<string>();
+        for (const c of multiCursors) set.add(`${c.row},${c.col}`);
+        return set;
+    }, [multiCursors]);
+
     // ===== RENDER =====
 
     if (headers.length === 0) {
@@ -1047,6 +1073,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         userSelect: !isEditingCell && isSelecting ? "none" : "auto",
         WebkitUserSelect: !isEditingCell && isSelecting ? "none" : "auto",
         position: "relative",
+        contain: "strict",
     };
 
     return (
@@ -1547,23 +1574,19 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                                     colIndex >= Math.min(selectedRange.startCol, selectedRange.endCol) &&
                                     colIndex <= Math.max(selectedRange.startCol, selectedRange.endCol);
 
-                                // Check if this cell is a search match (only highlight in cell view or all views)
-                                const isCellSearch = searchContext === "cell" || searchContext === "all";
-                                const isMatch = isCellSearch && matches.some((match) => match.row === rowIndex && match.col === colIndex);
+                                // Check if this cell is a search match (O(1) Set lookup)
+                                const cellKey = `${rowIndex},${colIndex}`;
+                                const isMatch = matchSet.has(cellKey);
                                 const isCurrentMatch = isCellSearch &&
                                     currentMatchIndex >= 0 &&
                                     matches[currentMatchIndex]?.row === rowIndex &&
                                     matches[currentMatchIndex]?.col === colIndex;
 
-                                // Check if this cell is cut
-                                const isCut = cutCells?.some(
-                                    (cutCell) => cutCell.row === rowIndex && cutCell.col === colIndex
-                                );
+                                // Check if this cell is cut (O(1) Set lookup)
+                                const isCut = cutCellSet.has(cellKey);
 
-                                // Check if this cell is a multi-cursor
-                                const isMultiCursor = multiCursors.some(
-                                    (cursor) => cursor.row === rowIndex && cursor.col === colIndex
-                                );
+                                // Check if this cell is a multi-cursor (O(1) Set lookup)
+                                const isMultiCursor = multiCursorSet.has(cellKey);
 
                                 // Determine cell class with grid borders
                                 let cellClass = `p-0 border-b border-r ${showColumnSeparators ? "border-base-300" : "border-base-content/10"}`;
