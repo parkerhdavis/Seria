@@ -1091,6 +1091,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     };
 
     return (
+        <>
         <div
             className={`cell-grid-container relative outline-none ${autoFitColumns ? "auto-fit overflow-y-scroll overflow-x-hidden" : "overflow-scroll"}`}
             ref={(el) => {
@@ -1755,6 +1756,13 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                 </div>
             )}
 
+        </div>
+
+            {/* ===== FIXED-POSITION OVERLAYS =====
+                Rendered outside the contained grid div so that `position: fixed`
+                coordinates remain relative to the viewport (contain: paint
+                would otherwise make them relative to the container). */}
+
             {/* Context Menu */}
             {contextMenu && (
                 <ContextMenu
@@ -1830,7 +1838,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                     }}
                 />
             )}
-        </div>
+        </>
     );
 }
 
