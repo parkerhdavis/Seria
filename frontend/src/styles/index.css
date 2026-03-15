@@ -151,6 +151,77 @@ button,
   border-color: #0f172a;
 }
 
+/* ===== Cell Grid Container — scrollbar & containment styles ===== */
+/* Default (non-auto-fit) scrollbar styles */
+.cell-grid-container {
+  scrollbar-width: thin;
+  scrollbar-gutter: stable both-edges;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cell-grid-container::-webkit-scrollbar {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+}
+
+.cell-grid-container::-webkit-scrollbar-track {
+  background: oklch(var(--b2));
+  border: 1px solid oklch(var(--bc) / 0.1);
+}
+
+.cell-grid-container::-webkit-scrollbar-thumb {
+  background: oklch(var(--bc) / 0.4);
+  border-radius: 7px;
+  border: 2px solid oklch(var(--b2));
+  min-height: 30px;
+  min-width: 30px;
+}
+
+/* Auto-fit mode overrides */
+.cell-grid-container.auto-fit {
+  scrollbar-gutter: unset;
+}
+
+.cell-grid-container.auto-fit::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.cell-grid-container.auto-fit::-webkit-scrollbar-track {
+  background: oklch(var(--b2) / 0.5);
+  border: none;
+}
+
+.cell-grid-container.auto-fit::-webkit-scrollbar-thumb {
+  background: oklch(var(--bc) / 0.5);
+  border-radius: 5px;
+  border: 1px solid oklch(var(--b2));
+}
+
+/* Shared hover/active states */
+.cell-grid-container::-webkit-scrollbar-thumb:hover {
+  background: oklch(var(--bc) / 0.6);
+}
+
+.cell-grid-container::-webkit-scrollbar-thumb:active {
+  background: oklch(var(--bc) / 0.7);
+}
+
+/* Editing cell — allow text selection inside active editor */
+.editing-cell,
+.editing-cell *,
+.editing-cell input,
+.editing-cell textarea {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+/* Summary row — hide scrollbar (scroll is synced from main grid) */
+.summary-row-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* Custom utility classes */
 @layer utilities {
   .text-balance {

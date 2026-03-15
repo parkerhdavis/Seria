@@ -92,97 +92,88 @@ function SummaryRow({
     }, [parentRef]);
 
     return (
-        <>
+        <div
+            className="fixed bg-base-300 border-t-2 border-base-300 shadow-lg z-40"
+            style={{
+                left: 0,
+                right: drawerPosition === "right" ? `${rightDrawerSize}px` : 0,
+                bottom: 0,
+                height: "60px",
+                overflow: "hidden"
+            }}
+        >
+            {/* Row number column placeholder (left) - sticky */}
+            <div className="absolute left-0 h-full bg-base-300 border-r-2 border-base-300 z-10" style={{ width: "64px" }}></div>
+
+            {/* Row number column placeholder (right) - sticky */}
+            <div className="absolute right-0 h-full bg-base-300 border-l-2 border-base-300 z-10" style={{ width: "64px" }}></div>
+
             <div
-                className="fixed bg-base-300 border-t-2 border-base-300 shadow-lg z-40"
+                ref={summaryRowContentRef}
+                className="h-full summary-row-scroll"
                 style={{
-                    left: 0,
-                    right: drawerPosition === "right" ? `${rightDrawerSize}px` : 0,
-                    bottom: 0,
-                    height: "60px",
-                    overflow: "hidden"
+                    overflowX: autoFitColumns ? "hidden" : "scroll",
+                    overflowY: "hidden",
+                    scrollbarWidth: "none",
+                    msOverflowStyle: "none",
+                    paddingLeft: "64px",
+                    paddingRight: "64px",
                 }}
             >
-                {/* Row number column placeholder (left) - sticky */}
-                <div className="absolute left-0 h-full bg-base-300 border-r-2 border-base-300 z-10" style={{ width: "64px" }}></div>
+                <div className="flex items-center h-full" style={{ width: `${pixelWidths.reduce((sum: number, w: number) => sum + w, 0)}px` }}>
+                    {/* Summary dropdowns for each column */}
+                    {headers.map((columnName, colIndex) => {
+                        const summaryType = columnSummaries[columnName] || "count";
+                        // Use memoized summary values instead of recalculating on every render
+                        const summaryValue = memoizedSummaryValues[columnName] || "";
+                        const columnWidth = pixelWidths[colIndex];
 
-                {/* Row number column placeholder (right) - sticky */}
-                <div className="absolute right-0 h-full bg-base-300 border-l-2 border-base-300 z-10" style={{ width: "64px" }}></div>
+                        // Apply hover highlight to summary row as well
+                        const summaryClass = `flex-shrink-0 h-full flex items-center border-r-2 ${hoveredColumn === colIndex ? "bg-base-200/70" : ""} ${showColumnSeparators ? "border-base-300" : "border-transparent"}`;
 
-                <div
-                    ref={summaryRowContentRef}
-                    className="h-full summary-row-scroll"
-                    style={{
-                        overflowX: autoFitColumns ? "hidden" : "scroll",
-                        overflowY: "hidden",
-                        scrollbarWidth: "none",
-                        msOverflowStyle: "none",
-                        paddingLeft: "64px",
-                        paddingRight: "64px",
-                    }}
-                >
-                    <div className="flex items-center h-full" style={{ width: `${pixelWidths.reduce((sum: number, w: number) => sum + w, 0)}px` }}>
-                        {/* Summary dropdowns for each column */}
-                        {headers.map((columnName, colIndex) => {
-                            const summaryType = columnSummaries[columnName] || "count";
-                            // Use memoized summary values instead of recalculating on every render
-                            const summaryValue = memoizedSummaryValues[columnName] || "";
-                            const columnWidth = pixelWidths[colIndex];
+                        return (
+                            <div
+                                key={colIndex}
+                                className={summaryClass}
+                                style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
+                            >
+                                <div className="flex flex-col-reverse gap-1 p-2">
+                                    {/* Summary value (displayed above dropdown) */}
+                                    <div className="text-sm font-semibold text-primary truncate min-h-[20px]" title={summaryValue}>
+                                        {summaryValue || "\u00A0"}
+                                    </div>
 
-                            // Apply hover highlight to summary row as well
-                            const summaryClass = `flex-shrink-0 h-full flex items-center border-r-2 ${hoveredColumn === colIndex ? "bg-base-200/70" : ""} ${showColumnSeparators ? "border-base-300" : "border-transparent"}`;
-
-                            return (
-                                <div
-                                    key={colIndex}
-                                    className={summaryClass}
-                                    style={{ width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }}
-                                >
-                                    <div className="flex flex-col-reverse gap-1 p-2">
-                                        {/* Summary value (displayed above dropdown) */}
-                                        <div className="text-sm font-semibold text-primary truncate min-h-[20px]" title={summaryValue}>
-                                            {summaryValue || "\u00A0"}
-                                        </div>
-
-                                        {/* Summary type selector (opens upward) */}
-                                        <div className="relative">
-                                            <select
-                                                className="select select-xs select-bordered w-full bg-base-100"
-                                                value={summaryType}
-                                                onChange={(e) => setColumnSummary(columnName, e.target.value as SummaryType)}
-                                                style={{
-                                                    appearance: "none",
-                                                    backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4-4 4 4\'/%3e%3c/svg%3e")',
-                                                    backgroundPosition: "right 0.5rem center",
-                                                    backgroundRepeat: "no-repeat",
-                                                    backgroundSize: "1.5em 1.5em",
-                                                    paddingRight: "2.5rem"
-                                                }}
-                                            >
-                                                <option value="count">Count</option>
-                                                <option value="unique">Unique</option>
-                                                <option value="mode">Mode</option>
-                                                <option value="average">Average</option>
-                                                <option value="min">Min</option>
-                                                <option value="max">Max</option>
-                                                <option value="sum">Sum</option>
-                                            </select>
-                                        </div>
+                                    {/* Summary type selector (opens upward) */}
+                                    <div className="relative">
+                                        <select
+                                            className="select select-xs select-bordered w-full bg-base-100"
+                                            value={summaryType}
+                                            onChange={(e) => setColumnSummary(columnName, e.target.value as SummaryType)}
+                                            style={{
+                                                appearance: "none",
+                                                backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4-4 4 4\'/%3e%3c/svg%3e")',
+                                                backgroundPosition: "right 0.5rem center",
+                                                backgroundRepeat: "no-repeat",
+                                                backgroundSize: "1.5em 1.5em",
+                                                paddingRight: "2.5rem"
+                                            }}
+                                        >
+                                            <option value="count">Count</option>
+                                            <option value="unique">Unique</option>
+                                            <option value="mode">Mode</option>
+                                            <option value="average">Average</option>
+                                            <option value="min">Min</option>
+                                            <option value="max">Max</option>
+                                            <option value="sum">Sum</option>
+                                        </select>
                                     </div>
                                 </div>
-                            );
-                        })}
-                    </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
-
-            {/* Scrollbar styling - hide scrollbar for summary row */}
-            <style>{`
-                .summary-row-scroll::-webkit-scrollbar {
-                    display: none;
-                }
-            `}</style>
-        </>
+        </div>
     );
 }
 

@@ -111,17 +111,26 @@ export function useColumnWidths(
         updateContainerWidth();
 
         // Watch for container resize (drawer open/close, window resize, etc.)
-        const resizeObserver = new ResizeObserver(() => {
-            updateContainerWidth();
-        });
+        // RAF-throttled to avoid multiple resize recalculations per frame
+        let frame: number | null = null;
+        const throttledUpdate = () => {
+            if (frame) return;
+            frame = requestAnimationFrame(() => {
+                updateContainerWidth();
+                frame = null;
+            });
+        };
+
+        const resizeObserver = new ResizeObserver(throttledUpdate);
         resizeObserver.observe(parentRef.current);
 
         // Also listen to window resize for good measure
-        window.addEventListener("resize", updateContainerWidth);
+        window.addEventListener("resize", throttledUpdate);
 
         return () => {
             resizeObserver.disconnect();
-            window.removeEventListener("resize", updateContainerWidth);
+            window.removeEventListener("resize", throttledUpdate);
+            if (frame) cancelAnimationFrame(frame);
         };
     }, [parentRef]); // Run only on mount - ResizeObserver and window resize handle updates
 

@@ -410,6 +410,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
     // ===== STICKY GROUP HEADER =====
     // Track the current group label that should be shown in the sticky header.
     // Updated on scroll by checking which group the topmost visible row belongs to.
+    // RAF-throttled to coalesce to one update per frame during fast scrolling.
     useEffect(() => {
         if (!groupByColumn || !parentRef.current) {
             setStickyGroupLabel(null);
@@ -417,7 +418,9 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
         }
 
         const scrollEl = parentRef.current;
-        const handleScroll = () => {
+        let frame: number | null = null;
+
+        const updateGroupLabel = () => {
             const virtualItems = rowVirtualizer.getVirtualItems();
             if (virtualItems.length === 0) {
                 setStickyGroupLabel(null);
@@ -430,11 +433,22 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
             setStickyGroupLabel(group || null);
         };
 
-        // Set initial value
-        handleScroll();
+        const handleScroll = () => {
+            if (frame) return;
+            frame = requestAnimationFrame(() => {
+                updateGroupLabel();
+                frame = null;
+            });
+        };
+
+        // Set initial value synchronously
+        updateGroupLabel();
 
         scrollEl.addEventListener("scroll", handleScroll, { passive: true });
-        return () => scrollEl.removeEventListener("scroll", handleScroll);
+        return () => {
+            scrollEl.removeEventListener("scroll", handleScroll);
+            if (frame) cancelAnimationFrame(frame);
+        };
     }, [groupByColumn, groupForRow, visibleRowIndices, rowVirtualizer]);
 
     // ===== MEMOIZED SUMMARY CALCULATIONS =====
@@ -1078,7 +1092,7 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
 
     return (
         <div
-            className={`cell-grid-container relative outline-none ${autoFitColumns ? "overflow-y-scroll overflow-x-hidden" : "overflow-scroll"}`}
+            className={`cell-grid-container relative outline-none ${autoFitColumns ? "auto-fit overflow-y-scroll overflow-x-hidden" : "overflow-scroll"}`}
             ref={(el) => {
                 if (parentRef.current !== el) {
                     (parentRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
@@ -1132,49 +1146,6 @@ function CellGridVirtualized({ onCellEdit }: CellGridVirtualizedProps) {
                 }
             }}
         >
-            <style>{`
-                .cell-grid-container {
-                    scrollbar-width: thin;
-                    ${autoFitColumns ? "" : "scrollbar-gutter: stable both-edges;"}
-                    -webkit-overflow-scrolling: touch;
-                }
-
-                .cell-grid-container::-webkit-scrollbar {
-                    -webkit-appearance: none;
-                    width: ${autoFitColumns ? "10px" : "14px"};
-                    height: ${autoFitColumns ? "10px" : "14px"};
-                }
-
-                .cell-grid-container::-webkit-scrollbar-track {
-                    background: ${autoFitColumns ? "oklch(var(--b2) / 0.5)" : "oklch(var(--b2))"};
-                    border: ${autoFitColumns ? "none" : "1px solid oklch(var(--bc) / 0.1)"};
-                }
-
-                .cell-grid-container::-webkit-scrollbar-thumb {
-                    background: oklch(var(--bc) / ${autoFitColumns ? "0.5" : "0.4"});
-                    border-radius: ${autoFitColumns ? "5px" : "7px"};
-                    border: ${autoFitColumns ? "1px solid oklch(var(--b2))" : "2px solid oklch(var(--b2))"};
-                    min-height: 30px;
-                    min-width: 30px;
-                }
-
-                .cell-grid-container::-webkit-scrollbar-thumb:hover {
-                    background: oklch(var(--bc) / 0.6);
-                }
-
-                .cell-grid-container::-webkit-scrollbar-thumb:active {
-                    background: oklch(var(--bc) / 0.7);
-                }
-
-                .editing-cell,
-                .editing-cell *,
-                .editing-cell input,
-                .editing-cell textarea {
-                    user-select: text !important;
-                    -webkit-user-select: text !important;
-                }
-            `}</style>
-
             {/* ===== LOADING PROGRESS BANNER ===== */}
             {/*
                 Non-blocking progress banner for progressive file loading.
