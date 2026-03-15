@@ -277,8 +277,9 @@ function inlineAllComputedStyles(
 
     logger.trace("[Style Inline] Processing element:", element.tagName, element.className);
 
-    // Color properties are most likely to contain oklch, so prioritize them
-    const criticalProps = [
+    // Color properties are most likely to contain oklch, so prioritize them.
+    // These get !important to override any remaining stylesheet rules.
+    const criticalProps = new Set([
         "color",
         "background-color",
         "border-color",
@@ -289,46 +290,46 @@ function inlineAllComputedStyles(
         "outline-color",
         "fill", // SVG fill color
         "stroke", // SVG stroke color
-    ];
+    ]);
 
-    // First pass: Inline critical color properties with !important flag
-    // This ensures they override any remaining stylesheet rules
-    criticalProps.forEach((prop) => {
-        const value = computedStyle.getPropertyValue(prop);
-        if (value) {
-            logger.trace(`  ${prop}: ${value}`);
-            // Debug check: if we still see oklch here, something is wrong
-            if (value.includes("oklch")) {
-                logger.warn(`  WARNING: oklch found in ${prop}: ${value}`);
-            }
-            // Set as inline style with !important to override everything
-            element.style.setProperty(prop, value, "important");
-        }
-    });
+    // Build a single cssText string with all computed styles, then assign
+    // it in one DOM write. This avoids ~400 individual setProperty calls
+    // per element (each of which can trigger style recalculation).
+    const styleParts: string[] = [];
 
-    // Second pass: Inline ALL other computed styles
-    // This ensures complete visual fidelity in the PDF
     for (let i = 0; i < computedStyle.length; i++) {
         const prop = computedStyle[i];
-        const value = computedStyle.getPropertyValue(prop);
 
         // Skip properties that might cause issues or aren't needed
         if (
             prop.startsWith("-webkit-") || // Browser-specific prefixes
             prop.startsWith("--") || // CSS custom properties (variables)
             prop === "d" || // SVG path data (not a style)
-            prop === "content" || // Pseudo-element content
-            criticalProps.includes(prop) // Already handled above
+            prop === "content" // Pseudo-element content
         ) {
             continue;
         }
 
-        try {
-            element.style.setProperty(prop, value, computedStyle.getPropertyPriority(prop));
-        } catch {
-            // Some properties can't be set inline, silently skip them
+        const value = computedStyle.getPropertyValue(prop);
+        if (!value) continue;
+
+        if (criticalProps.has(prop)) {
+            // Debug check: if we still see oklch here, something is wrong
+            if (value.includes("oklch")) {
+                logger.warn(`  WARNING: oklch found in ${prop}: ${value}`);
+            }
+            // Critical color properties get !important to override everything
+            styleParts.push(`${prop}: ${value} !important`);
+        } else {
+            const priority = computedStyle.getPropertyPriority(prop);
+            styleParts.push(
+                priority ? `${prop}: ${value} !${priority}` : `${prop}: ${value}`
+            );
         }
     }
+
+    // Single DOM write instead of hundreds of individual setProperty calls
+    element.style.cssText = styleParts.join("; ");
 
     // CRITICAL: Remove all class names so html2canvas doesn't try to look them up
     // in the original document's stylesheets (which contain oklch)

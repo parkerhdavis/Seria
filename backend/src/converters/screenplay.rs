@@ -55,7 +55,7 @@ struct ScreenplayElement {
 #[tauri::command]
 pub fn convert_screenplay_to_csv(content: String) -> Result<String, String> {
     let elements = parse_screenplay(&content)?;
-    let csv = elements_to_csv(&elements);
+    let csv = elements_to_csv(elements);
     Ok(csv)
 }
 
@@ -106,11 +106,11 @@ fn parse_screenplay(content: &str) -> Result<Vec<ScreenplayElement>, String> {
                 elem.content.push(' ');
                 elem.content.push_str(line.trim());
             }
-            Some(elem) => {
+            Some(_) => {
                 // Different type, push current and start new
-                let elem_type = elem.element_type;
-                elements.push(elem.clone());
-                prev_type = Some(elem_type); // Update prev_type after pushing
+                let old = current_element.take().unwrap();
+                prev_type = Some(old.element_type); // Update prev_type after pushing
+                elements.push(old);
                 current_element = Some(ScreenplayElement {
                     element_type: line_type,
                     content: line.trim().to_string(),
@@ -242,7 +242,7 @@ fn is_all_caps(text: &str) -> bool {
 /// - Transition + Scene go on the same row (one of each)
 /// - Each Action gets its own row
 /// - Character + Parenthetical + Dialogue go on the same row (Character starts new dialogue group)
-fn elements_to_csv(elements: &[ScreenplayElement]) -> String {
+fn elements_to_csv(elements: Vec<ScreenplayElement>) -> String {
     #[derive(Debug, Clone)]
     struct CsvRow {
         transition: String,
@@ -323,7 +323,7 @@ fn elements_to_csv(elements: &[ScreenplayElement]) -> String {
                     }
                     current_row = CsvRow::new();
                 }
-                current_row.transition = elem.content.clone();
+                current_row.transition = elem.content;
             }
             ElementType::Scene => {
                 // Finish current row if it has action or dialogue
@@ -333,7 +333,7 @@ fn elements_to_csv(elements: &[ScreenplayElement]) -> String {
                     }
                     current_row = CsvRow::new();
                 }
-                current_row.scene = elem.content.clone();
+                current_row.scene = elem.content;
             }
             ElementType::Action => {
                 // Finish current row
@@ -342,7 +342,7 @@ fn elements_to_csv(elements: &[ScreenplayElement]) -> String {
                 }
                 // Add action to new row and immediately finish it
                 current_row = CsvRow::new();
-                current_row.action = elem.content.clone();
+                current_row.action = elem.content;
                 rows.push(current_row);
                 current_row = CsvRow::new();
             }
@@ -352,7 +352,7 @@ fn elements_to_csv(elements: &[ScreenplayElement]) -> String {
                     rows.push(current_row);
                 }
                 current_row = CsvRow::new();
-                current_row.character = elem.content.clone();
+                current_row.character = elem.content;
             }
             ElementType::Parenthetical => {
                 // If current row has scene/action, finish it
@@ -363,7 +363,7 @@ fn elements_to_csv(elements: &[ScreenplayElement]) -> String {
                     current_row = CsvRow::new();
                 }
                 // Add to current row (should have Character, but handle gracefully if not)
-                current_row.parenthetical = elem.content.clone();
+                current_row.parenthetical = elem.content;
             }
             ElementType::Dialogue => {
                 // If current row has scene/action, finish it
@@ -374,7 +374,7 @@ fn elements_to_csv(elements: &[ScreenplayElement]) -> String {
                     current_row = CsvRow::new();
                 }
                 // Add to current row (should have Character, but handle gracefully if not)
-                current_row.dialogue = elem.content.clone();
+                current_row.dialogue = elem.content;
             }
         }
     }
@@ -496,8 +496,7 @@ fn parse_csv_line(line: &str) -> Result<Vec<String>, String> {
                 }
             }
             ',' if !in_quotes => {
-                fields.push(current_field.clone());
-                current_field.clear();
+                fields.push(std::mem::take(&mut current_field));
             }
             _ => {
                 current_field.push(ch);
