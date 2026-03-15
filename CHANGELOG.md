@@ -1,3 +1,114 @@
+# Version 0.0.3 - (03/15/2026)
+
+## Features
+
+### Group By
+
+- **Row Grouping with Corkboard View**
+    - Group rows by any column value with collapsible sections
+    - Corkboard-style group cards for visual overview of grouped data
+    - Group By and Print Drawer state persist across app restarts
+    - Layout restructure to support group view alongside grid view
+
+### Close File
+
+- Added Close File option to File menu (File > Close)
+- Unsaved-changes prompt before closing to prevent data loss
+
+### Print View Search
+
+- Search within Print view content for quick navigation of rendered output
+
+### Diff View
+
+- Visual diff comparison for tracking changes to cell data
+
+### Export Templates
+
+- Template system for exporting data in predefined formats
+
+### Cell Edit History
+
+- Track and review edit history for individual cells
+
+### Data Transformation Pipeline
+
+- Infrastructure for transforming cell data through configurable pipelines
+- Improved toast notification system with better UX
+
+---
+
+## Improvements
+
+### Performance Optimizations
+
+- **Rendering Performance**
+    - Applied `contain: strict` CSS containment for layout isolation and paint optimization
+    - Direct-DOM scroll synchronization replacing React-mediated scroll handlers
+    - O(1) Set-based lookups in render loop replacing linear array scans
+    - Moved inline styles to static CSS classes reducing per-frame style recalculation
+    - RAF-throttled ResizeObserver and sticky group scroll for smoother resizing
+- **PDF Export Performance**
+    - Batch PDF style inlining via `cssText` replacing individual property assignments
+    - Eliminated unnecessary clones in screenplay converter
+- **Cell Store & Bundle**
+    - General optimizations to cellStore and reduced bundle size
+
+### UI/UX Improvements
+
+- Reworked cell toolbar style and row highlighting controls
+- Added padding to screenplay print edit highlight/outline
+- Improved Recent Files, Quick Navigation, and Column Manager features
+
+---
+
+## Bugfixes
+
+- Fixed context menu positioning when inside `contain: strict` containers by moving fixed-position overlays outside the containment boundary
+- Fixed cell editor scroll-to-center and cell resize behavior when opening cells for edit
+- Fixed infinite update loop in `usePrintSelectionSync` via `useRef` pattern
+- Fixed file picker to use actual file types (csv, tsv, json) instead of non-existent `.cell` extension
+- Fixed TypeScript and ESLint errors; removed auto-scroll from screenplay editor
+- Fixed line-ending issues with Windows/WSL builds
+- Fixed setup and build issues with NVM reference in WSL
+- Fixed npm-related issues in setup.sh
+
+---
+
+## Technical Changes
+
+### Codebase Cleanup (4-Phase)
+
+- **Phase 1**: Security fixes, cleanup, and general bug fixes
+- **Phase 2**: Code quality improvements — logging standardization, hook extraction, error handling
+- **Phase 3**: Architecture — decomposed monolithic `cellStore` into focused stores; extracted 5+ hooks from `CellGridVirtualized` (`useCellSelection`, `useClipboard`, `useAutocomplete`, etc.)
+- **Phase 4**: Toast system overhaul and data transformation pipeline
+
+### Component Extraction
+
+- Extracted `PopoutEditBox` component from `CellGridVirtualized`
+- Extracted `SummaryRow`, `ContextMenu`, and `FillDialog` into standalone components
+- Extracted shared `screenplayUtils` and `usePrintSelectionSync` hook
+- Fixed type duplication in `ScreenplayPrint`
+
+### Test Infrastructure
+
+- Added Vitest test framework with 86 tests covering `summaryCalculations`, `cellParser`, and `screenplayUtils`
+
+### Persistence
+
+- Group By selections and Print Drawer state now persist across app restarts
+
+---
+
+## Known Issues
+
+_(No known issues at time of v0.0.3 release)_
+
+---
+
+---
+
 # Version 0.0.2 - (01/10/2026)
 
 ## Features
