@@ -1,5 +1,5 @@
 # ════════════════════════════════════════════════════════════════════════════════
-# Juniper Project - Git Ignore Configuration
+# Seria Project - Git Ignore Configuration
 # ════════════════════════════════════════════════════════════════════════════════
 # Environment | Dependencies | Build Artifacts | Logs | Testing | IDE | OS | Docs
 # ════════════════════════════════════════════════════════════════════════════════
@@ -30,7 +30,7 @@ target/*
 !target/upload-to-gitlab.sh
 **/*.rs.bk
 *.pdb
-Cargo.lock
+# Cargo.lock -- Rust prefers to track this
 backend/WixTools/
 gen/
 

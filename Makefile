@@ -1,4 +1,4 @@
-.PHONY: help dev build build-linux build-windows build-macos upload upload-dry lint format test clean setup install dev-frontend check
+.PHONY: help dev down build build-linux build-windows build-macos upload upload-dry lint format test clean setup install dev-frontend check
 
 # ==================================================================
 # OS DETECTION
@@ -63,6 +63,7 @@ help:
 	@echo "Running (Development):"
 	@echo "  dev                - Start Tauri dev server (frontend + Rust hot-reload)"
 	@echo "  dev-frontend       - Start Vite dev server only (rapid UI iteration)"
+	@echo "  down               - Stop any running dev server"
 	@echo ""
 	@echo "Building:"
 	@echo "  setup              - Install all dependencies (Rust + Bun)"
@@ -101,16 +102,53 @@ dev:
 dev-frontend:
 	@echo "Starting Vite dev server only (rapid UI iteration)..."
 	cd frontend; bun run dev
+
+down:
+	@echo "Stopping dev server..."
+	@echo "On Windows, close the terminal running the dev server or use Task Manager."
 else
 dev:
 	@echo "Starting Tauri development server (frontend + Rust)..."
+	@# Kill any leftover Vite dev server on port 5173 (prevents cross-project conflicts)
+	@EXISTING_PID=$$(lsof -ti :5173 2>/dev/null); \
+	if [ -n "$$EXISTING_PID" ]; then \
+		echo "  -> Killing existing process on port 5173 (pid $$EXISTING_PID)..."; \
+		kill $$EXISTING_PID 2>/dev/null || true; \
+		sleep 1; \
+	fi
 	@echo "  -> Starting Vite dev server in background..."
-	@cd frontend && bun run dev > /dev/null 2>&1 & echo $$! > ../.vite.pid
+	@cd frontend && setsid bun run dev > /dev/null 2>&1 & echo $$! > .vite.pid
 	@sleep 2
 	@echo "  -> Starting Tauri..."
-	@cd backend && $(TAURI) dev || (kill `cat ../.vite.pid` 2>/dev/null; rm -f ../.vite.pid; exit 1)
-	@kill `cat .vite.pid` 2>/dev/null || true
+	@cd backend && $(TAURI) dev; \
+	VITE_PID=$$(cat ../.vite.pid 2>/dev/null); \
+	if [ -n "$$VITE_PID" ]; then \
+		kill -- -$$VITE_PID 2>/dev/null || kill $$VITE_PID 2>/dev/null || true; \
+	fi; \
+	rm -f ../.vite.pid
+	@VITE_PID=$$(cat .vite.pid 2>/dev/null); \
+	if [ -n "$$VITE_PID" ]; then \
+		kill -- -$$VITE_PID 2>/dev/null || kill $$VITE_PID 2>/dev/null || true; \
+	fi
 	@rm -f .vite.pid
+
+down:
+	@echo "Stopping Seria dev server..."
+	@VITE_PID=$$(cat .vite.pid 2>/dev/null); \
+	if [ -n "$$VITE_PID" ]; then \
+		kill -- -$$VITE_PID 2>/dev/null || kill $$VITE_PID 2>/dev/null || true; \
+		rm -f .vite.pid; \
+		echo "  -> Killed Vite process group (pid $$VITE_PID)"; \
+	else \
+		echo "  -> No .vite.pid found, checking port 5173..."; \
+		PORT_PID=$$(lsof -ti :5173 2>/dev/null); \
+		if [ -n "$$PORT_PID" ]; then \
+			kill $$PORT_PID 2>/dev/null || true; \
+			echo "  -> Killed process on port 5173 (pid $$PORT_PID)"; \
+		else \
+			echo "  -> No dev server running"; \
+		fi; \
+	fi
 
 dev-frontend:
 	@echo "Starting Vite dev server only (rapid UI iteration)..."
