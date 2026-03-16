@@ -36,20 +36,21 @@ ifeq ($(DETECTED_OS),windows)
     SHELL := pwsh.exe
     .SHELLFLAGS := -NoProfile -Command
     SYNC_VERSION := pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/sync-version.ps1
-    NPM := npm
-    TAURI := npx tauri
+    BUN := bun
+    # Run the tauri CLI JS entry point directly with bun to avoid needing node on PATH.
+    TAURI := bun ..\frontend\node_modules\@tauri-apps\cli\tauri.js
     MKDIR := New-Item -ItemType Directory -Force -Path
     RM := Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     NULL := $$null
 else
     SYNC_VERSION := ./scripts/sync-version.sh
-    NPM := npm
-    TAURI := ./node_modules/.bin/tauri
+    BUN := bun
+    # Run the tauri CLI JS entry point directly with bun to avoid the #!/usr/bin/env node shim,
+    # since node may not be on PATH (bun replaces it as our JS runtime).
+    TAURI := bun ../frontend/node_modules/@tauri-apps/cli/tauri.js
     MKDIR := mkdir -p
     RM := rm -rf
     NULL := /dev/null
-    # Source nvm for non-interactive shells (fixes WSL where Windows npm is in PATH)
-    SOURCE_NVM := export NVM_DIR="$$HOME/.nvm" && [ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh" ||:
 endif
 
 help:
@@ -64,8 +65,8 @@ help:
 	@echo "  dev-frontend       - Start Vite dev server only (rapid UI iteration)"
 	@echo ""
 	@echo "Building:"
-	@echo "  setup              - Install all dependencies (Rust + Node.js)"
-	@echo "  install            - Install Node.js dependencies (runs setup.sh)"
+	@echo "  setup              - Install all dependencies (Rust + Bun)"
+	@echo "  install            - Install dependencies (runs setup.sh)"
 	@echo "  build              - Build for current platform (detects OS)"
 	@echo "  build-linux        - Build Linux installers (.deb, .rpm, AppImage)"
 	@echo "  build-windows      - Build Windows installers (.msi, .exe)"
@@ -95,25 +96,25 @@ help:
 ifeq ($(DETECTED_OS),windows)
 dev:
 	@echo "Starting Tauri development server (frontend + Rust)..."
-	cd frontend; npm run tauri:dev
+	cd backend; $(TAURI) dev
 
 dev-frontend:
 	@echo "Starting Vite dev server only (rapid UI iteration)..."
-	cd frontend; npm run dev
+	cd frontend; bun run dev
 else
 dev:
 	@echo "Starting Tauri development server (frontend + Rust)..."
 	@echo "  -> Starting Vite dev server in background..."
-	@$(SOURCE_NVM) && cd frontend && npm run dev > /dev/null 2>&1 & echo $$! > ../.vite.pid
+	@cd frontend && bun run dev > /dev/null 2>&1 & echo $$! > ../.vite.pid
 	@sleep 2
 	@echo "  -> Starting Tauri..."
-	@$(SOURCE_NVM) && cd backend && ../frontend/node_modules/.bin/tauri dev || (kill `cat ../.vite.pid` 2>/dev/null; rm -f ../.vite.pid; exit 1)
+	@cd backend && $(TAURI) dev || (kill `cat ../.vite.pid` 2>/dev/null; rm -f ../.vite.pid; exit 1)
 	@kill `cat .vite.pid` 2>/dev/null || true
 	@rm -f .vite.pid
 
 dev-frontend:
 	@echo "Starting Vite dev server only (rapid UI iteration)..."
-	@$(SOURCE_NVM) && cd frontend && npm run dev
+	@cd frontend && bun run dev
 endif
 
 # ==================================================================
@@ -127,16 +128,16 @@ endif
 
 ifeq ($(DETECTED_OS),windows)
 setup:
-	@echo "Installing all dependencies (Rust + Node.js)..."
-	@echo "Please ensure Rust and Node.js 18+ are installed."
-	cd frontend; npm install
+	@echo "Installing all dependencies (Rust + Bun)..."
+	@echo "Please ensure Rust and Bun are installed."
+	cd frontend; bun install
 	@echo "Setup complete"
 
 install: setup
 	@echo "Dependencies installed"
 else
 setup:
-	@echo "Installing all dependencies (Rust + Node.js)..."
+	@echo "Installing all dependencies (Rust + Bun)..."
 	@./setup.sh
 	@echo "Setup complete"
 
@@ -151,9 +152,9 @@ build:
 	@echo "  -> Syncing version from .env..."
 	$(SYNC_VERSION)
 	@echo "  -> Building frontend..."
-	cd frontend; npm run build
+	cd frontend; bun run build
 	@echo "  -> Building Tauri app for Windows..."
-	$$env:PATH = "$$env:USERPROFILE\.cargo\bin;$$env:PATH"; cd backend; ../frontend/node_modules/.bin/tauri build
+	$$env:PATH = "$$env:USERPROFILE\.cargo\bin;$$env:PATH"; cd backend; $(TAURI) build
 	@echo ""
 	@echo "Windows build complete!"
 	@echo ""
@@ -179,9 +180,9 @@ build-windows:
 	@echo "  -> Syncing version from .env..."
 	$(SYNC_VERSION)
 	@echo "  -> Building frontend..."
-	cd frontend; npm run build
+	cd frontend; bun run build
 	@echo "  -> Building Tauri app for Windows..."
-	$$env:PATH = "$$env:USERPROFILE\.cargo\bin;$$env:PATH"; cd backend; ../frontend/node_modules/.bin/tauri build
+	$$env:PATH = "$$env:USERPROFILE\.cargo\bin;$$env:PATH"; cd backend; $(TAURI) build
 	@echo ""
 	@echo "Windows build complete!"
 	@echo ""
@@ -198,9 +199,9 @@ build-linux:
 	@echo "  -> Syncing version from .env..."
 	@$(SYNC_VERSION)
 	@echo "  -> Building frontend..."
-	@$(SOURCE_NVM) && cd frontend && npm run build
+	@cd frontend && bun run build
 	@echo "  -> Building Tauri app for Linux..."
-	@$(SOURCE_NVM) && cd backend && ../frontend/node_modules/.bin/tauri build
+	@cd backend && $(TAURI) build
 	@echo ""
 	@echo "Linux build complete!"
 	@echo ""
@@ -218,9 +219,9 @@ build-macos:
 	@echo "  -> Syncing version from .env..."
 	@$(SYNC_VERSION)
 	@echo "  -> Building frontend..."
-	@$(SOURCE_NVM) && cd frontend && npm run build
+	@cd frontend && bun run build
 	@echo "  -> Building Tauri app for macOS..."
-	@$(SOURCE_NVM) && cd backend && ../frontend/node_modules/.bin/tauri build
+	@cd backend && $(TAURI) build
 	@echo ""
 	@echo "macOS build complete!"
 	@echo ""
@@ -274,42 +275,42 @@ endif
 ifeq ($(DETECTED_OS),windows)
 lint:
 	@echo "Linting frontend code..."
-	cd frontend; npm run lint
+	cd frontend; bun run lint
 	@echo "Linting Rust code..."
 	cd backend; cargo clippy -- -D warnings
 	@echo "Lint complete"
 
 format:
 	@echo "Formatting frontend code..."
-	cd frontend; npx prettier --write src/
+	cd frontend; bunx prettier --write src/
 	@echo "Formatting Rust code..."
 	cd backend; cargo fmt
 	@echo "Format complete"
 
 test:
 	@echo "Running frontend tests..."
-	cd frontend; npm run test
+	cd frontend; bun run test
 	@echo "Running Rust tests..."
 	cd backend; cargo test
 	@echo "Tests complete"
 else
 lint:
 	@echo "Linting frontend code..."
-	@$(SOURCE_NVM) && cd frontend && npm run lint
+	@cd frontend && bun run lint
 	@echo "Linting Rust code..."
 	@cd backend && cargo clippy -- -D warnings
 	@echo "Lint complete"
 
 format:
 	@echo "Formatting frontend code..."
-	@$(SOURCE_NVM) && cd frontend && npx prettier --write src/
+	@cd frontend && bunx prettier --write src/
 	@echo "Formatting Rust code..."
 	@cd backend && cargo fmt
 	@echo "Format complete"
 
 test:
 	@echo "Running frontend tests..."
-	@$(SOURCE_NVM) && cd frontend && npm run test
+	@cd frontend && bun run test
 	@echo "Running Rust tests..."
 	@cd backend && cargo test
 	@echo "Tests complete"

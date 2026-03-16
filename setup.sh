@@ -2,7 +2,7 @@
 
 # Setup script for Seria Desktop App
 # Cross-platform setup for Linux, macOS, and Windows (via Git Bash/WSL)
-# Installs Rust toolchain and Node.js dependencies
+# Installs Rust toolchain and Bun dependencies
 
 set -euo pipefail
 
@@ -25,15 +25,15 @@ MISSING_DEPS_MESSAGE=""
 OS="unknown"
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     OS="linux"
-    echo "🖥️  Detected: Linux"
+    echo "Detected: Linux"
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     OS="macos"
-    echo "🍎 Detected: macOS"
+    echo "Detected: macOS"
 elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
     OS="windows"
-    echo "🪟 Detected: Windows (Git Bash/WSL)"
+    echo "Detected: Windows (Git Bash/WSL)"
 else
-    echo "⚠️  Unknown OS: $OSTYPE"
+    echo "Unknown OS: $OSTYPE"
     echo "This script supports Linux, macOS, and Windows (via Git Bash/WSL)"
     echo "Continuing with limited checks..."
 fi
@@ -42,72 +42,60 @@ echo ""
 # ────────────────────────────────────────────────────────────────────────────────
 # Check for Rust
 # ────────────────────────────────────────────────────────────────────────────────
-echo "🔍 Checking for Rust installation..."
+echo "Checking for Rust installation..."
 if ! command -v rustc &> /dev/null; then
-    echo "⚠️  Rust not found. Installing Rust..."
+    echo "Rust not found. Installing Rust..."
     echo ""
     echo "Please follow the prompts to install Rust via rustup."
     echo "After installation completes, run this setup script again."
     echo ""
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
     echo ""
-    echo "✅ Rust installed. Please restart your terminal and run 'make setup' again."
+    echo "Rust installed. Please restart your terminal and run 'make setup' again."
     exit 0
 else
-    echo "✅ Rust is installed: $(rustc --version)"
+    echo "Rust is installed: $(rustc --version)"
 fi
 
 # ────────────────────────────────────────────────────────────────────────────────
-# Check for Node.js
+# Check for Bun
 # ────────────────────────────────────────────────────────────────────────────────
 echo ""
-echo "🔍 Checking for Node.js installation..."
+echo "Checking for Bun installation..."
 
-# Source nvm if available (needed for non-interactive shells)
-# Always source if available (don't check command -v first, as
-# shell functions from parent shells can give false positives).
-export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-
-if [ -s "$NVM_DIR/nvm.sh" ]; then
-    source "$NVM_DIR/nvm.sh"
-elif [ -s "/opt/homebrew/opt/nvm/nvm.sh" ]; then
-    source "/opt/homebrew/opt/nvm/nvm.sh"
-elif [ -s "/usr/local/opt/nvm/nvm.sh" ]; then
-    source "/usr/local/opt/nvm/nvm.sh"
-elif command -v fnm &> /dev/null; then
-    eval "$(fnm env)"
-elif [ -d "$HOME/.volta" ]; then
-    export VOLTA_HOME="$HOME/.volta"
-    export PATH="$VOLTA_HOME/bin:$PATH"
-fi
-
-# Verify node is actually a working binary (not a shell function)
-if ! type -P node &> /dev/null; then
-    echo "❌ Node.js not found. Please install Node.js 18+ and run this setup again."
+if ! command -v bun &> /dev/null; then
+    echo "Bun not found. Installing Bun..."
     echo ""
-    echo "Install from: https://nodejs.org/"
-    exit 1
+    curl -fsSL https://bun.sh/install | bash
+    echo ""
+    # Source bun into current shell
+    export BUN_INSTALL="$HOME/.bun"
+    export PATH="$BUN_INSTALL/bin:$PATH"
+    if ! command -v bun &> /dev/null; then
+        echo "Bun was installed but is not in PATH."
+        echo "Please restart your terminal and run 'make setup' again."
+        exit 0
+    fi
+    echo "Bun installed: $(bun --version)"
 else
-    echo "✅ Node.js is installed: $(node --version)"
+    echo "Bun is installed: $(bun --version)"
 fi
 
 # ────────────────────────────────────────────────────────────────────────────────
-# Install Node.js dependencies
+# Install dependencies via Bun
 # ────────────────────────────────────────────────────────────────────────────────
 echo ""
-echo "📦 Installing Node.js dependencies..."
+echo "Installing frontend dependencies..."
 
-# For development mode, we delete lock files and node_modules to ensure fresh installs
-# This matches our pattern from other projects and ensures we get latest versions
 if [ -d "frontend" ]; then
     pushd frontend > /dev/null
-    echo "  → Installing frontend dependencies (includes Tauri CLI)..."
-    rm -f package-lock.json
+    echo "  -> Installing frontend dependencies (includes Tauri CLI)..."
+    rm -f package-lock.json bun.lock bun.lockb
     rm -rf node_modules
-    npm install
+    bun install
     popd > /dev/null
 else
-    echo "⚠️  frontend/ directory not found - skipping frontend dependencies"
+    echo "frontend/ directory not found - skipping frontend dependencies"
 fi
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -119,7 +107,7 @@ if [ "$OS" = "linux" ]; then
     # Linux System Dependencies
     # ═══════════════════════════════════════════════════════════════════════════
     echo ""
-    echo "🔍 Checking Linux system dependencies for Tauri..."
+    echo "Checking Linux system dependencies for Tauri..."
 
     # List of required packages for Tauri 2.0
     # Note: Tauri 2.0 requires webkit2gtk-4.1 (not 4.0)
@@ -148,7 +136,7 @@ if [ "$OS" = "linux" ]; then
     if [ ${#MISSING_PACKAGES[@]} -gt 0 ]; then
         SETUP_COMPLETE=false
         echo ""
-        echo "⚠️  Missing system dependencies:"
+        echo "Missing system dependencies:"
         for package in "${MISSING_PACKAGES[@]}"; do
             echo "    - $package"
         done
@@ -157,9 +145,9 @@ if [ "$OS" = "linux" ]; then
         echo ""
         echo "  sudo apt install ${MISSING_PACKAGES[*]}"
         echo ""
-        MISSING_DEPS_MESSAGE="${MISSING_DEPS_MESSAGE}\n  • Install system dependencies (see above)"
+        MISSING_DEPS_MESSAGE="${MISSING_DEPS_MESSAGE}\n  - Install system dependencies (see above)"
     else
-        echo "✅ All required system dependencies are installed"
+        echo "All required system dependencies are installed"
     fi
 
 elif [ "$OS" = "macos" ]; then
@@ -167,30 +155,30 @@ elif [ "$OS" = "macos" ]; then
     # macOS System Dependencies
     # ═══════════════════════════════════════════════════════════════════════════
     echo ""
-    echo "🔍 Checking macOS system dependencies for Tauri..."
+    echo "Checking macOS system dependencies for Tauri..."
 
     # Check for Xcode Command Line Tools
     if ! xcode-select -p &> /dev/null; then
         SETUP_COMPLETE=false
-        echo "⚠️  Xcode Command Line Tools not installed"
+        echo "Xcode Command Line Tools not installed"
         echo ""
         echo "To install, run:"
         echo "  xcode-select --install"
         echo ""
-        MISSING_DEPS_MESSAGE="${MISSING_DEPS_MESSAGE}\n  • Install Xcode Command Line Tools: xcode-select --install"
+        MISSING_DEPS_MESSAGE="${MISSING_DEPS_MESSAGE}\n  - Install Xcode Command Line Tools: xcode-select --install"
     else
-        echo "✅ Xcode Command Line Tools installed"
+        echo "Xcode Command Line Tools installed"
     fi
 
     # Check for Homebrew
     if ! command -v brew &> /dev/null; then
-        echo "⚠️  Homebrew not found (recommended but not required)"
+        echo "Homebrew not found (recommended but not required)"
         echo ""
         echo "Homebrew is recommended for managing dependencies on macOS."
         echo "Install from: https://brew.sh"
         echo ""
     else
-        echo "✅ Homebrew installed"
+        echo "Homebrew installed"
     fi
 
 elif [ "$OS" = "windows" ]; then
@@ -198,7 +186,7 @@ elif [ "$OS" = "windows" ]; then
     # Windows System Dependencies
     # ═══════════════════════════════════════════════════════════════════════════
     echo ""
-    echo "🔍 Checking Windows system dependencies for Tauri..."
+    echo "Checking Windows system dependencies for Tauri..."
     echo ""
     echo "On Windows, Tauri requires:"
     echo "  1. Microsoft Visual Studio C++ Build Tools"
@@ -210,39 +198,39 @@ elif [ "$OS" = "windows" ]; then
 
     # Check for Visual Studio Build Tools (rough check)
     if command -v cl &> /dev/null; then
-        echo "✅ Visual Studio C++ Build Tools appear to be installed"
+        echo "Visual Studio C++ Build Tools appear to be installed"
     else
         SETUP_COMPLETE=false
-        echo "⚠️  Visual Studio C++ Build Tools may not be installed"
+        echo "Visual Studio C++ Build Tools may not be installed"
         echo "   Install from: https://visualstudio.microsoft.com/downloads/"
         echo "   Select 'Desktop development with C++' workload"
         echo ""
-        MISSING_DEPS_MESSAGE="${MISSING_DEPS_MESSAGE}\n  • Install Visual Studio C++ Build Tools (see above)"
+        MISSING_DEPS_MESSAGE="${MISSING_DEPS_MESSAGE}\n  - Install Visual Studio C++ Build Tools (see above)"
     fi
 fi
 
 echo ""
 echo "════════════════════════════════════════════════════════════════════════════════"
 if [ "$SETUP_COMPLETE" = true ]; then
-    echo "  ✅ Setup Complete - Ready for Development"
+    echo "  Setup Complete - Ready for Development"
     echo "════════════════════════════════════════════════════════════════════════════════"
     echo ""
     echo "Next steps:"
-    echo "  • Run 'make dev' to start the development server"
-    echo "  • Run 'make build' to create production installers"
+    echo "  - Run 'make dev' to start the development server"
+    echo "  - Run 'make build' to create production installers"
     echo ""
 else
-    echo "  ⚠️  Setup Incomplete - Action Required"
+    echo "  Setup Incomplete - Action Required"
     echo "════════════════════════════════════════════════════════════════════════════════"
     echo ""
-    echo "Node.js dependencies have been installed, but system dependencies are missing."
+    echo "Frontend dependencies have been installed, but system dependencies are missing."
     echo ""
     echo "Before you can start development, please complete these steps:"
     echo -e "$MISSING_DEPS_MESSAGE"
     echo ""
     echo "After installing the missing dependencies, you can:"
-    echo "  • Run 'make dev' to start the development server"
-    echo "  • Run 'make build' to create production installers"
+    echo "  - Run 'make dev' to start the development server"
+    echo "  - Run 'make build' to create production installers"
     echo ""
     echo "Or run './setup.sh' again to verify your setup."
     echo ""
