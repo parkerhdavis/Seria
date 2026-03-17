@@ -25,9 +25,7 @@ frontend/bun.lockb
 # Build Artifacts & Distribution
 # ────────────────────────────────────────────────────────────────────────────────
 # Rust/Tauri
-target/*
-!target/README.md
-!target/upload-to-gitlab.sh
+target/
 **/*.rs.bk
 *.pdb
 # Cargo.lock -- Rust prefers to track this
