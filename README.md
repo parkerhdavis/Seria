@@ -117,22 +117,11 @@ The killer feature: **edit in any view, changes sync everywhere.**
 
 ## Installation
 
-### Release Builds vs Dev Builds
-
-**Release builds** (recommended for most users):
-- Stable, tested versions with complete features
-- **Current release:** [v0.0.1](https://gitlab.com/parkerhdavis/Seria/-/releases/0.0.1)
-- Download from [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/releases)
-
-**Dev builds** (for testing and early access):
-- Unstable builds between releases with latest changes
-- May contain bugs or incomplete features
-- Download from [GitLab Package Registry](https://gitlab.com/parkerhdavis/Seria/-/packages)
-- **Current dev build:** [Latest packages](https://gitlab.com/parkerhdavis/Seria/-/packages/49127029)
+**Current release:** [v0.0.3](https://github.com/parkerhdavis/Seria/releases/tag/v0.0.3) - Download from [GitHub Releases](https://github.com/parkerhdavis/Seria/releases)
 
 ### Download Options
 
-Formats available on [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/releases):
+Formats available on [GitHub Releases](https://github.com/parkerhdavis/Seria/releases):
 
 - **Linux:** `.AppImage` (universal), `.deb` (Debian/Ubuntu), `.rpm` (Fedora/RHEL)
 - **Windows:** `.msi` or `_setup.exe`
@@ -146,7 +135,7 @@ Formats available on [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/r
 ## Documentation
 
 **Getting Started:**
-- [Installation](wiki/01_Introduction/00.03_Installation.md) - Install on Windows, macOS, or Linux
+- [Installation](wiki/01_Introduction/00.03_Installation.md) - Install on Windows or Linux
 - [Is This App for You?](wiki/01_Introduction/00.02_Is%20This%20App%20for%20You.md) - See if Seria fits your workflow
 
 **Using Seria:**
@@ -170,10 +159,8 @@ Formats available on [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/r
 
 ## Links
 
-- **GitLab (main repo):** [https://gitlab.com/parkerhdavis/Seria](https://gitlab.com/parkerhdavis/Seria)
-- **GitHub (mirror repo):** [https://github.com/parkerhdavis/Seria](https://github.com/parkerhdavis/Seria)
-- **Issues:** [GitLab Issues](https://gitlab.com/parkerhdavis/Seria/-/issues)
-- **Releases:** [GitLab Releases](https://gitlab.com/parkerhdavis/Seria/-/releases)
+- **GitHub:** [https://github.com/parkerhdavis/Seria](https://github.com/parkerhdavis/Seria)
+- **Releases:** [GitHub Releases](https://github.com/parkerhdavis/Seria/releases)
 
 ---
 
