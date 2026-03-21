@@ -5,7 +5,7 @@
 
 ---
 
-![Screenshot from dev build 2026-03-11](./wiki/00_Metafiles/00.01_Attachments/general_screenshot_2026-03-11.png)
+![Screenshot from dev build 2026-03-11](./.github/assets/general_screenshot_2026-03-11.png)
 
 *Screenshot from dev build 2026-03-11*
 
@@ -192,4 +192,4 @@ Mine is the [GiveWell top charities fund](https://www.givewell.org/top-charities
 
 Their grant to the [Against Malaria Foundation](https://www.againstmalaria.com) was shown to deliver outcomes at a cost of just $1,700 per life saved.
 
-![GiveWell Logo](./wiki/00_Metafiles/00.01_Attachments/givewell_logo.png)
+![GiveWell Logo](./.github/assets/givewell_logo.png)
