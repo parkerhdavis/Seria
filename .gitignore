@@ -32,7 +32,7 @@ target/
 backend/WixTools/
 gen/
 
-# Vite/Frontend
+# Frontend
 dist/
 dist-ssr/
 frontend/dist/
@@ -57,7 +57,7 @@ frontend/yarn-error.log*
 frontend/pnpm-debug.log*
 *.tmp
 *.temp
-.vite.pid
+.dev.pid
 
 # ────────────────────────────────────────────────────────────────────────────────
 # Testing & Coverage
