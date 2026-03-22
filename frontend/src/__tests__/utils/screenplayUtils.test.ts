@@ -5,7 +5,7 @@
  * shared between ScreenplayPrint component and screenplayPrint worker.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { getElementStyle, isMultiLineElement } from "@utils/screenplayUtils";
 import type { PrintRecipe } from "@/types/printRecipe";
 import type { ScreenplayElementType } from "@/types/workerMessages";

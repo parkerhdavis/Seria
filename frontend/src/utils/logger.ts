@@ -19,7 +19,7 @@ import log from "loglevel";
 
 // Set log level based on environment
 // In development, show debug and above; in production, show only warnings and errors
-const isDev = import.meta.env.DEV;
+const isDev = process.env.NODE_ENV === "development";
 log.setLevel(isDev ? "debug" : "warn");
 
 /**

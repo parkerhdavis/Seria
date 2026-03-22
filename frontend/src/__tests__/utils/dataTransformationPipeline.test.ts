@@ -5,7 +5,7 @@
  * parse, transform, and serialize stages.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   parse,
   delimiterFromPath,
