@@ -8,7 +8,7 @@
  * Web Worker environment and are not tested here.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
     parseCells,
     serializeCell,

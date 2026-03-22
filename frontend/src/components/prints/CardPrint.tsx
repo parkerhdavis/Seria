@@ -849,7 +849,7 @@ function CardPrint({
         setIsCalculating(true);
 
         // Create new worker
-        const worker = new Worker(new URL("@/utils/cardPrint.worker.ts", import.meta.url), {
+        const worker = new Worker("/workers/cardPrint.worker.js", {
             type: "module",
         });
         workerRef.current = worker;

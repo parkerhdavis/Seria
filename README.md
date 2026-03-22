@@ -166,7 +166,7 @@ Formats available on [GitHub Releases](https://github.com/parkerhdavis/Seria/rel
 
 ## Technology
 
-Tauri 2.0 + React 18 + TypeScript + Vite + TailwindCSS + daisyUI
+Tauri 2.0 + React 18 + TypeScript + Bun + TailwindCSS + daisyUI
 
 ---
 

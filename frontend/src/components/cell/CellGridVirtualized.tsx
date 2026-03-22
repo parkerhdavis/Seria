@@ -56,7 +56,7 @@
  *   Only renders visible rows + 10 overscan rows
  * - Column width calculations: Memoized with containerWidth dependency
  *   Recalculates only when container resizes
- * - Web worker: Vite automatically bundles cellParser.worker.ts
+ * - Web worker: cellParser.worker.ts is built as a separate bundle
  *   Worker terminates automatically after parsing completes
  * - Progress updates: Throttled to prevent excessive re-renders
  *   Worker sends chunks, main thread batches state updates

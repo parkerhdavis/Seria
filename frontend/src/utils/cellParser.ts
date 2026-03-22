@@ -202,14 +202,9 @@ export function parseCellsProgressive(
   callbacks: ProgressiveParseCallbacks,
   chunkSize: number = 1000,
 ): Worker {
-  // Create worker instance
-  // Note: Vite will automatically handle the worker bundling
-  const worker = new Worker(
-    new URL("./cellParser.worker.ts", import.meta.url),
-    {
-      type: "module",
-    },
-  );
+  const worker = new Worker("/workers/cellParser.worker.js", {
+    type: "module",
+  });
 
   // Handle messages from worker
   worker.addEventListener("message", (e: MessageEvent<WorkerResponse>) => {

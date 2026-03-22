@@ -5,7 +5,7 @@
  * Tests edge cases: empty data, non-numeric data, mixed data, single values.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { calculateSummary, SummaryType } from "@utils/summaryCalculations";
 
 describe("calculateSummary", () => {

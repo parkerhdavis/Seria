@@ -1529,12 +1529,9 @@ function ScreenplayPrint({
     setIsCalculating(true);
 
     // Create new worker
-    const worker = new Worker(
-      new URL("@/utils/screenplayPrint.worker.ts", import.meta.url),
-      {
-        type: "module",
-      },
-    );
+    const worker = new Worker("/workers/screenplayPrint.worker.js", {
+      type: "module",
+    });
     workerRef.current = worker;
 
     // Listen for results
