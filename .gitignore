@@ -96,6 +96,5 @@ Thumbs.db
 # ────────────────────────────────────────────────────────────────────────────────
 wiki-internal/
 .obsidian
-AGENTS.md
 frontend/daisy-llms.txt
 *.local
