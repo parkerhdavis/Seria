@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import type { Electroview } from "electrobun/view";
 import type { SeriaRPC } from "../shared/rpc";
 
-let rpc: Electroview<SeriaRPC> | null = null;
-export function setRpc(view: Electroview<SeriaRPC>) {
+type SeriaRpc = ReturnType<typeof Electroview.defineRPC<SeriaRPC>>;
+
+let rpc: Electroview<SeriaRpc> | null = null;
+export function setRpc(view: Electroview<SeriaRpc>) {
 	rpc = view;
 }
 
@@ -13,7 +15,7 @@ export function App() {
 	const [ready, setReady] = useState(false);
 
 	useEffect(() => {
-		rpc?.rpc.send.viewLog({ level: "info", msg: "mainview mounted" });
+		rpc?.rpc?.send.viewLog({ level: "info", msg: "mainview mounted" });
 		setReady(true);
 	}, []);
 
