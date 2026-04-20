@@ -19,12 +19,31 @@ const rpc = Electroview.defineRPC<SeriaRPC>({
 const electroview = new Electroview({ rpc });
 setRpc(electroview);
 
+// Global error handlers — surface any renderer-side crash in the Bun
+// stdout via viewLog so we don't have to open devtools to debug.
+window.addEventListener("error", (e) => {
+	electroview.rpc?.send.viewLog({
+		level: "error",
+		msg: `window.error: ${e.message} @ ${e.filename}:${e.lineno}`,
+	});
+});
+window.addEventListener("unhandledrejection", (e) => {
+	electroview.rpc?.send.viewLog({
+		level: "error",
+		msg: `unhandledrejection: ${String(e.reason)}`,
+	});
+});
+
+electroview.rpc?.send.viewLog({ level: "info", msg: "main.tsx: RPC bootstrapped" });
+
 // Mount the React application
 ReactDOM.createRoot(document.getElementById("root")!).render(
 	<React.StrictMode>
 		<App />
 	</React.StrictMode>,
 );
+
+electroview.rpc?.send.viewLog({ level: "info", msg: "main.tsx: React mounted" });
 
 // Hide loading screen after React mounts
 document.body.classList.add("loaded");
