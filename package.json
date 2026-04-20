@@ -1,6 +1,6 @@
 {
 	"name": "seria",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Seria — multimodal serialized-data editor for game writers and narrative designers",
 	"type": "module",
 	"scripts": {

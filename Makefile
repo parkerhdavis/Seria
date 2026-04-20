@@ -1,4 +1,4 @@
-.PHONY: help install build build-view start dev down test lint format clean
+.PHONY: help install build build-view start dev down test lint format clean version
 
 # ==================================================================
 # Seria — Electrobun Makefile
@@ -6,6 +6,14 @@
 # Under the hood, Electrobun + Bun replace Tauri + Rust. Build is
 # pure-TypeScript, packaging is handled by `electrobun` via its config
 # at electrobun.config.ts.
+
+# sed -i differs between GNU (Linux) and BSD (macOS)
+UNAME_S := $(shell uname -s 2>/dev/null || echo Linux)
+ifeq ($(UNAME_S),Darwin)
+    SED_INPLACE := sed -i ''
+else
+    SED_INPLACE := sed -i
+endif
 
 help:
 	@echo "================================================================================"
@@ -26,6 +34,10 @@ help:
 	@echo "  test               - Run bun test (renderer + Bun handlers + converters)"
 	@echo "  lint               - ESLint on the mainview tree"
 	@echo "  format             - Prettier on src/"
+	@echo ""
+	@echo "Versioning:"
+	@echo "  version            - Show current version"
+	@echo "  version V=X.Y.Z    - Set version across package.json and electrobun.config.ts"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  clean              - Remove dist/ and build/"
@@ -69,6 +81,23 @@ lint:
 
 format:
 	bun run format
+
+# ------------------------------------------------------------------
+# Versioning
+# ------------------------------------------------------------------
+
+version:
+ifndef V
+	@echo "Current version: $$(grep '^\s*\"version\":' package.json | head -1 | sed 's/.*\"version\": \"\(.*\)\".*/\1/')"
+else
+	@echo "Updating version to $(V)..."
+	@$(SED_INPLACE) 's/"version": "[^"]*"/"version": "$(V)"/' package.json
+	@$(SED_INPLACE) 's/version: "[^"]*"/version: "$(V)"/' electrobun.config.ts
+	@echo "  -> package.json"
+	@echo "  -> electrobun.config.ts"
+	@echo ""
+	@echo "Version updated to $(V)"
+endif
 
 # ------------------------------------------------------------------
 # Maintenance

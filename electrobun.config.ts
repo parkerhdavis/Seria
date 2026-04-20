@@ -4,7 +4,7 @@ export default {
 	app: {
 		name: "seria",
 		identifier: "seria.parkerhdavis.dev",
-		version: "0.1.0",
+		version: "0.2.0",
 	},
 	build: {
 		// Bun.build HTML mode outputs index.html + hashed chunk-*.js + assets at
