@@ -132,6 +132,15 @@ export type SeriaRPC = {
 			// Binary content is transferred as base64 — the RPC channel is JSON.
 			writeBinaryFile: { params: { path: string; dataBase64: string }; response: void };
 			listDirectory: { params: { path: string }; response: DirectoryEntry[] };
+
+			// ── Window controls (wrappers around BrowserWindow on the Bun side) ──
+			windowMinimize: { params: Record<string, never>; response: void };
+			windowToggleMaximize: { params: Record<string, never>; response: boolean };
+			windowClose: { params: Record<string, never>; response: void };
+			windowIsMaximized: { params: Record<string, never>; response: boolean };
+
+			// ── OS paths (mirrors the former @tauri-apps/api/path) ───────
+			getDownloadsDir: { params: Record<string, never>; response: string };
 		};
 		messages: {
 			viewLog: { level: "info" | "warn" | "error"; msg: string };

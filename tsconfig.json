@@ -12,7 +12,16 @@
 		"strict": true,
 		"skipLibCheck": true,
 		"resolveJsonModule": true,
-		"esModuleInterop": true
+		"esModuleInterop": true,
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/mainview/*"],
+			"@components/*": ["./src/mainview/components/*"],
+			"@stores/*": ["./src/mainview/stores/*"],
+			"@utils/*": ["./src/mainview/utils/*"],
+			"@styles/*": ["./src/mainview/styles/*"],
+			"@types/*": ["./src/mainview/types/*"]
+		}
 	},
 	"include": ["src/**/*", "build.ts", "electrobun.config.ts"],
 	"exclude": ["node_modules", "dist", "build", "frontend", "backend", "target"]

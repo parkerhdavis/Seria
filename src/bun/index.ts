@@ -38,6 +38,14 @@ import {
 	convertCsvToScreenplay,
 } from "./converters/screenplay";
 import { compareCsvFiles } from "./converters/diff";
+import {
+	registerWindow,
+	windowMinimize,
+	windowToggleMaximize,
+	windowClose,
+	windowIsMaximized,
+} from "./window_ops";
+import { getDownloadsDir } from "./paths_ops";
 
 // 10s is too aggressive on Linux — the GTK file dialog blocks the event loop
 // while open, so RPC responses queue up behind it. 60s keeps every dialog
@@ -78,6 +86,13 @@ const rpc = BrowserView.defineRPC<SeriaRPC>({
 			writeTextFile,
 			writeBinaryFile,
 			listDirectory,
+
+			windowMinimize,
+			windowToggleMaximize,
+			windowClose,
+			windowIsMaximized,
+
+			getDownloadsDir,
 		},
 		messages: {
 			viewLog: ({ level, msg }) => {
@@ -96,6 +111,8 @@ const win = new BrowserWindow({
 	frame: { width: 1400, height: 900, x: 200, y: 200 },
 	rpc,
 });
+
+registerWindow(win);
 
 if (process.env.ELECTROBUN_DEV) {
 	win.webview.openDevTools();

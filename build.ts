@@ -5,10 +5,12 @@
  * "daisyui", which the plugin resolves).
  */
 
-import { rm } from "node:fs/promises";
+import { cp, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import tailwind from "bun-plugin-tailwind";
 
 const DIST = "./dist";
+const PUBLIC = "./src/mainview/public";
 const isDebug = !!process.env.ELECTROBUN_DEV;
 
 const WORKER_ENTRY_POINTS = [
@@ -38,8 +40,6 @@ if (!viewResult.success) {
 }
 
 // Workers: separate bundles, loaded via new Worker(new URL("./workers/...")).
-// Only build if the files exist — Step 6 moves them in. Safe to run before then.
-const { existsSync } = await import("node:fs");
 const workersPresent = WORKER_ENTRY_POINTS.every(existsSync);
 if (workersPresent) {
 	const workerResult = await Bun.build({
@@ -55,6 +55,13 @@ if (workersPresent) {
 		for (const log of workerResult.logs) console.error(log);
 		process.exit(1);
 	}
+}
+
+// Copy static assets (fonts etc.) into dist/ so the Electrobun bundle's
+// views/mainview/ directory has them alongside index.html. /fonts/... in
+// CSS then resolves correctly at webview load time.
+if (existsSync(PUBLIC)) {
+	await cp(PUBLIC, DIST, { recursive: true });
 }
 
 console.log(`Build complete: ${viewResult.outputs.length} view file(s)${workersPresent ? ` + ${WORKER_ENTRY_POINTS.length} workers` : ""}`);
