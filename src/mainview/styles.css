@@ -1,0 +1,9 @@
+/* Step 1 placeholder stylesheet. Step 6 replaces this with the real
+ * styles/index.css content (which imports tailwindcss + daisyui). */
+@import "tailwindcss";
+
+body {
+	margin: 0;
+	background: #1a1a1a;
+	color: #eee;
+}

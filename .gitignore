@@ -38,6 +38,12 @@ dist-ssr/
 frontend/dist/
 frontend/dist-ssr/
 
+# Electrobun
+build/
+node_modules/
+bun.lock
+bun.lockb
+
 # TypeScript
 *.tsbuildinfo
 frontend/*.tsbuildinfo
