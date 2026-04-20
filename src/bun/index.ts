@@ -37,13 +37,7 @@ import {
 	convertScreenplayToCsv,
 	convertCsvToScreenplay,
 } from "./converters/screenplay";
-// Step 5 will land compareCsvFiles. Until then, a sentinel throw keeps
-// the RPC table shape correct without masking that it's unimplemented.
-function notImplemented(name: string): () => never {
-	return () => {
-		throw new Error(`${name} is not yet implemented (port in progress)`);
-	};
-}
+import { compareCsvFiles } from "./converters/diff";
 
 // 10s is too aggressive on Linux — the GTK file dialog blocks the event loop
 // while open, so RPC responses queue up behind it. 60s keeps every dialog
@@ -71,7 +65,7 @@ const rpc = BrowserView.defineRPC<SeriaRPC>({
 
 			convertScreenplayToCsv,
 			convertCsvToScreenplay,
-			compareCsvFiles: notImplemented("compareCsvFiles"),
+			compareCsvFiles,
 
 			pickFile,
 			pickDirectory,

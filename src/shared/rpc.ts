@@ -22,15 +22,32 @@ export type FileIdentifiers = {
 	osFileId: string | null;
 };
 
+export type ModifiedCell = {
+	row: number;
+	col: number;
+	oldValue: string;
+	newValue: string;
+};
+
+export type ColumnChanges = {
+	added: string[];
+	deleted: string[];
+};
+
+// Matches the DiffResult shape the Rust backend used to serialize. Field
+// names are preserved so DiffViewModal's existing consumer code needs no
+// edits beyond swapping `invoke` for the typed RPC call.
 export type DiffResult = {
 	addedRows: number[];
 	deletedRows: number[];
-	modifiedCells: Array<{ row: number; col: number; old: string; new: string }>;
-	columnChanges: { added: number[]; deleted: number[] };
-	headers: { old: string[]; new: string[] };
-	oldGrid: string[][];
-	newGrid: string[][];
-	rowCounts: { old: number; new: number };
+	modifiedCells: ModifiedCell[];
+	columnChanges: ColumnChanges;
+	oldHeaders: string[];
+	newHeaders: string[];
+	oldData: string[][];
+	newData: string[][];
+	oldRowCount: number;
+	newRowCount: number;
 };
 
 export type DialogFilter = {
