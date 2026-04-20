@@ -33,9 +33,12 @@ import {
 	writeBinaryFile,
 	listDirectory,
 } from "./fs_ops";
-// Step 4 + 5 will land convertScreenplayToCsv / convertCsvToScreenplay /
-// compareCsvFiles here. Until then, the three handlers throw a sentinel
-// error that's noisy but preserves the shape of the RPC table.
+import {
+	convertScreenplayToCsv,
+	convertCsvToScreenplay,
+} from "./converters/screenplay";
+// Step 5 will land compareCsvFiles. Until then, a sentinel throw keeps
+// the RPC table shape correct without masking that it's unimplemented.
 function notImplemented(name: string): () => never {
 	return () => {
 		throw new Error(`${name} is not yet implemented (port in progress)`);
@@ -66,8 +69,8 @@ const rpc = BrowserView.defineRPC<SeriaRPC>({
 			loadWorkspaceLayouts,
 			saveWorkspaceLayouts,
 
-			convertScreenplayToCsv: notImplemented("convertScreenplayToCsv"),
-			convertCsvToScreenplay: notImplemented("convertCsvToScreenplay"),
+			convertScreenplayToCsv,
+			convertCsvToScreenplay,
 			compareCsvFiles: notImplemented("compareCsvFiles"),
 
 			pickFile,
