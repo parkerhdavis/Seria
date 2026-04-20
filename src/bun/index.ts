@@ -114,6 +114,10 @@ const win = new BrowserWindow({
 
 registerWindow(win);
 
-if (process.env.ELECTROBUN_DEV) {
+// DevTools is opt-in via its own env var. `make dev` sets ELECTROBUN_DEV
+// for unminified + sourcemap builds, but we don't want a devtools pane
+// popping up every time — pass ELECTROBUN_OPEN_DEVTOOLS=1 when you
+// actually want it.
+if (process.env.ELECTROBUN_OPEN_DEVTOOLS) {
 	win.webview.openDevTools();
 }
