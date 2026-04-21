@@ -2,14 +2,19 @@
 #
 # Package Seria for Linux distribution.
 #
-# Consumes the Electrobun stable bundle at target/v<version>/stable-linux-x64/seria/
-# and produces:
+# Electrobun's stable build at target/v<version>/stable-linux-x64/seria/ is
+# a self-extracting installer wrapper whose launcher expects a payload
+# appended to its own binary — that shape doesn't work inside a .deb/.rpm.
+# The real runnable app is inside target/artifacts/stable-linux-x64-seria.tar.zst
+# (the auto-update payload), which extracts to a standard app bundle with a
+# direct-run launcher. We extract that and package it.
 #
+# Produces:
 #   target/v<version>/seria_<version>_amd64.deb
 #   target/v<version>/seria-<version>-1.x86_64.rpm
 #
-# Requires: dpkg-deb (package: dpkg), rpmbuild (package: rpm), and a
-# previously-generated icon set under resources/icons/. Run
+# Requires: zstd (always), dpkg-deb (for .deb), rpmbuild (for .rpm), and
+# a previously-generated icon set under resources/icons/. Run
 # resources/icons/generate-icons.sh first if icons are missing.
 
 set -euo pipefail
@@ -37,17 +42,23 @@ if [ -z "$VERSION" ]; then
 	exit 1
 fi
 
-SRC_BUNDLE="$PROJECT_ROOT/target/v${VERSION}/stable-linux-x64/seria"
+APP_ARCHIVE="$PROJECT_ROOT/target/artifacts/stable-linux-x64-seria.tar.zst"
 OUT_DIR="$PROJECT_ROOT/target/v${VERSION}"
 
 # ─── Sanity checks ─────────────────────────────────────────────────────
 
-if [ ! -d "$SRC_BUNDLE" ]; then
-	echo "Error: Electrobun stable bundle not found at:"
-	echo "  $SRC_BUNDLE"
+if [ ! -f "$APP_ARCHIVE" ]; then
+	echo "Error: Electrobun app archive not found at:"
+	echo "  $APP_ARCHIVE"
 	echo ""
 	echo "Run 'bunx electrobun build --env=stable' first (the Makefile's"
 	echo "build-linux target does this automatically)."
+	exit 1
+fi
+
+if ! command -v zstd &> /dev/null; then
+	echo "Error: zstd not found. Install with:"
+	echo "  sudo apt install zstd"
 	exit 1
 fi
 
@@ -73,8 +84,8 @@ fi
 mkdir -p "$OUT_DIR"
 
 echo "Packaging Seria $VERSION for Linux..."
-echo "  Source bundle: $SRC_BUNDLE"
-echo "  Output dir:    $OUT_DIR"
+echo "  Source:     $APP_ARCHIVE"
+echo "  Output dir: $OUT_DIR"
 echo ""
 
 # ─── Build shared staging tree ─────────────────────────────────────────
@@ -87,6 +98,19 @@ echo ""
 
 STAGING="$(mktemp -d)"
 trap 'rm -rf "$STAGING"' EXIT
+
+# Extract the real app bundle from the zstd-compressed tarball. The archive
+# contains a `seria/` directory at its root with the direct-run launcher.
+EXTRACT_DIR="$STAGING/extracted"
+mkdir -p "$EXTRACT_DIR"
+zstd -d -c "$APP_ARCHIVE" 2>/dev/null | tar -x -C "$EXTRACT_DIR"
+SRC_BUNDLE="$EXTRACT_DIR/seria"
+
+if [ ! -x "$SRC_BUNDLE/bin/launcher" ]; then
+	echo "Error: extracted archive does not contain bin/launcher at:"
+	echo "  $SRC_BUNDLE/bin/launcher"
+	exit 1
+fi
 
 FHS_ROOT="$STAGING/fhs"
 mkdir -p "$FHS_ROOT/usr/bin"
