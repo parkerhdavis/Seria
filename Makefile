@@ -228,18 +228,19 @@ endif
 # Icons
 # -------------
 # Regenerate the full icon set from resources/icons/seria-icon-fullres.png.
-# `build-linux` depends on this target but the script is idempotent — a
-# no-op if nothing has changed upstream of the generator.
+# File-based dependency (not phony) — ImageMagick isn't byte-reproducible,
+# so we only regenerate when the source PNG or the generator script
+# actually changes. `make icons` forces regeneration via the phony alias.
 
-ifeq ($(DETECTED_OS),windows)
-icons:
+ICON_SOURCE := resources/icons/seria-icon-fullres.png
+ICON_SCRIPT := resources/icons/generate-icons.sh
+ICON_SENTINEL := resources/icons/512x512.png
+
+$(ICON_SENTINEL): $(ICON_SOURCE) $(ICON_SCRIPT)
 	@echo "Regenerating icons..."
-	bash resources/icons/generate-icons.sh
-else
-icons:
-	@echo "Regenerating icons..."
-	@bash resources/icons/generate-icons.sh
-endif
+	@bash $(ICON_SCRIPT)
+
+icons: $(ICON_SENTINEL)
 
 # -------------
 # Quality
