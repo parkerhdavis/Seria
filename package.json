@@ -2,15 +2,17 @@
 	"name": "seria",
 	"version": "0.1.0",
 	"description": "Seria — multimodal serialized-data editor for game writers and narrative designers",
+	"private": true,
 	"type": "module",
+	"workspaces": ["apps/*"],
 	"scripts": {
-		"build:view": "bun build.ts",
+		"build:view": "bun apps/desktop/frontend/build.ts",
 		"build": "bun run build:view",
-		"start": "bun run build:view && bunx electrobun dev",
-		"dev": "ELECTROBUN_DEV=1 bun run build:view && bunx electrobun dev --watch",
+		"start": "bun run build:view && cd apps/desktop && bunx electrobun dev",
+		"dev": "ELECTROBUN_DEV=1 bun run build:view && cd apps/desktop && bunx electrobun dev --watch",
 		"test": "bun test",
 		"lint": "eslint . --report-unused-disable-directives --max-warnings 0",
-		"format": "prettier --write \"src/**/*.{ts,tsx,css}\""
+		"format": "prettier --write \"apps/**/*.{ts,tsx,css}\""
 	},
 	"dependencies": {
 		"@tanstack/react-table": "^8.11.2",

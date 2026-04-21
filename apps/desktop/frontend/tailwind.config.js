@@ -3,8 +3,8 @@ import daisyui from "daisyui";
 /** @type {import('tailwindcss').Config} */
 export default {
     content: [
-        "./src/mainview/index.html",
-        "./src/mainview/**/*.{js,ts,jsx,tsx}",
+        "./src/index.html",
+        "./src/**/*.{js,ts,jsx,tsx}",
     ],
     theme: {
         extend: {},

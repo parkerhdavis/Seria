@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 import { promises as fs, readSync, openSync, closeSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, isAbsolute, dirname, basename, resolve } from "node:path";
-import type { FileIdentifiers } from "../shared/rpc";
+import type { FileIdentifiers } from "@shared/rpc";
 
 /**
  * Monotonic counter that, combined with a timestamp + pid, makes rapid

@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { Electroview } from "electrobun/view";
-import type { SeriaRPC } from "../shared/rpc";
+import type { SeriaRPC } from "@shared/rpc";
 import App from "./App";
 import { setRpc } from "./utils/rpc";
 

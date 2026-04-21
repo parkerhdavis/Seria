@@ -13,7 +13,7 @@
 
 import { promises as fs } from "node:fs";
 import { isAbsolute } from "node:path";
-import type { DirectoryEntry } from "../shared/rpc";
+import type { DirectoryEntry } from "@shared/rpc";
 
 function assertAbsolute(path: string): void {
 	if (!isAbsolute(path)) {
