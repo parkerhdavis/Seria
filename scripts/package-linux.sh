@@ -2,11 +2,11 @@
 #
 # Package Seria for Linux distribution.
 #
-# Consumes the Electrobun stable bundle at target/stable-linux-x64/seria/
+# Consumes the Electrobun stable bundle at target/v<version>/stable-linux-x64/seria/
 # and produces:
 #
-#   target/seria_<version>_amd64.deb
-#   target/seria-<version>-1.x86_64.rpm
+#   target/v<version>/seria_<version>_amd64.deb
+#   target/v<version>/seria-<version>-1.x86_64.rpm
 #
 # Requires: dpkg-deb (package: dpkg), rpmbuild (package: rpm), and a
 # previously-generated icon set under resources/icons/. Run
@@ -17,8 +17,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ICONS_DIR="$PROJECT_ROOT/resources/icons"
-SRC_BUNDLE="$PROJECT_ROOT/target/stable-linux-x64/seria"
-OUT_DIR="$PROJECT_ROOT/target"
+
+# VERSION is read below from package.json — SRC_BUNDLE / OUT_DIR are set
+# after that so they can embed the version in the path.
 
 # ─── Metadata ──────────────────────────────────────────────────────────
 
@@ -35,6 +36,9 @@ if [ -z "$VERSION" ]; then
 	echo "Error: could not read version from package.json"
 	exit 1
 fi
+
+SRC_BUNDLE="$PROJECT_ROOT/target/v${VERSION}/stable-linux-x64/seria"
+OUT_DIR="$PROJECT_ROOT/target/v${VERSION}"
 
 # ─── Sanity checks ─────────────────────────────────────────────────────
 

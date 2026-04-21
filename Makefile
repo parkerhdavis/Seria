@@ -85,7 +85,7 @@ help:
 	@echo ""
 	@echo "Versioning:"
 	@echo "  version            - Show current version"
-	@echo "  version V=X.Y.Z    - Set version across package.json and apps/desktop/electrobun.config.ts"
+	@echo "  version V=X.Y.Z    - Set version across root and apps/desktop/ package.json files"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  clean              - Remove target/ and frontend/dist/"
@@ -186,7 +186,7 @@ build-windows: build-view
 	(cd apps/desktop && $(BUN)x electrobun build --env=stable)
 	@echo ""
 	@echo "Windows build complete!"
-	@echo "Output: ./target/stable-win-x64/"
+	@echo "Output: ./target/v<version>/stable-win-x64/"
 
 build-macos:
 	@echo "ERROR: macOS builds must be run on macOS"
@@ -221,7 +221,7 @@ build-macos: build-view icons
 	@(cd apps/desktop && $(BUN)x electrobun build --env=stable)
 	@echo ""
 	@echo "macOS build complete!"
-	@echo "Output: ./target/stable-macos-*/ (includes .dmg)"
+	@echo "Output: ./target/v<version>/stable-macos-*/ (includes .dmg)"
 endif
 
 # -------------
@@ -309,9 +309,9 @@ ifndef V
 else
 	@echo "Updating version to $(V)..."
 	@(Get-Content package.json -Raw) -replace '"version": "[^"]*"', '"version": "$(V)"' | Set-Content package.json -NoNewline
-	@(Get-Content apps\desktop\electrobun.config.ts -Raw) -replace 'version: "[^"]*"', 'version: "$(V)"' | Set-Content apps\desktop\electrobun.config.ts -NoNewline
+	@(Get-Content apps\desktop\package.json -Raw) -replace '"version": "[^"]*"', '"version": "$(V)"' | Set-Content apps\desktop\package.json -NoNewline
 	@echo "  -> package.json"
-	@echo "  -> apps/desktop/electrobun.config.ts"
+	@echo "  -> apps/desktop/package.json"
 	@echo ""
 	@echo "Version updated to $(V)"
 endif
@@ -322,9 +322,9 @@ ifndef V
 else
 	@echo "Updating version to $(V)..."
 	@$(SED_INPLACE) 's/"version": "[^"]*"/"version": "$(V)"/' package.json
-	@$(SED_INPLACE) 's/version: "[^"]*"/version: "$(V)"/' apps/desktop/electrobun.config.ts
+	@$(SED_INPLACE) 's/"version": "[^"]*"/"version": "$(V)"/' apps/desktop/package.json
 	@echo "  -> package.json"
-	@echo "  -> apps/desktop/electrobun.config.ts"
+	@echo "  -> apps/desktop/package.json"
 	@echo ""
 	@echo "Version updated to $(V)"
 endif
