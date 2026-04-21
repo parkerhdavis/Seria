@@ -7,7 +7,7 @@
  */
 
 import { BrowserView, BrowserWindow } from "electrobun/bun";
-import type { SeriaRPC } from "../shared/rpc";
+import type { SeriaRPC } from "@shared/rpc";
 import {
 	openCellFile,
 	saveCellFile,
