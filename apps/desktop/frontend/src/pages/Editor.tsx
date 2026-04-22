@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { open } from "@utils/dialog";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useCellStore } from "@stores/cellStore";
 import CellGridVirtualized from "@components/cell/CellGridVirtualized";
 import { logger } from "@utils/logger";

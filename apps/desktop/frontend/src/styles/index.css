@@ -5,28 +5,28 @@
 /* Courier Prime Font Family */
 @font-face {
   font-family: "Courier Prime";
-  src: url("../public/fonts/courier-prime/Courier Prime.ttf") format("truetype");
+  src: url("/fonts/courier-prime/Courier Prime.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
 }
 
 @font-face {
   font-family: "Courier Prime";
-  src: url("../public/fonts/courier-prime/Courier Prime Bold.ttf") format("truetype");
+  src: url("/fonts/courier-prime/Courier Prime Bold.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
 }
 
 @font-face {
   font-family: "Courier Prime";
-  src: url("../public/fonts/courier-prime/Courier Prime Italic.ttf") format("truetype");
+  src: url("/fonts/courier-prime/Courier Prime Italic.ttf") format("truetype");
   font-weight: 400;
   font-style: italic;
 }
 
 @font-face {
   font-family: "Courier Prime";
-  src: url("../public/fonts/courier-prime/Courier Prime Bold Italic.ttf")
+  src: url("/fonts/courier-prime/Courier Prime Bold Italic.ttf")
     format("truetype");
   font-weight: 700;
   font-style: italic;

@@ -23,8 +23,8 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useGlobalConfigStore } from "@/stores/globalConfigStore";
 import { debouncedSaveCurrentFileConfig } from "@/utils/configPersistence";
 import { DragProvider } from "./contexts/DragContext";
-import { open, save } from "@utils/dialog";
-import { rpcCall } from "@utils/rpc";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import { serializeCell } from "@utils/cellParser";
 import { logger } from "@/utils/logger";
 import { formatError, isErrorWithMessage } from "@/utils/tauriErrorHandler";
@@ -235,7 +235,7 @@ function App() {
           state.delimiter,
         );
 
-        await rpcCall.saveCellFile({
+        await invoke("save_cell_file", {
           path: currentFile,
           content: cellContent,
         });

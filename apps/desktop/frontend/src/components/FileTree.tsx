@@ -6,8 +6,8 @@
  */
 
 import { useState } from "react";
-import { open } from "@utils/dialog";
-import { readDir } from "@utils/fs";
+import { open } from "@tauri-apps/plugin-dialog";
+import { readDir } from "@tauri-apps/plugin-fs";
 import { useCellStore } from "@stores/cellStore";
 import { useFileTreeStore } from "@stores/fileTreeStore";
 import { useSettingsStore } from "@stores/settingsStore";

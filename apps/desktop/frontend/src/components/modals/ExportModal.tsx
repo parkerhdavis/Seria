@@ -11,8 +11,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useCellStore } from "@stores/cellStore";
 import { useExportTemplateStore } from "@stores/exportTemplateStore";
-import { save } from "@utils/dialog";
-import { rpcCall } from "@utils/rpc";
+import { save } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import { logger } from "@utils/logger";
 import { formatError } from "@utils/tauriErrorHandler";
 import { toast } from "@stores/toastStore";
@@ -111,7 +111,7 @@ export default function ExportModal({ isOpen, onClose }: ExportModalProps) {
             });
 
             if (filePath) {
-                await rpcCall.saveCellFile({ path: filePath, content: output });
+                await invoke("save_cell_file", { path: filePath, content: output });
                 toast.success(`Exported to ${filePath.split("/").pop() || filePath.split("\\").pop()}`);
                 onClose();
             }

@@ -10,8 +10,8 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useCellStore } from "@stores/cellStore";
-import { open } from "@utils/dialog";
-import { rpcCall } from "@utils/rpc";
+import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import { logger } from "@utils/logger";
 import { formatError } from "@utils/tauriErrorHandler";
 import { toast } from "@stores/toastStore";
@@ -142,12 +142,12 @@ export default function DiffViewModal({ isOpen, onClose }: DiffViewModalProps) {
       const currentContent = serializeCell({ headers, data }, ",");
 
       // Load comparison file content
-      const compareContent = await rpcCall.openCellFile({
+      const compareContent = await invoke<string>("open_cell_file", {
         path: compareWith,
       });
 
       // Run diff comparison
-      const result = await rpcCall.compareCsvFiles({
+      const result = await invoke<DiffResult>("compare_csv_files", {
         oldContent: compareContent,
         newContent: currentContent,
       });

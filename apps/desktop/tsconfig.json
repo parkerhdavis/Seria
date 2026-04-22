@@ -3,6 +3,8 @@
 	"compilerOptions": {
 		"lib": ["ES2022", "DOM", "DOM.Iterable"],
 		"jsx": "react-jsx",
+		"allowJs": true,
+		"incremental": true,
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./frontend/src/*"],
@@ -10,10 +12,8 @@
 			"@stores/*": ["./frontend/src/stores/*"],
 			"@utils/*": ["./frontend/src/utils/*"],
 			"@styles/*": ["./frontend/src/styles/*"],
-			"@types/*": ["./frontend/src/types/*"],
-			"@shared/*": ["./shared/*"],
-			"@backend/*": ["./backend/src/*"]
+			"@types/*": ["./frontend/src/types/*"]
 		}
 	},
-	"include": ["backend", "frontend", "shared", "electrobun.config.ts"]
+	"include": ["backend/**/*.ts", "frontend/**/*.ts", "frontend/**/*.tsx"]
 }

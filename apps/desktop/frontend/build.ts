@@ -1,73 +1,100 @@
 /**
- * Build the mainview HTML + JS bundle and the web workers via Bun.build.
- * Tailwind is processed by bun-plugin-tailwind (Seria's CSS uses
- * @import "tailwindcss" + @plugin "daisyui", which the plugin resolves).
+ * Production Build Script
  *
- * Paths are relative to the repo root so this script runs the same whether
- * invoked as `bun frontend/build.ts` or `cd frontend && bun build.ts`.
+ * Replaces Vite's build pipeline with Bun's native bundler + Tailwind CLI.
+ * Outputs everything to dist/ for Tauri to bundle into the desktop app.
+ *
+ * Environment variables (set by Tauri during build):
+ *   TAURI_DEBUG  — when truthy, skips minification and enables sourcemaps
  */
 
-import { cp, rm } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import tailwind from "bun-plugin-tailwind";
+import { cp, rm, mkdir } from "fs/promises";
+import { existsSync } from "fs";
 
-const FRONTEND = dirname(fileURLToPath(import.meta.url));
-const DIST = resolve(FRONTEND, "dist");
-const SRC = resolve(FRONTEND, "src");
-const PUBLIC = resolve(SRC, "public");
-const isDebug = !!process.env.ELECTROBUN_DEV;
+const DIST = "dist";
+const isDebug = !!process.env.TAURI_DEBUG;
 
 const WORKER_ENTRY_POINTS = [
-	resolve(SRC, "utils/cellParser.worker.ts"),
-	resolve(SRC, "utils/cardPrint.worker.ts"),
-	resolve(SRC, "utils/screenplayPrint.worker.ts"),
+	"src/utils/cellParser.worker.ts",
+	"src/utils/cardPrint.worker.ts",
+	"src/utils/screenplayPrint.worker.ts",
 ];
 
-// Bun.build doesn't have emptyOutDir — clean manually so stale chunks don't
-// survive into the Electrobun bundle copy step.
-await rm(DIST, { recursive: true, force: true });
+// ---------------------------------------------------------------------------
+// Clean
+// ---------------------------------------------------------------------------
+if (existsSync(DIST)) {
+	await rm(DIST, { recursive: true });
+}
+await mkdir(DIST, { recursive: true });
 
-// Main view: HTML entrypoint mode picks up <script src="./index.tsx"> and
-// <link href="./styles.css"> references, bundles them, and rewrites the paths.
-const viewResult = await Bun.build({
-	entrypoints: [resolve(SRC, "index.html")],
-	outdir: DIST,
-	minify: !isDebug,
-	sourcemap: isDebug ? "linked" : "none",
-	plugins: [tailwind],
-});
-
-if (!viewResult.success) {
-	console.error("View build failed:");
-	for (const log of viewResult.logs) console.error(log);
+// ---------------------------------------------------------------------------
+// CSS — Tailwind CLI (processes @import "tailwindcss" and @plugin "daisyui")
+// ---------------------------------------------------------------------------
+console.log("  -> Building CSS...");
+const cssProc = Bun.spawn(
+	[
+		"bunx", "@tailwindcss/cli",
+		"-i", "src/styles/index.css",
+		"-o", `${DIST}/styles.css`,
+		...(isDebug ? [] : ["--minify"]),
+	],
+	{ stdout: "inherit", stderr: "inherit" },
+);
+await cssProc.exited;
+if (cssProc.exitCode !== 0) {
+	console.error("CSS build failed");
 	process.exit(1);
 }
 
-// Workers: separate bundles, loaded via new Worker(new URL("./workers/...")).
-const workersPresent = WORKER_ENTRY_POINTS.every(existsSync);
-if (workersPresent) {
-	const workerResult = await Bun.build({
-		entrypoints: WORKER_ENTRY_POINTS,
-		outdir: resolve(DIST, "workers"),
+// ---------------------------------------------------------------------------
+// Web Workers — separate bundles so they can be loaded via new Worker()
+// ---------------------------------------------------------------------------
+console.log("  -> Building workers...");
+for (const entry of WORKER_ENTRY_POINTS) {
+	const result = await Bun.build({
+		entrypoints: [entry],
+		outdir: `${DIST}/workers`,
 		target: "browser",
 		naming: "[name].js",
 		minify: !isDebug,
 		sourcemap: isDebug ? "linked" : "none",
 	});
-	if (!workerResult.success) {
-		console.error("Worker build failed:");
-		for (const log of workerResult.logs) console.error(log);
+	if (!result.success) {
+		console.error(`Worker build failed: ${entry}`);
+		for (const log of result.logs) console.error(log);
 		process.exit(1);
 	}
 }
 
-// Copy static assets (fonts etc.) into dist/ so the Electrobun bundle's
-// views/mainview/ directory has them alongside index.html. /fonts/... in
-// CSS then resolves correctly at webview load time.
-if (existsSync(PUBLIC)) {
-	await cp(PUBLIC, DIST, { recursive: true });
+// ---------------------------------------------------------------------------
+// Main application bundle
+// ---------------------------------------------------------------------------
+console.log("  -> Building main app...");
+const mainResult = await Bun.build({
+	entrypoints: ["src/main.tsx"],
+	outdir: DIST,
+	target: "browser",
+	naming: "[name].js",
+	minify: !isDebug,
+	sourcemap: isDebug ? "linked" : "none",
+	define: {
+		"process.env.NODE_ENV": isDebug ? '"development"' : '"production"',
+	},
+});
+if (!mainResult.success) {
+	console.error("Main build failed:");
+	for (const log of mainResult.logs) console.error(log);
+	process.exit(1);
 }
 
-console.log(`Build complete: ${viewResult.outputs.length} view file(s)${workersPresent ? ` + ${WORKER_ENTRY_POINTS.length} workers` : ""}`);
+// ---------------------------------------------------------------------------
+// Static assets — public/ → dist/, index.html → dist/
+// ---------------------------------------------------------------------------
+console.log("  -> Copying static assets...");
+if (existsSync("public")) {
+	await cp("public", DIST, { recursive: true });
+}
+await cp("index.html", `${DIST}/index.html`);
+
+console.log("  -> Frontend build complete!");

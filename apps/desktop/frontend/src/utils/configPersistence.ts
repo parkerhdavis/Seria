@@ -4,7 +4,7 @@
  * Helper functions for saving and managing file configurations.
  */
 
-import { rpcCall } from "./rpc";
+import { invoke } from "@tauri-apps/api/core";
 import { useCellStore } from "@stores/cellStore";
 import { useCellColumnStore } from "@stores/cellColumnStore";
 import { useCellFilterStore } from "@stores/cellFilterStore";
@@ -31,7 +31,7 @@ export async function saveCurrentFileConfig(): Promise<void> {
 
     try {
         // Get file identifiers
-        const identifiers = await rpcCall.getFileIdentifiers({
+        const identifiers = await invoke<FileIdentifiers>("get_file_identifiers", {
             path: cellStore.currentFile,
         });
 

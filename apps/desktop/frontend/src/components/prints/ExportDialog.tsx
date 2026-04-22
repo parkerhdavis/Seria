@@ -18,8 +18,8 @@
  */
 
 import { useState, useEffect } from "react";
-import { save } from "@utils/dialog";
-import { downloadDir } from "@utils/path";
+import { save } from "@tauri-apps/plugin-dialog";
+import { downloadDir } from "@tauri-apps/api/path";
 
 /**
  * Progress information passed to the onProgress callback

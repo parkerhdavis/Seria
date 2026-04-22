@@ -12,14 +12,18 @@
  */
 
 import { create } from "zustand";
-import { rpcCall } from "@utils/rpc";
+import { invoke } from "@tauri-apps/api/core";
 import { logger } from "@/utils/logger";
-// Re-export the RPC's canonical FileIdentifiers shape so the rest of the
-// renderer can keep importing it from here without knowing about the RPC
-// schema path. The port flipped `contentHashPartial`/`osFileId` from
-// undefined-optional to nullable, so make that explicit at the seam.
-import type { FileIdentifiers } from "@shared/rpc";
-export type { FileIdentifiers };
+
+// File identifiers used for matching configs to files
+export interface FileIdentifiers {
+    absolutePath: string;
+    filename: string;
+    parentDir: string;
+    fileSize: number;
+    contentHashPartial?: string;
+    osFileId?: string;
+}
 
 // Per-recipe display settings
 export interface RecipeDisplaySettings {
@@ -121,7 +125,7 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
     // Load configs from storage
     loadConfigs: async () => {
         try {
-            const jsonData = await rpcCall.loadFileConfigs({});
+            const jsonData = await invoke<string>("load_file_configs");
             const data: FileConfigData = JSON.parse(jsonData);
             set({ configData: data, isLoaded: true });
         } catch (error: unknown) {
@@ -144,7 +148,7 @@ export const useFileConfigStore = create<FileConfigStore>((set, get) => ({
 
         try {
             const jsonData = JSON.stringify(configData, null, 2);
-            await rpcCall.saveFileConfigs({ data: jsonData });
+            await invoke("save_file_configs", { data: jsonData });
         } catch (error: unknown) {
             logger.error("Failed to save file configs:", error);
         }

@@ -10,7 +10,7 @@
  */
 
 import { useState, useCallback } from "react";
-import { writeText, readText } from "@utils/clipboard";
+import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 import { logger } from "@utils/logger";
 import { toast } from "@stores/toastStore";
 

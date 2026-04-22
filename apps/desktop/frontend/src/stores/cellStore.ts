@@ -6,7 +6,7 @@
  */
 
 import { create } from "zustand";
-import { rpcCall } from "@utils/rpc";
+import { invoke } from "@tauri-apps/api/core";
 import Papa from "papaparse";
 import { CellFileInfo } from "@/types/cellData";
 import { parseCells, serializeCell, validateCell, getDelimiterFromPath, parseCellsProgressive } from "@utils/cellParser";
@@ -125,7 +125,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
         try {
             // Call Tauri command to read file
-            const fileContent = await rpcCall.openCellFile({ path });
+            const fileContent = await invoke<string>("open_cell_file", { path });
 
             // Parse Cell content
             const cellData = parseCells(fileContent);
@@ -171,7 +171,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
             // Load and apply file config
             try {
                 // Get file identifiers
-                const identifiers = await rpcCall.getFileIdentifiers({ path });
+                const identifiers = await invoke<FileIdentifiers>("get_file_identifiers", { path });
 
                 // Look up config in file config store
                 const fileConfig = useFileConfigStore.getState().findConfigForFile(identifiers);
@@ -309,7 +309,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
         try {
             // Call Tauri command to read file
-            const fileContent = await rpcCall.openCellFile({ path });
+            const fileContent = await invoke<string>("open_cell_file", { path });
 
             // Check if this load was cancelled (a newer load started)
             if (loadId !== currentLoadId) {
@@ -417,7 +417,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
                     // Load and apply file config (same as synchronous loading)
                     try {
-                        const identifiers = await rpcCall.getFileIdentifiers({ path });
+                        const identifiers = await invoke<FileIdentifiers>("get_file_identifiers", { path });
                         const fileConfig = useFileConfigStore.getState().findConfigForFile(identifiers);
 
                         if (fileConfig && fileConfig.config) {
@@ -584,7 +584,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
             const cellContent = serializeCell({ headers, data }, delimiter);
 
             // Call Tauri command to write file
-            await rpcCall.saveCellFile({
+            await invoke("save_cell_file", {
                 path: currentFile,
                 content: cellContent,
             });
@@ -617,7 +617,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
             const cellContent = serializeCell({ headers, data }, newDelimiter);
 
             // Call Tauri command to write file
-            await rpcCall.saveCellFile({
+            await invoke("save_cell_file", {
                 path,
                 content: cellContent,
             });
@@ -663,7 +663,7 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
         try {
             // Call Tauri command to create temp file
-            const tempFilePath = await rpcCall.createTempFile({});
+            const tempFilePath = await invoke<string>("create_temp_file");
 
             // Load the temp file (it comes with default headers)
             await get().loadCells(tempFilePath);
@@ -687,18 +687,18 @@ export const useCellStore = create<CellStore>((set, get) => ({
 
         try {
             // Read the screenplay file
-            const screenplayContent = await rpcCall.openCellFile({ path });
+            const screenplayContent = await invoke<string>("open_cell_file", { path });
 
             // Convert screenplay to CSV using the converter
-            const csvContent = await rpcCall.convertScreenplayToCsv({
+            const csvContent = await invoke<string>("convert_screenplay_to_csv", {
                 content: screenplayContent
             });
 
             // Create a temp file
-            const tempFilePath = await rpcCall.createTempFile({});
+            const tempFilePath = await invoke<string>("create_temp_file");
 
             // Save the converted CSV to the temp file
-            await rpcCall.saveCellFile({
+            await invoke("save_cell_file", {
                 path: tempFilePath,
                 content: csvContent
             });
@@ -733,12 +733,12 @@ export const useCellStore = create<CellStore>((set, get) => ({
             });
 
             // Convert CSV to screenplay format using the converter
-            const screenplayContent = await rpcCall.convertCsvToScreenplay({
+            const screenplayContent = await invoke<string>("convert_csv_to_screenplay", {
                 csvContent: csvContent
             });
 
             // Save the screenplay file
-            await rpcCall.saveCellFile({
+            await invoke("save_cell_file", {
                 path: savePath,
                 content: screenplayContent
             });

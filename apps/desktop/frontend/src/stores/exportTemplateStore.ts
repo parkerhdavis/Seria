@@ -9,7 +9,7 @@
 import { create } from "zustand";
 import type { ExportTemplate } from "@/types/exportTemplate";
 import { BUILT_IN_TEMPLATES } from "@/data/exportTemplates";
-import { rpcCall } from "@utils/rpc";
+import { invoke } from "@tauri-apps/api/core";
 import { logger } from "@utils/logger";
 import { serializeWithTemplate } from "@utils/dataTransformationPipeline";
 
@@ -52,7 +52,7 @@ export const useExportTemplateStore = create<ExportTemplateStore>(
 
         // Try to load custom templates from storage
         try {
-          const customJson = await rpcCall.loadPreferences({});
+          const customJson = await invoke<string>("load_preferences", {});
           const prefs = JSON.parse(customJson);
           if (prefs.exportTemplates && Array.isArray(prefs.exportTemplates)) {
             templates.push(...prefs.exportTemplates);
@@ -83,10 +83,10 @@ export const useExportTemplateStore = create<ExportTemplateStore>(
         // Persist custom templates
         const customTemplates = updatedTemplates.filter((t) => !t.isBuiltIn);
         try {
-          const prefsJson = await rpcCall.loadPreferences({});
+          const prefsJson = await invoke<string>("load_preferences", {});
           const prefs = JSON.parse(prefsJson);
           prefs.exportTemplates = customTemplates;
-          await rpcCall.savePreferences({ data: JSON.stringify(prefs) });
+          await invoke("save_preferences", { data: JSON.stringify(prefs) });
         } catch {
           logger.warn("Failed to persist custom export templates");
         }
@@ -110,10 +110,10 @@ export const useExportTemplateStore = create<ExportTemplateStore>(
         // Persist
         const customTemplates = updatedTemplates.filter((t) => !t.isBuiltIn);
         try {
-          const prefsJson = await rpcCall.loadPreferences({});
+          const prefsJson = await invoke<string>("load_preferences", {});
           const prefs = JSON.parse(prefsJson);
           prefs.exportTemplates = customTemplates;
-          await rpcCall.savePreferences({ data: JSON.stringify(prefs) });
+          await invoke("save_preferences", { data: JSON.stringify(prefs) });
         } catch {
           logger.warn("Failed to persist export template deletion");
         }

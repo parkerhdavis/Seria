@@ -5,7 +5,7 @@
  * Eliminates duplication between TitleBar and Header components.
  */
 
-import { open, save } from "@utils/dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { useCellStore } from "@/stores/cellStore";
 import { logger } from "@/utils/logger";
 import { formatError } from "@/utils/tauriErrorHandler";

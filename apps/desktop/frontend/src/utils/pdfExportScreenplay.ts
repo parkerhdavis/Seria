@@ -14,7 +14,7 @@
  */
 
 import { jsPDF } from "jspdf";
-import { writeFile } from "./fs";
+import { writeFile } from "@tauri-apps/plugin-fs";
 import type { ExportSettings } from "@/components/prints/ExportDialog";
 import type { PrintRecipe, RecipeConfiguration, RecipeIngredient } from "@/types/printRecipe";
 import { logger } from "@/utils/logger";

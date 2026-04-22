@@ -7,7 +7,7 @@
  * Requires native window decorations to be disabled in tauri.conf.json.
  */
 
-import { getCurrentWindow } from "@utils/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCellStore } from "@/stores/cellStore";
 import { useState, useEffect } from "react";
 import { logger } from "@/utils/logger";

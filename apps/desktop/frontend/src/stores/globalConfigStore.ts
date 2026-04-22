@@ -9,7 +9,7 @@
  */
 
 import { create } from "zustand";
-import { rpcCall } from "@utils/rpc";
+import { invoke } from "@tauri-apps/api/core";
 import { logger } from "@/utils/logger";
 
 /**
@@ -146,7 +146,7 @@ export const useGlobalConfigStore = create<GlobalConfigStore>((set, get) => ({
     // Load global config from storage
     loadConfig: async () => {
         try {
-            const jsonData = await rpcCall.loadPreferences({});
+            const jsonData = await invoke<string>("load_preferences");
             if (jsonData && jsonData !== "{}") {
                 let parsedData: unknown;
                 try {
@@ -183,7 +183,7 @@ export const useGlobalConfigStore = create<GlobalConfigStore>((set, get) => ({
 
         try {
             const jsonData = JSON.stringify(config, null, 2);
-            await rpcCall.savePreferences({ data: jsonData });
+            await invoke("save_preferences", { data: jsonData });
         } catch (error: unknown) {
             logger.error("Failed to save global config:", error);
         }

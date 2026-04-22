@@ -7,7 +7,7 @@
 
 import { create } from "zustand";
 import { WorkspaceLayout } from "@/types/workspace";
-import { rpcCall } from "@utils/rpc";
+import { invoke } from "@tauri-apps/api/core";
 import { logger } from "@/utils/logger";
 
 
@@ -40,7 +40,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
         try {
             // Try to load from backend
-            const layoutsJson = await rpcCall.loadWorkspaceLayouts({});
+            const layoutsJson = await invoke<string>("load_workspace_layouts");
             const layouts: WorkspaceLayout[] = JSON.parse(layoutsJson);
             set({ layouts, isLoading: false });
         } catch (error: unknown) {
@@ -79,7 +79,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
         try {
             // Try to save to backend
-            await rpcCall.saveWorkspaceLayouts({
+            await invoke("save_workspace_layouts", {
                 layoutsJson: JSON.stringify(updatedLayouts),
             });
         } catch (error: unknown) {
@@ -113,7 +113,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         });
 
         try {
-            await rpcCall.saveWorkspaceLayouts({
+            await invoke("save_workspace_layouts", {
                 layoutsJson: JSON.stringify(updatedLayouts),
             });
         } catch (error: unknown) {
@@ -132,7 +132,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         set({ layouts: updatedLayouts });
 
         try {
-            await rpcCall.saveWorkspaceLayouts({
+            await invoke("save_workspace_layouts", {
                 layoutsJson: JSON.stringify(updatedLayouts),
             });
         } catch (error: unknown) {
@@ -152,7 +152,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         set({ layouts: updatedLayouts });
 
         try {
-            await rpcCall.saveWorkspaceLayouts({
+            await invoke("save_workspace_layouts", {
                 layoutsJson: JSON.stringify(updatedLayouts),
             });
         } catch (error: unknown) {
@@ -176,7 +176,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         set({ layouts: updatedLayouts });
 
         try {
-            await rpcCall.saveWorkspaceLayouts({
+            await invoke("save_workspace_layouts", {
                 layoutsJson: JSON.stringify(updatedLayouts),
             });
         } catch (error: unknown) {

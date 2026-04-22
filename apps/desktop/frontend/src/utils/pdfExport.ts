@@ -7,7 +7,7 @@
 
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
-import { writeFile } from "./fs";
+import { writeFile } from "@tauri-apps/plugin-fs";
 import type { ExportSettings } from "@/components/prints/ExportDialog";
 import { logger } from "@/utils/logger";
 import { formatError } from "@/utils/tauriErrorHandler";

@@ -17,7 +17,7 @@ import { useCellStore } from "@stores/cellStore";
 import { useCellSelectionStore } from "@stores/cellSelectionStore";
 import { useCellEditStore } from "@stores/cellEditStore";
 import { useFindReplaceStore } from "@stores/findReplaceStore";
-import { writeText, readText } from "@utils/clipboard";
+import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 import { logger } from "@utils/logger";
 import { toast } from "@stores/toastStore";
 import { getElementStyle, isMultiLineElement } from "@utils/screenplayUtils";

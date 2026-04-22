@@ -82,8 +82,6 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
             filename: fileInfo.path.split("/").pop() || "",
             parentDir: fileInfo.path.substring(0, fileInfo.path.lastIndexOf("/")),
             fileSize: 0, // TODO: Get actual file size if needed
-            contentHashPartial: null,
-            osFileId: null,
         };
 
         const fileConfig = findConfigForFile(identifiers);
@@ -106,8 +104,6 @@ function PrintDrawer({ isOpen, position }: PrintPreviewDrawerProps) {
             filename: fileInfo.path.split("/").pop() || "",
             parentDir: fileInfo.path.substring(0, fileInfo.path.lastIndexOf("/")),
             fileSize: 0, // TODO: Get actual file size if needed
-            contentHashPartial: null,
-            osFileId: null,
         };
 
         const fileConfig = findConfigForFile(identifiers);

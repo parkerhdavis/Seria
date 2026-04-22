@@ -1,17 +1,8 @@
-.PHONY: help setup install dev start down build build-view build-linux build-windows build-macos icons test lint lint-fix format typecheck clean version
-
-# ==================================================================
-# Seria — Electrobun Makefile
-# ==================================================================
-# Under the hood, Electrobun + Bun replace Tauri + Rust. Build is
-# pure-TypeScript; packaging is handled by `electrobun` via its config
-# at electrobun.config.ts.
+.PHONY: help setup install dev dev-frontend down build build-linux build-windows build-macos check icons test lint lint-fix format typecheck clean version
 
 # ==================================================================
 # OS DETECTION
 # ==================================================================
-# Detect OS for platform-specific commands. On Windows, uname doesn't
-# exist, so we check for Windows-specific env vars first.
 ifdef OS
     ifeq ($(OS),Windows_NT)
         UNAME_S := Windows
@@ -41,10 +32,14 @@ ifeq ($(DETECTED_OS),windows)
     SHELL := pwsh.exe
     .SHELLFLAGS := -NoProfile -Command
     BUN := bun
+    # Run the Tauri CLI JS entry directly with bun to avoid the node shebang.
+    # Path resolves from apps/desktop/backend/ up to the hoisted root node_modules/.
+    TAURI := bun ..\..\..\node_modules\@tauri-apps\cli\tauri.js
     RM := Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     NULL := $$null
 else
     BUN := bun
+    TAURI := bun ../../../node_modules/@tauri-apps/cli/tauri.js
     RM := rm -rf
     NULL := /dev/null
     ifeq ($(DETECTED_OS),macos)
@@ -56,115 +51,198 @@ endif
 
 help:
 	@echo "================================================================================"
-	@echo "  Seria — Serialized-Data Editor for Game Writers"
+	@echo "  Seria Project - Development Commands"
 	@echo "================================================================================"
 	@echo ""
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Running (Development):"
-	@echo "  dev                - Build view and launch Electrobun with --watch"
-	@echo "  start              - Build view and launch Electrobun (no watcher)"
-	@echo "  down               - Stop any running dev process"
+	@echo "  dev                - Start Tauri dev server (frontend + Rust hot-reload)"
+	@echo "  dev-frontend       - Start Bun dev server only (rapid UI iteration)"
+	@echo "  down               - Stop any running dev server"
 	@echo ""
 	@echo "Building:"
-	@echo "  setup              - Install dependencies (bun install)"
+	@echo "  setup              - Check/install Rust + Bun + system deps, then bun install"
 	@echo "  install            - Alias for setup"
-	@echo "  build              - Build installable package for current platform (detects OS)"
-	@echo "  build-linux        - Build Linux installers (.deb, .rpm)"
-	@echo "  build-windows      - Build Windows installer"
-	@echo "  build-macos        - Build macOS installer (.dmg)"
-	@echo "  build-view         - Build only the view bundle (fast; used by dev targets)"
+	@echo "  build              - Build for current platform (auto-detects OS)"
+	@echo "  build-linux        - Build Linux installers (.deb, .rpm, AppImage)"
+	@echo "  build-windows      - Build Windows installers (.msi, .exe)"
+	@echo "  build-macos        - Build macOS installers (.dmg, .app)"
+	@echo "  check              - Run Rust compiler checks without building"
 	@echo "  icons              - Regenerate app icons from resources/icons/seria-icon-fullres.png"
 	@echo ""
 	@echo "Quality:"
-	@echo "  test               - Run bun test (renderer + Bun handlers + converters)"
-	@echo "  lint               - Run ESLint"
+	@echo "  lint               - Run ESLint and Rust clippy"
 	@echo "  lint-fix           - Run ESLint with --fix"
-	@echo "  format             - Run Prettier on src/"
+	@echo "  format             - Format code with Prettier and rustfmt"
+	@echo "  test               - Run tests (Bun + Rust tests)"
 	@echo "  typecheck          - Run TypeScript type checking"
 	@echo ""
 	@echo "Versioning:"
 	@echo "  version            - Show current version"
-	@echo "  version V=X.Y.Z    - Set version across root and apps/desktop/ package.json files"
+	@echo "  version V=X.Y.Z    - Set version across package.json, tauri.conf.json, Cargo.toml"
 	@echo ""
 	@echo "Maintenance:"
-	@echo "  clean              - Remove target/ and frontend/dist/"
+	@echo "  clean              - Remove build artifacts and dependencies"
 	@echo ""
 	@echo "Detected OS: $(DETECTED_OS)"
 	@echo "================================================================================"
 
 # ==================================================================
-# SERVICE COMMANDS
+# SETUP
 # ==================================================================
-
-# -------------
-# Running
-# -------------
-
-ifeq ($(DETECTED_OS),windows)
-dev: build-view
-	@echo "Starting Electrobun dev server with --watch..."
-	$$env:ELECTROBUN_DEV = "1"; (cd apps/desktop && $(BUN)x electrobun dev --watch)
-
-start: build-view
-	@echo "Starting Electrobun (one-shot, no watcher)..."
-	(cd apps/desktop && $(BUN)x electrobun dev)
-
-down:
-	@echo "Stopping dev processes..."
-	@echo "On Windows, close the terminal running the dev server or use Task Manager."
-else
-dev: build-view
-	@echo "Starting Electrobun dev server with --watch..."
-	@(cd apps/desktop && ELECTROBUN_DEV=1 $(BUN)x electrobun dev --watch)
-
-start: build-view
-	@echo "Starting Electrobun (one-shot, no watcher)..."
-	@(cd apps/desktop && $(BUN)x electrobun dev)
-
-down:
-	@echo "Stopping dev processes..."
-	-@pkill -f "seria-dev" 2>/dev/null || true
-	-@pkill -f "electrobun" 2>/dev/null || true
-endif
-
-# ==================================================================
-# COMMAND MODULES
-# ==================================================================
-
-# -------------
-# Building
-# -------------
+# Previously driven by setup.sh; folded into the Makefile so the monorepo
+# has one entry point. Checks/installs Rust + Bun, probes system deps
+# (webkit2gtk on Linux, Xcode CLT on macOS, VS Build Tools on Windows),
+# then runs `bun install` at the workspace root.
 
 ifeq ($(DETECTED_OS),windows)
 setup:
-	@echo "Installing dependencies..."
+	@echo "================================================================================"
+	@echo "  Seria Setup - Installing Dependencies"
+	@echo "================================================================================"
+	@if (-not (Get-Command rustc -ErrorAction SilentlyContinue)) { \
+		Write-Host "Rust not found. Install from https://rustup.rs then re-run 'make setup'."; \
+		exit 1; \
+	} else { \
+		Write-Host "Rust: $$(rustc --version)"; \
+	}
+	@if (-not (Get-Command bun -ErrorAction SilentlyContinue)) { \
+		Write-Host "Bun not found. Install from https://bun.sh then re-run 'make setup'."; \
+		exit 1; \
+	} else { \
+		Write-Host "Bun: $$(bun --version)"; \
+	}
+	@Write-Host ""
+	@Write-Host "Windows system requirements for Tauri:"
+	@Write-Host "  - Visual Studio C++ Build Tools"
+	@Write-Host "  - WebView2 Runtime (pre-installed on Windows 10+)"
+	@Write-Host "  See https://tauri.app/start/prerequisites/#windows"
+	@Write-Host ""
+	@Write-Host "Installing JS dependencies..."
 	$(BUN) install
-	@echo "Setup complete"
+	@Write-Host "Setup complete"
 
 install: setup
 else
 setup:
-	@echo "Installing dependencies..."
+	@echo "================================================================================"
+	@echo "  Seria Setup - Installing Dependencies"
+	@echo "================================================================================"
+	@if ! command -v rustc >/dev/null 2>&1; then \
+		echo "Rust not found. Installing via rustup..."; \
+		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh; \
+		echo "Rust installed. Please restart your shell and re-run 'make setup'."; \
+		exit 0; \
+	else \
+		echo "Rust: $$(rustc --version)"; \
+	fi
+	@if ! command -v bun >/dev/null 2>&1; then \
+		echo "Bun not found. Installing..."; \
+		curl -fsSL https://bun.sh/install | bash; \
+		echo "Bun installed. Please restart your shell and re-run 'make setup'."; \
+		exit 0; \
+	else \
+		echo "Bun: $$(bun --version)"; \
+	fi
+ifeq ($(DETECTED_OS),linux)
+	@echo ""
+	@echo "Checking Linux system dependencies for Tauri..."
+	@MISSING=""; \
+	for p in libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev; do \
+		if ! dpkg-query -W -f='$${Status}' "$$p" 2>/dev/null | grep -q "install ok installed"; then \
+			MISSING="$$MISSING $$p"; \
+		fi; \
+	done; \
+	if [ -n "$$MISSING" ]; then \
+		echo "Missing system packages:$$MISSING"; \
+		echo ""; \
+		echo "Install with: sudo apt install$$MISSING"; \
+		echo ""; \
+		echo "Continuing with JS install anyway — Tauri build will fail until these land."; \
+	else \
+		echo "All required system packages present."; \
+	fi
+else ifeq ($(DETECTED_OS),macos)
+	@echo ""
+	@echo "Checking macOS system dependencies..."
+	@if ! xcode-select -p >/dev/null 2>&1; then \
+		echo "Xcode Command Line Tools not installed."; \
+		echo "Install with: xcode-select --install"; \
+	else \
+		echo "Xcode Command Line Tools installed."; \
+	fi
+endif
+	@echo ""
+	@echo "Installing JS dependencies..."
 	@$(BUN) install
 	@echo "Setup complete"
 
 install: setup
 endif
 
+# ==================================================================
+# RUN
+# ==================================================================
+
 ifeq ($(DETECTED_OS),windows)
-build-view:
-	@echo "Building view bundle..."
-	$(BUN) apps/desktop/frontend/build.ts
+dev:
+	@echo "Starting Tauri development server (frontend + Rust)..."
+	cd apps/desktop/backend; $(TAURI) dev
+
+dev-frontend:
+	@echo "Starting Bun dev server only (rapid UI iteration)..."
+	cd apps/desktop/frontend; $(BUN) run dev.ts
+
+down:
+	@echo "On Windows, close the terminal running the dev server or use Task Manager."
 else
-build-view:
-	@echo "Building view bundle..."
-	@$(BUN) apps/desktop/frontend/build.ts
+dev:
+	@echo "Starting Tauri development server (frontend + Rust)..."
+	@# Kill any leftover dev server on port 5173 (prevents cross-project conflicts)
+	@EXISTING_PID=$$(lsof -ti :5173 2>/dev/null); \
+	if [ -n "$$EXISTING_PID" ]; then \
+		echo "  -> Killing existing process on port 5173 (pid $$EXISTING_PID)..."; \
+		kill $$EXISTING_PID 2>/dev/null || true; \
+		sleep 1; \
+	fi
+	@echo "  -> Starting Bun dev server in background..."
+	@cd apps/desktop/frontend && setsid $(BUN) run dev.ts > /dev/null 2>&1 & echo $$! > .dev.pid
+	@sleep 2
+	@echo "  -> Starting Tauri..."
+	@cd apps/desktop/backend && $(TAURI) dev; \
+	DEV_PID=$$(cat .dev.pid 2>/dev/null); \
+	if [ -n "$$DEV_PID" ]; then \
+		kill -- -$$DEV_PID 2>/dev/null || kill $$DEV_PID 2>/dev/null || true; \
+	fi; \
+	rm -f .dev.pid
+
+down:
+	@echo "Stopping Seria dev server..."
+	@DEV_PID=$$(cat .dev.pid 2>/dev/null); \
+	if [ -n "$$DEV_PID" ]; then \
+		kill -- -$$DEV_PID 2>/dev/null || kill $$DEV_PID 2>/dev/null || true; \
+		rm -f .dev.pid; \
+		echo "  -> Killed dev server process group (pid $$DEV_PID)"; \
+	else \
+		PORT_PID=$$(lsof -ti :5173 2>/dev/null); \
+		if [ -n "$$PORT_PID" ]; then \
+			kill $$PORT_PID 2>/dev/null || true; \
+			echo "  -> Killed process on port 5173 (pid $$PORT_PID)"; \
+		else \
+			echo "  -> No dev server running"; \
+		fi; \
+	fi
+
+dev-frontend:
+	@echo "Starting Bun dev server only (rapid UI iteration)..."
+	@cd apps/desktop/frontend && $(BUN) run dev.ts
 endif
 
-# `build` dispatches to the current-platform target. Cross-compilation
-# isn't supported by Electrobun — each platform must be built on its
-# own OS, mirroring the Tauri-era behavior.
+# ==================================================================
+# BUILD
+# ==================================================================
+
 ifeq ($(DETECTED_OS),windows)
 build:
 	@$(MAKE) build-windows
@@ -181,24 +259,25 @@ build-linux:
 	@echo "ERROR: Linux builds must be run on Linux"
 	@exit 1
 
-build-windows: build-view
-	@echo "  -> Running Electrobun stable build..."
-	(cd apps/desktop && $(BUN)x electrobun build --env=stable)
-	@echo ""
-	@echo "Windows build complete!"
-	@echo "Output: ./target/v<version>/stable-win-x64/"
+build-windows:
+	@echo "Building Windows installers (.msi, .exe)..."
+	@echo "  -> Building frontend..."
+	cd apps/desktop/frontend; $(BUN) run build.ts
+	@echo "  -> Building Tauri app for Windows..."
+	$$env:PATH = "$$env:USERPROFILE\.cargo\bin;$$env:PATH"; cd apps/desktop/backend; $(TAURI) build
+	@echo "Windows build complete. Output in target/release/bundle/"
 
 build-macos:
 	@echo "ERROR: macOS builds must be run on macOS"
 	@exit 1
 else ifeq ($(DETECTED_OS),linux)
-build-linux: build-view icons
-	@echo "  -> Running Electrobun stable build..."
-	@(cd apps/desktop && $(BUN)x electrobun build --env=stable)
-	@echo "  -> Packaging .deb and .rpm..."
-	@bash scripts/package-linux.sh
-	@echo ""
-	@echo "Linux build complete!"
+build-linux: icons
+	@echo "Building Linux installers (.deb, .rpm, AppImage)..."
+	@echo "  -> Building frontend..."
+	@cd apps/desktop/frontend && $(BUN) run build.ts
+	@echo "  -> Building Tauri app for Linux..."
+	@cd apps/desktop/backend && $(TAURI) build
+	@echo "Linux build complete. Output in target/release/bundle/"
 
 build-windows:
 	@echo "ERROR: Windows builds must be run on Windows"
@@ -216,21 +295,28 @@ build-windows:
 	@echo "ERROR: Windows builds must be run on Windows"
 	@exit 1
 
-build-macos: build-view icons
-	@echo "  -> Running Electrobun stable build..."
-	@(cd apps/desktop && $(BUN)x electrobun build --env=stable)
-	@echo ""
-	@echo "macOS build complete!"
-	@echo "Output: ./target/v<version>/stable-macos-*/ (includes .dmg)"
+build-macos: icons
+	@echo "Building macOS installers (.dmg, .app)..."
+	@echo "  -> Building frontend..."
+	@cd apps/desktop/frontend && $(BUN) run build.ts
+	@echo "  -> Building Tauri app for macOS..."
+	@cd apps/desktop/backend && $(TAURI) build
+	@echo "macOS build complete. Output in target/release/bundle/"
 endif
 
-# -------------
-# Icons
-# -------------
-# Regenerate the full icon set from resources/icons/seria-icon-fullres.png.
-# File-based dependency (not phony) — ImageMagick isn't byte-reproducible,
-# so we only regenerate when the source PNG or the generator script
-# actually changes. `make icons` forces regeneration via the phony alias.
+ifeq ($(DETECTED_OS),windows)
+check:
+	cd apps/desktop/backend; cargo check
+else
+check:
+	@cd apps/desktop/backend && cargo check
+endif
+
+# ==================================================================
+# ICONS
+# ==================================================================
+# File-based dependency: only regenerate when the source PNG or the
+# generator script changes. `make icons` forces it via the phony alias.
 
 ICON_SOURCE := resources/icons/seria-icon-fullres.png
 ICON_SCRIPT := resources/icons/generate-icons.sh
@@ -242,65 +328,66 @@ $(ICON_SENTINEL): $(ICON_SOURCE) $(ICON_SCRIPT)
 
 icons: $(ICON_SENTINEL)
 
-# -------------
-# Quality
-# -------------
+# ==================================================================
+# QUALITY
+# ==================================================================
 
 ifeq ($(DETECTED_OS),windows)
-test:
-	@echo "Running tests..."
-	$(BUN) test
-	@echo "Tests complete"
-
 lint:
-	@echo "Running ESLint..."
+	@echo "Linting JS..."
 	$(BUN) run lint
-	@echo "Lint complete"
+	@echo "Linting Rust..."
+	cd apps/desktop/backend; cargo clippy -- -D warnings
 
 lint-fix:
-	@echo "Running ESLint with --fix..."
 	$(BUN)x eslint . --fix
-	@echo "Lint fix complete"
 
 format:
-	@echo "Running Prettier..."
+	@echo "Formatting JS..."
 	$(BUN) run format
-	@echo "Format complete"
+	@echo "Formatting Rust..."
+	cd apps/desktop/backend; cargo fmt
+
+test:
+	@echo "Running JS tests..."
+	$(BUN) test
+	@echo "Running Rust tests..."
+	cd apps/desktop/backend; cargo test
 
 typecheck:
-	@echo "Running TypeScript type checking..."
+	@echo "Running TypeScript type check..."
 	$(BUN)x tsc --noEmit -p apps/desktop
-	@echo "Type check passed"
 else
-test:
-	@echo "Running tests..."
-	@$(BUN) test
-	@echo "Tests complete"
-
 lint:
-	@echo "Running ESLint..."
+	@echo "Linting JS..."
 	@$(BUN) run lint
-	@echo "Lint complete"
+	@echo "Linting Rust..."
+	@cd apps/desktop/backend && cargo clippy -- -D warnings
 
 lint-fix:
-	@echo "Running ESLint with --fix..."
 	@$(BUN)x eslint . --fix
-	@echo "Lint fix complete"
 
 format:
-	@echo "Running Prettier..."
+	@echo "Formatting JS..."
 	@$(BUN) run format
-	@echo "Format complete"
+	@echo "Formatting Rust..."
+	@cd apps/desktop/backend && cargo fmt
+
+test:
+	@echo "Running JS tests..."
+	@$(BUN) test
+	@echo "Running Rust tests..."
+	@cd apps/desktop/backend && cargo test
 
 typecheck:
-	@echo "Running TypeScript type checking..."
+	@echo "Running TypeScript type check..."
 	@$(BUN)x tsc --noEmit -p apps/desktop
-	@echo "Type check passed"
 endif
 
-# -------------
-# Versioning
-# -------------
+# ==================================================================
+# VERSIONING
+# ==================================================================
+# Syncs version across package.json (root + app), tauri.conf.json, Cargo.toml.
 
 ifeq ($(DETECTED_OS),windows)
 version:
@@ -311,10 +398,9 @@ else
 	@echo "Updating version to $(V)..."
 	@(Get-Content package.json -Raw) -replace '"version": "[^"]*"', '"version": "$(V)"' | Set-Content package.json -NoNewline
 	@(Get-Content apps\desktop\package.json -Raw) -replace '"version": "[^"]*"', '"version": "$(V)"' | Set-Content apps\desktop\package.json -NoNewline
-	@echo "  -> package.json"
-	@echo "  -> apps/desktop/package.json"
-	@echo ""
-	@echo "Version updated to $(V)"
+	@(Get-Content apps\desktop\backend\tauri.conf.json -Raw) -replace '"version": "[^"]*"', '"version": "$(V)"' | Set-Content apps\desktop\backend\tauri.conf.json -NoNewline
+	@(Get-Content apps\desktop\backend\Cargo.toml -Raw) -replace 'version = "[^"]*"', 'version = "$(V)"' | Set-Content apps\desktop\backend\Cargo.toml -NoNewline
+	@echo "Version updated to $(V) across package.json, tauri.conf.json, Cargo.toml"
 endif
 else
 version:
@@ -324,27 +410,24 @@ else
 	@echo "Updating version to $(V)..."
 	@$(SED_INPLACE) 's/"version": "[^"]*"/"version": "$(V)"/' package.json
 	@$(SED_INPLACE) 's/"version": "[^"]*"/"version": "$(V)"/' apps/desktop/package.json
-	@echo "  -> package.json"
-	@echo "  -> apps/desktop/package.json"
-	@echo ""
-	@echo "Version updated to $(V)"
+	@$(SED_INPLACE) 's/"version": "[^"]*"/"version": "$(V)"/' apps/desktop/backend/tauri.conf.json
+	@$(SED_INPLACE) 's/^version = "[^"]*"/version = "$(V)"/' apps/desktop/backend/Cargo.toml
+	@echo "Version updated to $(V) across package.json, tauri.conf.json, Cargo.toml"
 endif
 endif
 
-# -------------
-# Maintenance
-# -------------
+# ==================================================================
+# MAINTENANCE
+# ==================================================================
 
 ifeq ($(DETECTED_OS),windows)
 clean:
-	@echo "Cleaning build artifacts..."
+	if (Test-Path node_modules) { Remove-Item -Recurse -Force node_modules }
+	if (Test-Path apps\desktop\frontend\dist) { Remove-Item -Recurse -Force apps\desktop\frontend\dist }
 	if (Test-Path target) { Remove-Item -Recurse -Force target }
-	if (Test-Path frontend\dist) { Remove-Item -Recurse -Force frontend\dist }
-	@echo "Cleanup complete"
 else
 clean:
-	@echo "Cleaning build artifacts..."
-	@$(RM) target frontend/dist
+	@$(RM) node_modules apps/desktop/frontend/dist target
 	@echo "Cleanup complete"
 endif
 
