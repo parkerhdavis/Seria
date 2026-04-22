@@ -18,7 +18,7 @@ import { logger } from "@/utils/logger";
 // renderer can keep importing it from here without knowing about the RPC
 // schema path. The port flipped `contentHashPartial`/`osFileId` from
 // undefined-optional to nullable, so make that explicit at the seam.
-import type { FileIdentifiers } from "@shared/rpc";
+import type { FileIdentifiers } from "../../shared/rpc";
 export type { FileIdentifiers };
 
 // Per-recipe display settings

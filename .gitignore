@@ -1,7 +1,7 @@
 # ════════════════════════════════════════════════════════════════════════════════
 # Seria Project - Git Ignore Configuration
 # ════════════════════════════════════════════════════════════════════════════════
-# Environment | Dependencies | Build Artifacts | Logs | Testing | IDE | OS
+# Environment | Dependencies | Build Artifacts | Logs | Testing | IDE | OS | Docs
 # ════════════════════════════════════════════════════════════════════════════════
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -14,22 +14,39 @@
 # ────────────────────────────────────────────────────────────────────────────────
 # Dependencies
 # ────────────────────────────────────────────────────────────────────────────────
-node_modules/
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-bun.lock
-bun.lockb
+frontend/node_modules/
+frontend/package-lock.json
+frontend/yarn.lock
+frontend/pnpm-lock.yaml
+frontend/bun.lock
+frontend/bun.lockb
 
 # ────────────────────────────────────────────────────────────────────────────────
 # Build Artifacts & Distribution
 # ────────────────────────────────────────────────────────────────────────────────
-**/dist/
+# Rust/Tauri
 target/
-*.tsbuildinfo
+**/*.rs.bk
+*.pdb
+# Cargo.lock -- Rust prefers to track this
+backend/WixTools/
+gen/
 
-# Tools downloaded by the Makefile
-scripts/.tools/
+# Frontend
+dist/
+dist-ssr/
+frontend/dist/
+frontend/dist-ssr/
+
+# Electrobun
+build/
+node_modules/
+bun.lock
+bun.lockb
+
+# TypeScript
+*.tsbuildinfo
+frontend/*.tsbuildinfo
 
 # ────────────────────────────────────────────────────────────────────────────────
 # Logs & Temporary Files
@@ -40,6 +57,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
 *.tmp
 *.temp
 .dev.pid
@@ -49,6 +70,9 @@ pnpm-debug.log*
 # ────────────────────────────────────────────────────────────────────────────────
 coverage/
 .nyc_output/
+frontend/coverage/
+frontend/.nyc_output/
+samples/
 
 # ────────────────────────────────────────────────────────────────────────────────
 # IDE & Editors
@@ -78,4 +102,5 @@ Thumbs.db
 # ────────────────────────────────────────────────────────────────────────────────
 wiki-internal/
 .obsidian
+frontend/daisy-llms.txt
 *.local

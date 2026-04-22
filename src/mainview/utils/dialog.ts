@@ -9,7 +9,7 @@
  */
 
 import { rpcCall } from "./rpc";
-import type { DialogFilter } from "@shared/rpc";
+import type { DialogFilter } from "../../shared/rpc";
 
 export type OpenDialogOptions = {
 	title?: string;

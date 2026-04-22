@@ -8,7 +8,7 @@
  */
 
 import type { Electroview } from "electrobun/view";
-import type { SeriaRPC } from "@shared/rpc";
+import type { SeriaRPC } from "../../shared/rpc";
 
 type SeriaRpcInstance = ReturnType<typeof Electroview.defineRPC<SeriaRPC>>;
 type SeriaElectroview = Electroview<SeriaRpcInstance>;

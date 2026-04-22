@@ -8,7 +8,7 @@
  * the intersection of old/new headers within each matched row pair.
  */
 
-import type { DiffResult, ModifiedCell } from "@shared/rpc";
+import type { DiffResult, ModifiedCell } from "../../shared/rpc";
 
 export function compareCsvFiles({
 	oldContent,

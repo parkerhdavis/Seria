@@ -17,7 +17,7 @@
 
 import { Utils } from "electrobun/bun";
 import { isAbsolute, join, basename, dirname } from "node:path";
-import type { DialogFilter } from "@shared/rpc";
+import type { DialogFilter } from "../shared/rpc";
 
 function filtersToAllowedTypes(filters: DialogFilter[] | undefined): string {
 	if (!filters || filters.length === 0) return "*";

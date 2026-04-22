@@ -106,7 +106,7 @@ describe("All About Eve sample", () => {
 		// resources/ ships at repo root alongside backend/src/. The test runs
 		// from the repo root (bun test is invoked via bun from there), so
 		// path.resolve anchors there too.
-		const samplePath = resolve(process.cwd(), "resources/samples/sample_aae_fulltext.txt");
+		const samplePath = resolve(process.cwd(), "resources/sample_aae_fulltext.txt");
 		const screenplay = readFileSync(samplePath, "utf-8");
 		const csv = convertScreenplayToCsv({ content: screenplay });
 
