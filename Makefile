@@ -32,14 +32,12 @@ ifeq ($(DETECTED_OS),windows)
     SHELL := pwsh.exe
     .SHELLFLAGS := -NoProfile -Command
     BUN := bun
-    # Run the Tauri CLI JS entry directly with bun to avoid the node shebang.
-    # Path resolves from apps/desktop/backend/ up to the hoisted root node_modules/.
-    TAURI := bun ..\..\..\node_modules\@tauri-apps\cli\tauri.js
+    TAURI := bunx tauri
     RM := Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     NULL := $$null
 else
     BUN := bun
-    TAURI := bun ../../../node_modules/@tauri-apps/cli/tauri.js
+    TAURI := bunx tauri
     RM := rm -rf
     NULL := /dev/null
     ifeq ($(DETECTED_OS),macos)
