@@ -1,0 +1,10 @@
+# Cargo configuration for Seria backend
+# Routes Cargo output to the repo-root target/ (../../../target from this file),
+# keeping all build artifacts — Rust and bundled installers alike — in one place.
+
+[build]
+target-dir = "../../../target"
+
+# cargo-xwin is used for Windows cross-compilation, invoked as a cargo
+# wrapper command (via CARGO=cargo-xwin), not as a linker.
+# See Makefile build-windows target for usage.

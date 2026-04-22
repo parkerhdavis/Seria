@@ -1,12 +1,9 @@
-.PHONY: help dev down build build-linux build-windows build-macos upload upload-dry lint format test clean setup install dev-frontend check
+.PHONY: help setup install dev dev-frontend down build build-linux build-windows build-macos check icons test lint lint-fix format typecheck clean version
 
 # ==================================================================
 # OS DETECTION
 # ==================================================================
-# Detect OS for platform-specific commands
-# On Windows, uname doesn't exist, so we check for Windows-specific env vars first
 ifdef OS
-    # Windows sets OS=Windows_NT
     ifeq ($(OS),Windows_NT)
         UNAME_S := Windows
     else
@@ -31,26 +28,25 @@ else
     DETECTED_OS := windows
 endif
 
-# Windows-specific: use PowerShell 7 (pwsh) for complex commands
 ifeq ($(DETECTED_OS),windows)
     SHELL := pwsh.exe
     .SHELLFLAGS := -NoProfile -Command
-    SYNC_VERSION := pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/sync-version.ps1
     BUN := bun
-    # Run the tauri CLI JS entry point directly with bun to avoid needing node on PATH.
-    TAURI := bun ..\frontend\node_modules\@tauri-apps\cli\tauri.js
-    MKDIR := New-Item -ItemType Directory -Force -Path
+    # Run the Tauri CLI JS entry directly with bun to avoid the node shebang.
+    # Path resolves from apps/desktop/backend/ up to the hoisted root node_modules/.
+    TAURI := bun ..\..\..\node_modules\@tauri-apps\cli\tauri.js
     RM := Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     NULL := $$null
 else
-    SYNC_VERSION := ./scripts/sync-version.sh
     BUN := bun
-    # Run the tauri CLI JS entry point directly with bun to avoid the #!/usr/bin/env node shim,
-    # since node may not be on PATH (bun replaces it as our JS runtime).
-    TAURI := bun ../frontend/node_modules/@tauri-apps/cli/tauri.js
-    MKDIR := mkdir -p
+    TAURI := bun ../../../node_modules/@tauri-apps/cli/tauri.js
     RM := rm -rf
     NULL := /dev/null
+    ifeq ($(DETECTED_OS),macos)
+        SED_INPLACE := sed -i ''
+    else
+        SED_INPLACE := sed -i
+    endif
 endif
 
 help:
@@ -66,18 +62,25 @@ help:
 	@echo "  down               - Stop any running dev server"
 	@echo ""
 	@echo "Building:"
-	@echo "  setup              - Install all dependencies (Rust + Bun)"
-	@echo "  install            - Install dependencies (runs setup.sh)"
-	@echo "  build              - Build for current platform (detects OS)"
+	@echo "  setup              - Check/install Rust + Bun + system deps, then bun install"
+	@echo "  install            - Alias for setup"
+	@echo "  build              - Build for current platform (auto-detects OS)"
 	@echo "  build-linux        - Build Linux installers (.deb, .rpm, AppImage)"
 	@echo "  build-windows      - Build Windows installers (.msi, .exe)"
 	@echo "  build-macos        - Build macOS installers (.dmg, .app)"
 	@echo "  check              - Run Rust compiler checks without building"
+	@echo "  icons              - Regenerate app icons from resources/icons/seria-icon-fullres.png"
 	@echo ""
 	@echo "Quality:"
 	@echo "  lint               - Run ESLint and Rust clippy"
+	@echo "  lint-fix           - Run ESLint with --fix"
 	@echo "  format             - Format code with Prettier and rustfmt"
 	@echo "  test               - Run tests (Bun + Rust tests)"
+	@echo "  typecheck          - Run TypeScript type checking"
+	@echo ""
+	@echo "Versioning:"
+	@echo "  version            - Show current version"
+	@echo "  version V=X.Y.Z    - Set version across package.json, tauri.conf.json, Cargo.toml"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  clean              - Remove build artifacts and dependencies"
@@ -86,25 +89,112 @@ help:
 	@echo "================================================================================"
 
 # ==================================================================
-# SERVICE COMMANDS
-# The most standard commands typically run by devs
+# SETUP
 # ==================================================================
+# Previously driven by setup.sh; folded into the Makefile so the monorepo
+# has one entry point. Checks/installs Rust + Bun, probes system deps
+# (webkit2gtk on Linux, Xcode CLT on macOS, VS Build Tools on Windows),
+# then runs `bun install` at the workspace root.
 
-# -------------
-# Running
-# -------------
+ifeq ($(DETECTED_OS),windows)
+setup:
+	@echo "================================================================================"
+	@echo "  Seria Setup - Installing Dependencies"
+	@echo "================================================================================"
+	@if (-not (Get-Command rustc -ErrorAction SilentlyContinue)) { \
+		Write-Host "Rust not found. Install from https://rustup.rs then re-run 'make setup'."; \
+		exit 1; \
+	} else { \
+		Write-Host "Rust: $$(rustc --version)"; \
+	}
+	@if (-not (Get-Command bun -ErrorAction SilentlyContinue)) { \
+		Write-Host "Bun not found. Install from https://bun.sh then re-run 'make setup'."; \
+		exit 1; \
+	} else { \
+		Write-Host "Bun: $$(bun --version)"; \
+	}
+	@Write-Host ""
+	@Write-Host "Windows system requirements for Tauri:"
+	@Write-Host "  - Visual Studio C++ Build Tools"
+	@Write-Host "  - WebView2 Runtime (pre-installed on Windows 10+)"
+	@Write-Host "  See https://tauri.app/start/prerequisites/#windows"
+	@Write-Host ""
+	@Write-Host "Installing JS dependencies..."
+	$(BUN) install
+	@Write-Host "Setup complete"
+
+install: setup
+else
+setup:
+	@echo "================================================================================"
+	@echo "  Seria Setup - Installing Dependencies"
+	@echo "================================================================================"
+	@if ! command -v rustc >/dev/null 2>&1; then \
+		echo "Rust not found. Installing via rustup..."; \
+		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh; \
+		echo "Rust installed. Please restart your shell and re-run 'make setup'."; \
+		exit 0; \
+	else \
+		echo "Rust: $$(rustc --version)"; \
+	fi
+	@if ! command -v bun >/dev/null 2>&1; then \
+		echo "Bun not found. Installing..."; \
+		curl -fsSL https://bun.sh/install | bash; \
+		echo "Bun installed. Please restart your shell and re-run 'make setup'."; \
+		exit 0; \
+	else \
+		echo "Bun: $$(bun --version)"; \
+	fi
+ifeq ($(DETECTED_OS),linux)
+	@echo ""
+	@echo "Checking Linux system dependencies for Tauri..."
+	@MISSING=""; \
+	for p in libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev; do \
+		if ! dpkg-query -W -f='$${Status}' "$$p" 2>/dev/null | grep -q "install ok installed"; then \
+			MISSING="$$MISSING $$p"; \
+		fi; \
+	done; \
+	if [ -n "$$MISSING" ]; then \
+		echo "Missing system packages:$$MISSING"; \
+		echo ""; \
+		echo "Install with: sudo apt install$$MISSING"; \
+		echo ""; \
+		echo "Continuing with JS install anyway — Tauri build will fail until these land."; \
+	else \
+		echo "All required system packages present."; \
+	fi
+else ifeq ($(DETECTED_OS),macos)
+	@echo ""
+	@echo "Checking macOS system dependencies..."
+	@if ! xcode-select -p >/dev/null 2>&1; then \
+		echo "Xcode Command Line Tools not installed."; \
+		echo "Install with: xcode-select --install"; \
+	else \
+		echo "Xcode Command Line Tools installed."; \
+	fi
+endif
+	@echo ""
+	@echo "Installing JS dependencies..."
+	@$(BUN) install
+	@echo "Setup complete"
+
+install: setup
+endif
+
+# ==================================================================
+# RUN
+# ==================================================================
 
 ifeq ($(DETECTED_OS),windows)
 dev:
 	@echo "Starting Tauri development server (frontend + Rust)..."
-	cd backend; $(TAURI) dev
+	cd apps/desktop/backend; $(TAURI) dev
 
 dev-frontend:
 	@echo "Starting Bun dev server only (rapid UI iteration)..."
-	cd frontend; bun run dev
+	cd apps/desktop/frontend; $(BUN) run dev.ts
 
 down:
-	@echo "Stopping dev server..."
 	@echo "On Windows, close the terminal running the dev server or use Task Manager."
 else
 dev:
@@ -117,20 +207,15 @@ dev:
 		sleep 1; \
 	fi
 	@echo "  -> Starting Bun dev server in background..."
-	@cd frontend && setsid bun run dev > /dev/null 2>&1 & echo $$! > .dev.pid
+	@cd apps/desktop/frontend && setsid $(BUN) run dev.ts > /dev/null 2>&1 & echo $$! > .dev.pid
 	@sleep 2
 	@echo "  -> Starting Tauri..."
-	@cd backend && $(TAURI) dev; \
-	DEV_PID=$$(cat ../.dev.pid 2>/dev/null); \
+	@cd apps/desktop/backend && $(TAURI) dev; \
+	DEV_PID=$$(cat .dev.pid 2>/dev/null); \
 	if [ -n "$$DEV_PID" ]; then \
 		kill -- -$$DEV_PID 2>/dev/null || kill $$DEV_PID 2>/dev/null || true; \
 	fi; \
-	rm -f ../.dev.pid
-	@DEV_PID=$$(cat .dev.pid 2>/dev/null); \
-	if [ -n "$$DEV_PID" ]; then \
-		kill -- -$$DEV_PID 2>/dev/null || kill $$DEV_PID 2>/dev/null || true; \
-	fi
-	@rm -f .dev.pid
+	rm -f .dev.pid
 
 down:
 	@echo "Stopping Seria dev server..."
@@ -140,7 +225,6 @@ down:
 		rm -f .dev.pid; \
 		echo "  -> Killed dev server process group (pid $$DEV_PID)"; \
 	else \
-		echo "  -> No .dev.pid found, checking port 5173..."; \
 		PORT_PID=$$(lsof -ti :5173 2>/dev/null); \
 		if [ -n "$$PORT_PID" ]; then \
 			kill $$PORT_PID 2>/dev/null || true; \
@@ -152,60 +236,22 @@ down:
 
 dev-frontend:
 	@echo "Starting Bun dev server only (rapid UI iteration)..."
-	@cd frontend && bun run dev
+	@cd apps/desktop/frontend && $(BUN) run dev.ts
 endif
 
 # ==================================================================
-# COMMAND MODULES
-# Typically part of a Service Command; can also be run manually
+# BUILD
 # ==================================================================
 
-# -------------
-# Building
-# -------------
-
 ifeq ($(DETECTED_OS),windows)
-setup:
-	@echo "Installing all dependencies (Rust + Bun)..."
-	@echo "Please ensure Rust and Bun are installed."
-	cd frontend; bun install
-	@echo "Setup complete"
-
-install: setup
-	@echo "Dependencies installed"
-else
-setup:
-	@echo "Installing all dependencies (Rust + Bun)..."
-	@./setup.sh
-	@echo "Setup complete"
-
-install: setup
-	@echo "Dependencies installed"
-endif
-
-ifeq ($(DETECTED_OS),windows)
-# On Windows, inline the build commands to avoid recursive make issues with PowerShell
 build:
-	@echo "Building Windows installers (.msi, .exe)..."
-	@echo "  -> Syncing version from .env..."
-	$(SYNC_VERSION)
-	@echo "  -> Building frontend..."
-	cd frontend; bun run build
-	@echo "  -> Building Tauri app for Windows..."
-	$$env:PATH = "$$env:USERPROFILE\.cargo\bin;$$env:PATH"; cd backend; $(TAURI) build
-	@echo ""
-	@echo "Windows build complete!"
-	@echo ""
-	@echo "Build outputs in target/release/bundle/:"
-	@echo "  - MSI Installer:  target/release/bundle/msi/"
-	@echo "  - NSIS Installer: target/release/bundle/nsis/"
-else
+	@$(MAKE) build-windows
+else ifeq ($(DETECTED_OS),linux)
 build:
-ifeq ($(DETECTED_OS),linux)
 	@$(MAKE) build-linux
 else ifeq ($(DETECTED_OS),macos)
+build:
 	@$(MAKE) build-macos
-endif
 endif
 
 ifeq ($(DETECTED_OS),windows)
@@ -215,167 +261,173 @@ build-linux:
 
 build-windows:
 	@echo "Building Windows installers (.msi, .exe)..."
-	@echo "  -> Syncing version from .env..."
-	$(SYNC_VERSION)
 	@echo "  -> Building frontend..."
-	cd frontend; bun run build
+	cd apps/desktop/frontend; $(BUN) run build.ts
 	@echo "  -> Building Tauri app for Windows..."
-	$$env:PATH = "$$env:USERPROFILE\.cargo\bin;$$env:PATH"; cd backend; $(TAURI) build
-	@echo ""
-	@echo "Windows build complete!"
-	@echo ""
-	@echo "Build outputs in target/release/bundle/:"
-	@echo "  - MSI Installer:  target/release/bundle/msi/"
-	@echo "  - NSIS Installer: target/release/bundle/nsis/"
+	$$env:PATH = "$$env:USERPROFILE\.cargo\bin;$$env:PATH"; cd apps/desktop/backend; $(TAURI) build
+	@echo "Windows build complete. Output in target/release/bundle/"
 
 build-macos:
 	@echo "ERROR: macOS builds must be run on macOS"
 	@exit 1
-else
-build-linux:
+else ifeq ($(DETECTED_OS),linux)
+build-linux: icons
 	@echo "Building Linux installers (.deb, .rpm, AppImage)..."
-	@echo "  -> Syncing version from .env..."
-	@$(SYNC_VERSION)
 	@echo "  -> Building frontend..."
-	@cd frontend && bun run build
+	@cd apps/desktop/frontend && $(BUN) run build.ts
 	@echo "  -> Building Tauri app for Linux..."
-	@cd backend && $(TAURI) build
-	@echo ""
-	@echo "Linux build complete!"
-	@echo ""
-	@echo "Build outputs in target/release/bundle/:"
-	@echo "  - AppImage: target/release/bundle/appimage/"
-	@echo "  - Debian:   target/release/bundle/deb/"
-	@echo "  - RPM:      target/release/bundle/rpm/"
+	@cd apps/desktop/backend && $(TAURI) build
+	@echo "Linux build complete. Output in target/release/bundle/"
 
 build-windows:
 	@echo "ERROR: Windows builds must be run on Windows"
 	@exit 1
 
 build-macos:
+	@echo "ERROR: macOS builds must be run on macOS"
+	@exit 1
+else ifeq ($(DETECTED_OS),macos)
+build-linux:
+	@echo "ERROR: Linux builds must be run on Linux"
+	@exit 1
+
+build-windows:
+	@echo "ERROR: Windows builds must be run on Windows"
+	@exit 1
+
+build-macos: icons
 	@echo "Building macOS installers (.dmg, .app)..."
-	@echo "  -> Syncing version from .env..."
-	@$(SYNC_VERSION)
 	@echo "  -> Building frontend..."
-	@cd frontend && bun run build
+	@cd apps/desktop/frontend && $(BUN) run build.ts
 	@echo "  -> Building Tauri app for macOS..."
-	@cd backend && $(TAURI) build
-	@echo ""
-	@echo "macOS build complete!"
-	@echo ""
-	@echo "Build outputs in target/release/bundle/:"
-	@echo "  - DMG:  target/release/bundle/dmg/"
-	@echo "  - App:  target/release/bundle/macos/"
+	@cd apps/desktop/backend && $(TAURI) build
+	@echo "macOS build complete. Output in target/release/bundle/"
 endif
 
 ifeq ($(DETECTED_OS),windows)
 check:
-	@echo "Running Rust compiler checks..."
-	cd backend; cargo check
-	@echo "Rust checks passed"
+	cd apps/desktop/backend; cargo check
 else
 check:
-	@echo "Running Rust compiler checks..."
-	@cd backend && cargo check
-	@echo "Rust checks passed"
+	@cd apps/desktop/backend && cargo check
 endif
 
-upload:
-	@echo "Uploading release artifacts to GitLab Package Registry..."
-ifeq ($(DETECTED_OS),windows)
-	@echo "ERROR: Upload script requires bash. Please run from WSL or Git Bash."
-	@exit 1
-else
-	@if [ ! -f target/upload-to-gitlab.sh ]; then \
-		echo "ERROR: Upload script not found at target/upload-to-gitlab.sh"; \
-		exit 1; \
-	fi
-	@cd target && ./upload-to-gitlab.sh
-endif
+# ==================================================================
+# ICONS
+# ==================================================================
+# File-based dependency: only regenerate when the source PNG or the
+# generator script changes. `make icons` forces it via the phony alias.
 
-upload-dry:
-	@echo "Dry run - checking what would be uploaded..."
-ifeq ($(DETECTED_OS),windows)
-	@echo "ERROR: Upload script requires bash. Please run from WSL or Git Bash."
-	@exit 1
-else
-	@if [ ! -f target/upload-to-gitlab.sh ]; then \
-		echo "ERROR: Upload script not found at target/upload-to-gitlab.sh"; \
-		exit 1; \
-	fi
-	@cd target && ./upload-to-gitlab.sh --dry-run
-endif
+ICON_SOURCE := resources/icons/seria-icon-fullres.png
+ICON_SCRIPT := resources/icons/generate-icons.sh
+ICON_SENTINEL := resources/icons/512x512.png
 
-# -------------
-# Quality
-# -------------
+$(ICON_SENTINEL): $(ICON_SOURCE) $(ICON_SCRIPT)
+	@echo "Regenerating icons..."
+	@bash $(ICON_SCRIPT)
+
+icons: $(ICON_SENTINEL)
+
+# ==================================================================
+# QUALITY
+# ==================================================================
 
 ifeq ($(DETECTED_OS),windows)
 lint:
-	@echo "Linting frontend code..."
-	cd frontend; bun run lint
-	@echo "Linting Rust code..."
-	cd backend; cargo clippy -- -D warnings
-	@echo "Lint complete"
+	@echo "Linting JS..."
+	$(BUN) run lint
+	@echo "Linting Rust..."
+	cd apps/desktop/backend; cargo clippy -- -D warnings
+
+lint-fix:
+	$(BUN)x eslint . --fix
 
 format:
-	@echo "Formatting frontend code..."
-	cd frontend; bunx prettier --write src/
-	@echo "Formatting Rust code..."
-	cd backend; cargo fmt
-	@echo "Format complete"
+	@echo "Formatting JS..."
+	$(BUN) run format
+	@echo "Formatting Rust..."
+	cd apps/desktop/backend; cargo fmt
 
 test:
-	@echo "Running frontend tests..."
-	cd frontend; bun run test
+	@echo "Running JS tests..."
+	$(BUN) test
 	@echo "Running Rust tests..."
-	cd backend; cargo test
-	@echo "Tests complete"
+	cd apps/desktop/backend; cargo test
+
+typecheck:
+	@echo "Running TypeScript type check..."
+	$(BUN)x tsc --noEmit -p apps/desktop
 else
 lint:
-	@echo "Linting frontend code..."
-	@cd frontend && bun run lint
-	@echo "Linting Rust code..."
-	@cd backend && cargo clippy -- -D warnings
-	@echo "Lint complete"
+	@echo "Linting JS..."
+	@$(BUN) run lint
+	@echo "Linting Rust..."
+	@cd apps/desktop/backend && cargo clippy -- -D warnings
+
+lint-fix:
+	@$(BUN)x eslint . --fix
 
 format:
-	@echo "Formatting frontend code..."
-	@cd frontend && bunx prettier --write src/
-	@echo "Formatting Rust code..."
-	@cd backend && cargo fmt
-	@echo "Format complete"
+	@echo "Formatting JS..."
+	@$(BUN) run format
+	@echo "Formatting Rust..."
+	@cd apps/desktop/backend && cargo fmt
 
 test:
-	@echo "Running frontend tests..."
-	@cd frontend && bun run test
+	@echo "Running JS tests..."
+	@$(BUN) test
 	@echo "Running Rust tests..."
-	@cd backend && cargo test
-	@echo "Tests complete"
+	@cd apps/desktop/backend && cargo test
+
+typecheck:
+	@echo "Running TypeScript type check..."
+	@$(BUN)x tsc --noEmit -p apps/desktop
 endif
 
-# -------------
-# Maintenance
-# -------------
+# ==================================================================
+# VERSIONING
+# ==================================================================
+# Syncs version across package.json (root + app), tauri.conf.json, Cargo.toml.
+
+ifeq ($(DETECTED_OS),windows)
+version:
+ifndef V
+	@echo "Current version:"
+	@(Select-String -Path package.json -Pattern '"version": "(.+)"').Matches.Groups[1].Value
+else
+	@echo "Updating version to $(V)..."
+	@(Get-Content package.json -Raw) -replace '"version": "[^"]*"', '"version": "$(V)"' | Set-Content package.json -NoNewline
+	@(Get-Content apps\desktop\package.json -Raw) -replace '"version": "[^"]*"', '"version": "$(V)"' | Set-Content apps\desktop\package.json -NoNewline
+	@(Get-Content apps\desktop\backend\tauri.conf.json -Raw) -replace '"version": "[^"]*"', '"version": "$(V)"' | Set-Content apps\desktop\backend\tauri.conf.json -NoNewline
+	@(Get-Content apps\desktop\backend\Cargo.toml -Raw) -replace 'version = "[^"]*"', 'version = "$(V)"' | Set-Content apps\desktop\backend\Cargo.toml -NoNewline
+	@echo "Version updated to $(V) across package.json, tauri.conf.json, Cargo.toml"
+endif
+else
+version:
+ifndef V
+	@echo "Current version: $$(grep '^\s*\"version\":' package.json | head -1 | sed 's/.*\"version\": \"\(.*\)\".*/\1/')"
+else
+	@echo "Updating version to $(V)..."
+	@$(SED_INPLACE) 's/"version": "[^"]*"/"version": "$(V)"/' package.json
+	@$(SED_INPLACE) 's/"version": "[^"]*"/"version": "$(V)"/' apps/desktop/package.json
+	@$(SED_INPLACE) 's/"version": "[^"]*"/"version": "$(V)"/' apps/desktop/backend/tauri.conf.json
+	@$(SED_INPLACE) 's/^version = "[^"]*"/version = "$(V)"/' apps/desktop/backend/Cargo.toml
+	@echo "Version updated to $(V) across package.json, tauri.conf.json, Cargo.toml"
+endif
+endif
+
+# ==================================================================
+# MAINTENANCE
+# ==================================================================
 
 ifeq ($(DETECTED_OS),windows)
 clean:
-	@echo "Cleaning build artifacts..."
-	if (Test-Path frontend/node_modules) { Remove-Item -Recurse -Force frontend/node_modules }
-	if (Test-Path frontend/dist) { Remove-Item -Recurse -Force frontend/dist }
 	if (Test-Path node_modules) { Remove-Item -Recurse -Force node_modules }
-	if (Test-Path target) { Get-ChildItem target -Exclude README.md,upload-to-gitlab.sh | Remove-Item -Recurse -Force }
-	@echo "Cleanup complete"
+	if (Test-Path apps\desktop\frontend\dist) { Remove-Item -Recurse -Force apps\desktop\frontend\dist }
+	if (Test-Path target) { Remove-Item -Recurse -Force target }
 else
 clean:
-	@echo "Cleaning build artifacts..."
-	@rm -rf frontend/node_modules
-	@rm -rf frontend/dist
-	@rm -rf node_modules
-	@if [ -d target ]; then \
-		echo "  -> Cleaning target/ (preserving README.md and upload-to-gitlab.sh)..."; \
-		find target -mindepth 1 -maxdepth 1 ! -name 'README.md' ! -name 'upload-to-gitlab.sh' -exec rm -rf {} + ; \
-	fi
+	@$(RM) node_modules apps/desktop/frontend/dist target
 	@echo "Cleanup complete"
 endif
 

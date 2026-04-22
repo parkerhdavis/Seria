@@ -1,6 +1,6 @@
 [package]
 name = "seria"
-version = "0.1.0"
+version = "0.0.3"
 description = "Multimodal serialized data editor for game writers and narrative designers"
 authors = ["Parker H. Davis"]
 license = ""
