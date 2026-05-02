@@ -3,7 +3,7 @@ name = "seria"
 version = "0.0.4"
 description = "Multimodal serialized data editor for game writers and narrative designers"
 authors = ["Parker H. Davis"]
-license = ""
+license = "AGPL-3.0-or-later"
 repository = ""
 edition = "2021"
 

@@ -3,5 +3,6 @@
 	"private": true,
 	"version": "0.0.4",
 	"type": "module",
-	"description": "Seria desktop app"
+	"description": "Seria desktop app",
+	"license": "AGPL-3.0-or-later"
 }

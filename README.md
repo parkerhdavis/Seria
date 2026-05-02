@@ -178,7 +178,7 @@ I was inspired to create Seria not only by my experiences as a game director, wr
 
 ## License
 
-Covered under the GPL License, see [LICENSE](./LICENSE.md)
+Covered under the AGPL License, see [LICENSE](./LICENSE.md)
 
 Beyond that, I only have one rule: **First, do no harm. Then, help where you can.**
 
