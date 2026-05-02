@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Icon generation script for Seria (Electrobun app)
 # Generates all icon sizes from seria-icon-fullres.png and stages them for

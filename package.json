@@ -2,6 +2,7 @@
 	"name": "seria",
 	"version": "0.0.4",
 	"description": "Seria — multimodal serialized-data editor for game writers and narrative designers",
+	"license": "AGPL-3.0-or-later",
 	"private": true,
 	"type": "module",
 	"workspaces": ["apps/*"],
